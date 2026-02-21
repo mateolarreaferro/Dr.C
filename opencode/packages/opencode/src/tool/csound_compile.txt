@@ -1,0 +1,13 @@
+Compile a Csound .csd file and return structured diagnostics.
+
+Runs `csound` in syntax-check mode (no audio output) to validate the file. Returns structured error/warning diagnostics with line numbers, severity, and messages.
+
+Use this tool after generating or patching a .csd file to verify it compiles correctly. If compilation fails, examine the diagnostics to understand what needs fixing.
+
+Parameters:
+- filePath: Absolute path to the .csd file to compile
+
+Returns structured output with:
+- exit_code: 0 for success, non-zero for failure
+- diagnostics: Array of {severity, line, col, message, opcode} objects
+- stdout/stderr: Raw compiler output

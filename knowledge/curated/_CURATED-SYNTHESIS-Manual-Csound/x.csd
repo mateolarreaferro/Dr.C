@@ -1,0 +1,53 @@
+<CsoundSynthesizer>
+<CsInstruments>
+
+0dbfs  = 1
+
+instr 1
+
+aenv expseg .01, p3*0.25, 1, p3*0.75, 0.01
+asig poscil3 .8*aenv, p4, 1
+     outs asig, asig
+
+endin
+</CsInstruments>
+<CsScore>
+f 1 0 16384 10 1	;sine wave
+
+s			;first section
+i 1 0 2 110
+i 1 3 2 220
+i 1 6 2 440
+i 1 9 2 880
+s			;second section
+x			;skip the rest
+i 1 0 2 110		;of this section
+i 1 3 2 220
+i 1 6 2 440
+i 1 9 2 880
+s			;but continue with this one
+i 1 0 2 880
+i 1 3 2 440
+i 1 6 2 220
+i 1 9 2 110
+e
+</CsScore>
+</CsoundSynthesizer>
+
+<bsbPanel>
+ <label>Widgets</label>
+ <objectName/>
+ <x>100</x>
+ <y>100</y>
+ <width>320</width>
+ <height>240</height>
+ <visible>true</visible>
+ <uuid/>
+ <bgcolor mode="background">
+  <r>240</r>
+  <g>240</g>
+  <b>240</b>
+ </bgcolor>
+</bsbPanel>
+<bsbPresets>
+</bsbPresets>

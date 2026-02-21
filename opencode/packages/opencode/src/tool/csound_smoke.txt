@@ -1,0 +1,11 @@
+Run a short smoke test of a Csound .csd file to detect runtime crashes or hangs.
+
+Executes the .csd file for a brief duration (default 1 second) to verify it runs without crashing. This catches issues that pass compilation but fail at runtime (e.g., division by zero, invalid table access, infinite loops).
+
+Use this after successful compilation to validate runtime behavior.
+
+Parameters:
+- filePath: Absolute path to the .csd file
+- durationSeconds: How long to run (default 1.0, max 5.0)
+
+Returns exit_code, stdout, stderr from the short run.

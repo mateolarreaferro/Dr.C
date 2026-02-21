@@ -1,0 +1,54 @@
+<CsoundSynthesizer>
+<CsOptions>
+</CsOptions>
+<CsInstruments>
+
+; Instrument #1.
+instr 1
+  ; Display the label "Volume" on Slider #1.
+  setctrl 1, "Volume", 4
+  ; Set Slider #1's initial value to 20.
+  setctrl 1, 20, 1
+  
+  ; Capture and display the values for Slider #1.
+  k1 control 1
+  printk2 k1
+
+  ; Play a simple oscillator.
+  ; Use the values from Slider #1 for amplitude.
+  kamp = k1 * 128
+  a1 oscil kamp, 440, 1
+  out a1
+endin
+
+
+</CsInstruments>
+<CsScore>
+
+; Table #1, a sine wave.
+f 1 0 16384 10 1
+
+; Play Instrument #1 for thirty seconds.
+i 1 0 30
+e
+
+
+</CsScore>
+</CsoundSynthesizer>
+<bsbPanel>
+ <label>Widgets</label>
+ <objectName/>
+ <x>100</x>
+ <y>100</y>
+ <width>320</width>
+ <height>240</height>
+ <visible>true</visible>
+ <uuid/>
+ <bgcolor mode="background">
+  <r>240</r>
+  <g>240</g>
+  <b>240</b>
+ </bgcolor>
+</bsbPanel>
+<bsbPresets>
+</bsbPresets>

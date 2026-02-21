@@ -1,0 +1,16 @@
+Render a Csound .csd file to a .wav audio file, and optionally play it back.
+
+Executes the .csd file with Csound, writing output to a WAV file. Use this after successful compilation and smoke testing to produce audible output for the user.
+
+Parameters:
+- filePath: Absolute path to the .csd file to render
+- outputPath: Output .wav path (defaults to <input-basename>.wav in the same directory)
+- durationSeconds: Maximum render duration in seconds (default 10, max 30)
+- playback: If true, play the rendered audio after completion (uses afplay on macOS, aplay on Linux)
+
+Returns:
+- Render status (success/failure)
+- Output file path and size
+- Duration rendered
+- Playback status if requested
+- Stderr from Csound (warnings, info)

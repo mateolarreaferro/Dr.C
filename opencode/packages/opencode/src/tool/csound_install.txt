@@ -1,0 +1,11 @@
+Install Csound on the current system.
+
+Detects the platform and uses the appropriate package manager to install Csound:
+- macOS: `brew install csound`
+- Linux (Debian/Ubuntu): `sudo apt-get install -y csound`
+- Linux (Fedora/RHEL): `sudo dnf install -y csound`
+- Linux (Arch): `sudo pacman -S --noconfirm csound`
+
+Use this tool when Csound is not installed and the user wants to work with .csd files. The tool will check if Csound is already installed first, and skip installation if so.
+
+Returns the installation result and the installed Csound version.

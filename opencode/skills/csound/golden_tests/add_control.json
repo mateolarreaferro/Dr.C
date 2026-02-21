@@ -1,0 +1,13 @@
+{
+  "prompt": "Add a reverb mix control to this synth",
+  "initial_csd": "skills/csound/snippets/basic_synth.csd",
+  "expected_properties": {
+    "required_widgets": ["reverbMix"],
+    "required_chngets": ["reverbMix"],
+    "has_smoothing": true,
+    "has_reverb_opcode": true,
+    "compiles": true,
+    "max_compile_iterations": 2,
+    "preserves_existing_channels": true
+  }
+}

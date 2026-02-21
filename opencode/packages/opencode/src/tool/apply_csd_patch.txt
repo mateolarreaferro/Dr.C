@@ -1,0 +1,15 @@
+Apply a patch to a Csound .csd file with section-aware validation.
+
+This tool applies text patches to .csd files, ensuring patches target valid CSD sections (<Cabbage>, <CsInstruments>, <CsScore>, <CsOptions>). It validates the patch won't corrupt the CSD structure and uses file locking for consistency.
+
+Use this tool when you need to modify specific sections of a .csd file. The patch format is a unified diff applied to the file.
+
+Parameters:
+- filePath: Absolute path to the .csd file to patch
+- patch: The unified diff patch content to apply
+- targetSection: Optional - which CSD section this patch targets (for validation)
+
+The tool validates that:
+1. The file is a valid .csd with proper section tags
+2. The patch targets recognized CSD sections
+3. The patch doesn't break section boundaries

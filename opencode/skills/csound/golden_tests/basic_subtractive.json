@@ -1,0 +1,17 @@
+{
+  "prompt": "Create a basic subtractive synth with cutoff and resonance controls",
+  "initial_csd": null,
+  "expected_properties": {
+    "has_cabbage_section": true,
+    "has_csinstruments_section": true,
+    "has_csscore_section": true,
+    "required_widgets": ["cutoff", "resonance"],
+    "required_chngets": ["cutoff", "resonance"],
+    "has_smoothing": true,
+    "has_filter_opcode": true,
+    "has_oscillator_opcode": true,
+    "has_envelope": true,
+    "compiles": true,
+    "max_compile_iterations": 3
+  }
+}

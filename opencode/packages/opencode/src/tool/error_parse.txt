@@ -1,0 +1,10 @@
+Parse Csound compiler stderr output into structured diagnostics.
+
+Takes raw stderr text from a Csound compilation and returns an array of structured diagnostic objects. This is a pure text processing tool — no subprocess is spawned.
+
+Use this when you have raw Csound error output and need to extract specific error locations and messages.
+
+Parameters:
+- stderr: Raw stderr output from a Csound compilation
+
+Returns an array of diagnostics, each with: severity, line, col, message, opcode.

@@ -1,0 +1,49 @@
+<CsoundSynthesizer>
+<CsOptions>
+</CsOptions>
+<CsInstruments>
+
+0dbfs  = 1
+
+instr 1
+; p4=amp
+; p5=freq
+; p6=attack time
+; p7=release time
+ares linen  p4, p6, p3, p7 
+asig poscil ares, p5, 1    
+     outs   asig, asig     
+                                         
+endin
+</CsInstruments>
+<CsScore>
+f1   0    4096 10 1      ; sine wave
+
+;ins strt dur amp  freq attack release
+i1   0    1   .5   440   0.5    0.7
+i1   1.5  1   .2   440   0.9    0.1
+i1   3    1   .2   880   0.02   0.99
+i1   4.5  1   .2   880   0.7    0.01
+i1   6    3   .7   220   0.5    0.5
+e
+</CsScore>
+</CsoundSynthesizer>
+
+
+<bsbPanel>
+ <label>Widgets</label>
+ <objectName/>
+ <x>100</x>
+ <y>100</y>
+ <width>320</width>
+ <height>240</height>
+ <visible>true</visible>
+ <uuid/>
+ <bgcolor mode="background">
+  <r>240</r>
+  <g>240</g>
+  <b>240</b>
+ </bgcolor>
+</bsbPanel>
+<bsbPresets>
+</bsbPresets>

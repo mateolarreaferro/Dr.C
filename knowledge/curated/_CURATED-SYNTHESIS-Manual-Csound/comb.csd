@@ -1,0 +1,59 @@
+<CsoundSynthesizer>
+<CsOptions>
+</CsOptions>
+<CsInstruments>
+
+0dbfs = 1
+
+gamix init 0 
+
+instr 1 
+
+kcps    expon p5, p3, p4
+asig	vco2  0.3, kcps
+	outs  asig, asig 
+
+gamix = gamix + asig 
+
+endin
+
+instr 99 
+
+krvt =  3.5
+ilpt =  0.1
+aleft	comb gamix, krvt, ilpt
+aright	comb gamix, krvt, ilpt*.2
+	outs   aleft, aright
+
+clear gamix	; clear mixer
+ 
+endin
+
+</CsInstruments>
+<CsScore>
+
+i 1 0 3 20 2000
+i 1 5 .01 440 440
+
+i 99 0 8
+e
+
+</CsScore>
+</CsoundSynthesizer>
+<bsbPanel>
+ <label>Widgets</label>
+ <objectName/>
+ <x>100</x>
+ <y>100</y>
+ <width>320</width>
+ <height>240</height>
+ <visible>true</visible>
+ <uuid/>
+ <bgcolor mode="background">
+  <r>240</r>
+  <g>240</g>
+  <b>240</b>
+ </bgcolor>
+</bsbPanel>
+<bsbPresets>
+</bsbPresets>

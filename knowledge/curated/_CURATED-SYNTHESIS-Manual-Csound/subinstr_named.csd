@@ -1,0 +1,71 @@
+<CsoundSynthesizer>
+<CsOptions>
+</CsOptions>
+<CsInstruments>
+
+
+; Instrument "basic_tone" - Creates a basic tone.
+instr basic_tone
+  ; Print the value of p4, should be equal to
+  ; Instrument #2's iamp field.
+  print p4
+
+  ; Print the value of p5, should be equal to
+  ; Instrument #2's ipitch field.
+  print p5
+
+  ; Create a tone.
+  asig oscils p4, p5, 0
+
+  out asig
+endin
+
+
+; Instrument #1 - Demonstrates the subinstr opcode.
+instr 1
+  iamp = 20000
+  ipitch = 440
+
+  ; Use the "basic_tone" named instrument to create a 
+  ; basic sine-wave tone.
+  ; Its p4 parameter will be set using the iamp variable.
+  ; Its p5 parameter will be set using the ipitch variable.
+  abasic subinstr "basic_tone", iamp, ipitch
+
+  ; Output the basic tone that we have created.
+  out abasic
+endin
+
+
+</CsInstruments>
+<CsScore>
+
+; Table #1, a sine wave.
+f 1 0 16384 10 1
+
+; Play Instrument #1 for one second.
+i 1 0 1
+e
+
+
+</CsScore>
+</CsoundSynthesizer>
+
+
+<bsbPanel>
+ <label>Widgets</label>
+ <objectName/>
+ <x>100</x>
+ <y>100</y>
+ <width>320</width>
+ <height>240</height>
+ <visible>true</visible>
+ <uuid/>
+ <bgcolor mode="background">
+  <r>240</r>
+  <g>240</g>
+  <b>240</b>
+ </bgcolor>
+</bsbPanel>
+<bsbPresets>
+</bsbPresets>

@@ -1,0 +1,396 @@
+{
+  "product": {
+    "name": "Csound Agent Studio",
+    "edition": "Cabbage",
+    "working_title": "OpenCode for Csound (Cabbage)",
+    "mission": "A single-purpose AI assistant that generates and patches Csound/Cabbage .csd files with compile-validated diffs, and can author/modify Cabbage UI with correct chnget/chnset bindings.",
+    "scope": {
+      "outputs_only": [
+        "Unified diff patches targeting the active .csd",
+        "Optional new .csd templates (generated via diff insertion)",
+        "Structured macro/parameter manifest",
+        "Build/run instructions relevant to Csound/Cabbage execution"
+      ],
+      "non_goals": [
+        "General conversation or advice unrelated to Csound/Cabbage code",
+        "Music critique or mixing guidance unless it directly changes Csound code",
+        "DAW project management",
+        "Asset generation beyond referencing existing files"
+      ]
+    },
+    "success_metrics": [
+      {
+        "metric": "compile_success_rate",
+        "target": ">= 0.95",
+        "notes": "On golden test suite prompts"
+      },
+      {
+        "metric": "median_repair_iterations_to_green",
+        "target": "<= 2",
+        "notes": "Compile/repair loop iterations"
+      },
+      {
+        "metric": "patch_locality",
+        "target": "small_diffs_by_default",
+        "notes": "Avoid full-file rewrites unless requested"
+      },
+      {
+        "metric": "macro_contract_integrity",
+        "target": "100%",
+        "notes": "Every macro channel must exist in <Cabbage> and be consumed in <CsInstruments>"
+      }
+    ]
+  },
+  "architecture": {
+    "deployment_modes": [
+      {
+        "name": "local_first",
+        "default": true,
+        "description": "Cabbage UI plugin/sidecar connects to a localhost orchestrator; model may be local or remote. Project code/assets remain local unless remote model is enabled."
+      },
+      {
+        "name": "remote_optional",
+        "default": false,
+        "description": "User opt-in remote orchestration/model. Requires redaction controls and explicit consent."
+      }
+    ],
+    "components": [
+      {
+        "name": "cabbage_extension_or_sidecar_ui",
+        "responsibilities": [
+          "Prompt + constraints input",
+          "Diff viewing and hunk application",
+          "Compile/smoke-run triggers",
+          "Macro controls panel driven by manifest",
+          "Snapshot history + restore",
+          "Apply patches to open .csd"
+        ]
+      },
+      {
+        "name": "agent_orchestrator",
+        "responsibilities": [
+          "Context packaging (document + constraints + recent errors)",
+          "Strict schema enforcement (JSON-only model output)",
+          "Diff-first workflow (propose/apply/rollback)",
+          "Validation pipeline (compile -> repair -> smoke run)",
+          "Snapshots/versioning and audit logs",
+          "Snippet retrieval (optional but recommended)",
+          "Model provider abstraction (OpenAI/Anthropic/local)"
+        ]
+      },
+      {
+        "name": "model_provider",
+        "responsibilities": [
+          "Generate patch JSON conforming to schema",
+          "Repair mode: minimal diffs based on compiler stderr",
+          "No prose; no markdown"
+        ],
+        "pluggable": true
+      },
+      {
+        "name": "tooling_layer",
+        "responsibilities": [
+          "csound compile wrapper",
+          "smoke run wrapper",
+          "stderr parsing to structured diagnostics",
+          "patch application engine",
+          "optional audio sanity analysis"
+        ]
+      }
+    ],
+    "primary_artifact": {
+      "type": "csd",
+      "source_of_truth": true,
+      "key_regions": [
+        "<Cabbage> UI section",
+        "<CsInstruments> DSP + channel plumbing",
+        "<CsScore> scheduling (as needed)"
+      ],
+      "hard_requirements": [
+        "Every UI control added/edited by the agent must map to a channel used in instruments",
+        "No unrelated edits outside targeted sections unless explicitly requested"
+      ]
+    }
+  },
+  "ux_spec": {
+    "views": [
+      {
+        "name": "prompt_and_constraints",
+        "controls": [
+          "intent_prompt_textbox",
+          "mode_toggle: generate_new | patch_existing | fix_errors",
+          "cpu_budget: low | medium | high",
+          "control_responsiveness: high | medium | low",
+          "style: minimal | commented | pedagogical",
+          "latency_guidance: ksmps_target (numeric)",
+          "validation_toggles: compile_required (true), smoke_run (default true)"
+        ]
+      },
+      {
+        "name": "diff_view",
+        "features": [
+          "unified_diff_viewer",
+          "apply_patch_button",
+          "revert_button",
+          "apply_selected_hunks"
+        ]
+      },
+      {
+        "name": "compile_and_run",
+        "features": [
+          "compile_button (csound -n)",
+          "smoke_run_button (short runtime)",
+          "run_full_button (launch cabbage)",
+          "parsed_issues_list with clickable line jumps"
+        ]
+      },
+      {
+        "name": "macros_panel",
+        "features": [
+          "auto_generated_controls_from_manifest",
+          "add_control (creates widget + channel + smoothing)",
+          "bind_macro_to_param (wires to DSP)"
+        ]
+      },
+      {
+        "name": "history_panel",
+        "features": [
+          "snapshot_list (timestamp + summary)",
+          "restore_snapshot",
+          "diff_between_snapshots"
+        ]
+      }
+    ]
+  },
+  "contracts": {
+    "model_output_schema": {
+      "format": "json_only",
+      "rules": [
+        "No markdown; no extra keys",
+        "patch.content must apply cleanly to the active document",
+        "Every macros[].channel must exist in <Cabbage> and be consumed by chnget (or equivalent) in <CsInstruments>",
+        "Minimal diffs by default"
+      ],
+      "schema": {
+        "intent_summary": "string",
+        "assumptions": "string[]",
+        "patch": {
+          "format": "unified_diff",
+          "target": "active_document",
+          "content": "string"
+        },
+        "ui": {
+          "widgets_added": "string[]",
+          "widgets_modified": "string[]",
+          "layout_notes": "string[]"
+        },
+        "macros": [
+          {
+            "name": "string",
+            "channel": "string",
+            "type": "knob|slider|button|combo",
+            "rate": "k",
+            "min": "number",
+            "max": "number",
+            "default": "number",
+            "units": "string",
+            "smoothing_ms": "number",
+            "cabbage_widget": "string",
+            "notes": "string"
+          }
+        ],
+        "performance_notes": {
+          "cpu_risk": "low|medium|high",
+          "latency_notes": "string[]",
+          "heavy_opcodes": "string[]"
+        }
+      }
+    },
+    "context_payload_to_model": {
+      "host": "Cabbage",
+      "document": {
+        "path": "string",
+        "text": "string"
+      },
+      "selection": {
+        "start": "integer",
+        "end": "integer",
+        "text": "string"
+      },
+      "audio": {
+        "sr": "number",
+        "ksmps": "number",
+        "nchnls": "number",
+        "0dbfs": "number"
+      },
+      "constraints": {
+        "cpu_budget": "low|medium|high",
+        "control_responsiveness": "high|medium|low",
+        "style": "minimal|commented|pedagogical"
+      },
+      "recent_errors": {
+        "stderr": "string"
+      },
+      "project_assets": {
+        "sample_paths": "string[]",
+        "tables": "string[]"
+      }
+    }
+  },
+  "validation_pipeline": {
+    "compile_validation": {
+      "required": true,
+      "command_template": "csound -n -d -m0 -W -o null <file.csd>",
+      "outputs": [
+        "exit_code",
+        "stdout",
+        "stderr",
+        "diagnostics[]: { severity, line?, col?, message, opcode? }"
+      ]
+    },
+    "smoke_run": {
+      "default_enabled": true,
+      "duration_seconds": {
+        "min": 0.5,
+        "max": 2.0,
+        "default": 1.0
+      },
+      "goals": [
+        "Detect runtime crashes",
+        "Detect runaway CPU / hangs",
+        "Optional: detect NaNs/Infs and amplitude/DC issues via temp render"
+      ],
+      "optional_audio_sanity_checks": [
+        "no_NaNs_or_Infs",
+        "peak_amplitude_threshold",
+        "dc_offset_heuristic"
+      ]
+    },
+    "repair_loop": {
+      "max_iterations": 3,
+      "policy": [
+        "Feed exact compiler stderr into repair prompt",
+        "Request minimal patch that fixes only the reported errors",
+        "Do not change UI unless required to satisfy channel contracts"
+      ],
+      "failure_mode": {
+        "returns": "structured_failure_object",
+        "includes": [
+          "most_likely_cause",
+          "error_locations_best_effort",
+          "next_manual_steps"
+        ]
+      }
+    }
+  },
+  "cabbage_authoring_rules": {
+    "widget_channel_contract": [
+      "If a widget has channel(\"X\"), instruments must include kVar chnget \"X\" (or equivalent) and use it meaningfully.",
+      "Smoothing should be applied to k-rate controls using portk/tonek/etc. using macros[].smoothing_ms."
+    ],
+    "layout_policy": {
+      "strategy": "grid_layout",
+      "constraints": [
+        "consistent margin",
+        "consistent widget sizing per type",
+        "grouping panels (Osc/Filter/Env/FX)",
+        "avoid overlapping bounds"
+      ]
+    },
+    "naming_policy": {
+      "channels": "lowerCamel or snake_case (project-wide consistent)",
+      "variables": "kCutoff, aSig, iAmp, etc.",
+      "renames": "never without explicit user request"
+    }
+  },
+  "patch_engine": {
+    "format": "unified_diff",
+    "application_rules": [
+      "Reject patch if conflicts occur",
+      "Reject patch if unrelated edits exceed locality thresholds (unless refactor requested)",
+      "Never mutate buffer on patch failure; present conflict diagnostics"
+    ],
+    "locality_defaults": {
+      "allow_sections": [
+        "<Cabbage>",
+        "<CsInstruments>",
+        "<CsScore>"
+      ],
+      "max_changed_lines_without_refactor_request": 200,
+      "avoid_mass_reformatting": true
+    }
+  },
+  "orchestrator_api": {
+    "host_adapter_interface_ts": "interface CabbageHostAdapter { getActiveDocument(): Promise<{path:string, text:string}>; applyPatch(diff:string): Promise<{ok:boolean, error?:string}>; runCompile(path:string): Promise<{exit:number, stderr:string, stdout:string}>; runSmoke(path:string, seconds:number): Promise<{exit:number, stderr:string, stdout:string}>; runCabbage(path:string): Promise<{ok:boolean, error?:string}>; listAssets(projectRoot:string): Promise<{samples:string[], other:string[]}>; }",
+    "local_endpoints": [
+      "POST /propose_patch",
+      "POST /apply_patch",
+      "POST /compile",
+      "POST /smoke_run",
+      "GET /history",
+      "POST /restore_snapshot"
+    ]
+  },
+  "repository_layout": {
+    "root": "csound-agent-studio/",
+    "paths": [
+      "apps/cabbage-ui/",
+      "core/orchestrator/",
+      "core/orchestrator/model_providers/",
+      "core/orchestrator/patch/",
+      "core/orchestrator/validation/",
+      "core/orchestrator/retrieval/",
+      "skills/csound/SKILL.md",
+      "skills/csound/snippets/",
+      "skills/csound/golden_tests/",
+      "tools/csound_compile.*",
+      "tools/csound_smoke.*",
+      "tools/error_parse.*",
+      "docs/architecture.md",
+      "docs/contributing.md"
+    ]
+  },
+  "testing_and_ci": {
+    "golden_tests": {
+      "each_test_includes": [
+        "prompt",
+        "initial_csd",
+        "expected_properties"
+      ],
+      "expected_properties": [
+        "compiles_cleanly",
+        "macro_manifest_matches_channels",
+        "ui_widgets_created_or_updated_correctly",
+        "smoke_run_passes (for selected subset)"
+      ]
+    },
+    "ci_pipeline": [
+      "compile tests for templates/snippets",
+      "schema validation for recorded model outputs",
+      "smoke tests subset in headless environment (when feasible)"
+    ]
+  },
+  "mvp_definition": {
+    "must_ship_flows": [
+      {
+        "name": "generate_synth_plus_ui",
+        "description": "Prompt -> working Cabbage instrument with ~8 macros, compile-validated and smoke-run."
+      },
+      {
+        "name": "patch_ui_and_bind_param",
+        "description": "Add/modify a control in <Cabbage> and correctly wire it with chnget + smoothing + DSP usage."
+      },
+      {
+        "name": "fix_compile_errors",
+        "description": "Repair loop that consumes stderr and produces minimal diffs until compile passes."
+      }
+    ],
+    "v1_additions": [
+      "macro panel live control (when feasible)",
+      "audio sanity checks",
+      "snippet retrieval library",
+      "selective hunk application",
+      "better layout engine for <Cabbage>"
+    ]
+  }
+}
