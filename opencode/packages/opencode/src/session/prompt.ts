@@ -687,14 +687,14 @@ export namespace SessionPrompt {
           } catch { /* empty */ }
         }
 
-        // Run retrieval and locked constraints in parallel
-        const [retrievalResult, lockedConstraints] = await Promise.all([
-          // Retrieval (query rewriting + adaptive search)
+        // Run multi-tier retrieval and locked constraints in parallel
+        const [multiTierResult, lockedConstraints] = await Promise.all([
+          // Multi-tier retrieval (query rewriting + router + all tiers)
           (async () => {
             try {
               const rewritten = await QueryRewriter.rewrite(sessionMessages as any, activeCsdPath, csdContent)
               if (!rewritten) return null
-              return await RetrievalEngine.searchChunksAdaptive(rewritten.query, {
+              return await RetrievalEngine.searchMultiTier(rewritten.query, {
                 sessionID,
                 domain: rewritten.domain,
               })
@@ -706,16 +706,31 @@ export namespace SessionPrompt {
           Promise.resolve(CsdParser.formatLockedConstraints(sessionID, csdContent)),
         ])
 
-        if (retrievalResult && retrievalResult.results.length > 0 && retrievalResult.totalScore > 0.1) {
-          retrievedChunkIDs = retrievalResult.results.map((r) => r.chunkID)
-          system.push(RetrievalFormat.formatContext(retrievalResult.results, retrievalResult.confidence))
-          RetrievalEngine.setLastRetrieval({
-            sessionID,
-            chunkIDs: retrievedChunkIDs,
-            results: retrievalResult.results,
-            confidence: retrievalResult.confidence,
-            timestamp: Date.now(),
-          })
+        if (multiTierResult) {
+          // Collect all chunk IDs for RLHF feedback
+          const proseChunkIDs = multiTierResult.proseResults.results.map((r) => r.chunkID)
+          // Include CSD example IDs with prefix for tier-aware feedback
+          const exampleIDs = multiTierResult.csdExamples.length > 0
+            ? multiTierResult.route.opcodeNames?.map((n) => `csd:${n}`) ?? []
+            : []
+          retrievedChunkIDs = [...proseChunkIDs, ...exampleIDs]
+
+          // Format and inject multi-tier context
+          const injected = RetrievalFormat.formatMultiTier(multiTierResult)
+          if (injected) {
+            system.push(injected)
+          }
+
+          // Track for feedback
+          if (multiTierResult.proseResults.results.length > 0) {
+            RetrievalEngine.setLastRetrieval({
+              sessionID,
+              chunkIDs: proseChunkIDs,
+              results: multiTierResult.proseResults.results,
+              confidence: multiTierResult.proseResults.confidence,
+              timestamp: Date.now(),
+            })
+          }
         }
 
         if (lockedConstraints) {

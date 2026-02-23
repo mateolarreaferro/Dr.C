@@ -1,30 +1,39 @@
 #!/usr/bin/env bun
 /**
- * Build-time script to pre-compute knowledge index + embeddings.
+ * Unified knowledge bundle builder for multi-tier knowledge system.
+ *
+ * Produces split bundles:
+ *   bundle.json        — Prose chunks + Orama index (Tier 2, backward compatible)
+ *   bundle-core.json   — Opcode cards + knowledge graph (Tiers 0 + 3)
+ *   bundle-examples.json — CSD example metadata + Orama index (Tier 1)
+ *   bundle-csd.json    — Full CSD content (Tier 1, lazy-loaded)
  *
  * Usage:
- *   bun run scripts/build-knowledge.ts
+ *   bun run scripts/build-knowledge.ts           # Build prose bundle only (existing behavior)
+ *   bun run scripts/build-knowledge.ts --all     # Build all tiers
+ *   bun run scripts/build-knowledge.ts --prose   # Build prose bundle only
  *
- * This script:
- * 1. Reads all knowledge source files
- * 2. Chunks them using CsoundKnowledge.chunk()
- * 3. Generates embeddings via OpenAI API (requires OPENAI_API_KEY)
- * 4. Creates an Orama index with chunks + embeddings
- * 5. Saves bundle to resources/knowledge/bundle.json
- *
- * The bundle is shipped with the binary so users don't need API keys
- * for retrieval to work.
+ * For individual tier builds, use:
+ *   bun run scripts/build-csd-index.ts           # Tier 1: CSD examples
+ *   bun run scripts/build-opcode-cards.ts        # Tier 0: Opcode cards
+ *   bun run scripts/build-knowledge-graph.ts     # Tier 3: Knowledge graph
+ *   bun run scripts/extract-pdf.ts               # Extract PDF books to text
  */
 
 import { create, insertMultiple, save } from "@orama/orama"
 import fs from "fs/promises"
 import path from "path"
 import crypto from "crypto"
+import { loadCache, saveCache, hashContent, EMBEDDING_MODEL, type BuildCache } from "./lib/build-cache"
 
 const ROOT = path.resolve(import.meta.dir, "..")
 const SOURCES_DIR = path.join(ROOT, "resources", "knowledge", "sources")
 const BUNDLE_PATH = path.join(ROOT, "resources", "knowledge", "bundle.json")
 const MANIFEST_PATH = path.join(ROOT, "resources", "knowledge", "manifest.json")
+const OUTPUT_DIR = path.join(ROOT, "resources", "knowledge")
+
+const args = process.argv.slice(2)
+const buildAll = args.includes("--all")
 
 interface Chunk {
   id: string
@@ -127,9 +136,14 @@ function chunkSource(sourcePath: string, content: string, maxTokens = 350, overl
   }
 
   for (const line of lines) {
-    // Skip front matter
+    // Skip front matter (match runtime knowledge.ts patterns)
     if (inFrontMatter) {
-      if (/^(Chapter|CHAPTER)\s+1\b/.test(line) || /^Part\s+[I1]\b/.test(line)) {
+      const trimmed = line.trim()
+      if (
+        /^(Chapter|CHAPTER)\s+1\b/.test(trimmed) ||
+        /^Part\s+[I1]\b/.test(trimmed) ||
+        /^(Foreword|Introduction to Sound Design|1\.\s+Introduction)/i.test(trimmed)
+      ) {
         inFrontMatter = false
       } else {
         continue
@@ -198,10 +212,10 @@ async function embedBatch(texts: string[], apiKey: string): Promise<number[][]> 
   return allVectors
 }
 
-// --- Main ---
+// --- Prose Bundle (Tier 2) ---
 
-async function main() {
-  console.log("=== DrC Knowledge Bundle Builder ===\n")
+async function buildProseBundle() {
+  console.log("=== Building Prose Bundle (Tier 2) ===\n")
 
   // Find source files
   const sourceFiles: string[] = []
@@ -218,7 +232,7 @@ async function main() {
   }
 
   // Also check project root for csound_book.txt
-  const rootBook = path.join(ROOT, "..", "..", "csound_book.txt")
+  const rootBook = path.join(ROOT, "..", "..", "..", "csound_book.txt")
   try {
     await fs.stat(rootBook)
     sourceFiles.push(rootBook)
@@ -245,11 +259,15 @@ async function main() {
     console.log(`  ${path.basename(sourcePath)}: ${content.split("\n").length} lines, hash=${hash}`)
 
     const chunks = chunkSource(sourcePath, content)
-    console.log(`    → ${chunks.length} chunks`)
+    console.log(`    -> ${chunks.length} chunks`)
     allChunks = allChunks.concat(chunks)
   }
 
   console.log(`\nTotal chunks: ${allChunks.length}`)
+
+  // Load build cache for incremental embedding
+  console.log("\nLoading build cache...")
+  const cache = await loadCache()
 
   // Generate embeddings
   const apiKey = process.env.OPENAI_API_KEY
@@ -261,16 +279,54 @@ async function main() {
     console.log("\nGenerating embeddings with OpenAI text-embedding-3-small...")
     try {
       const texts = allChunks.map((c) => c.content)
-      const vectors = await embedBatch(texts, apiKey)
-      dimensions = vectors[0]?.length ?? 0
-      mode = "hybrid"
+
+      // Check cache for each chunk embedding
+      const missIndices: number[] = []
+      const missTexts: string[] = []
+      let embedCacheHits = 0
 
       for (let i = 0; i < allChunks.length; i++) {
-        embeddingMap.set(allChunks[i].id, vectors[i])
+        const contentHash = hashContent(texts[i])
+        const cached = cache.embeddings[allChunks[i].id]
+        if (cached && cached.contentHash === contentHash && cached.model === EMBEDDING_MODEL) {
+          embeddingMap.set(allChunks[i].id, cached.vector)
+          embedCacheHits++
+        } else {
+          missIndices.push(i)
+          missTexts.push(texts[i])
+        }
       }
-      console.log(`  ✓ ${vectors.length} embeddings (${dimensions} dimensions)`)
+
+      if (missTexts.length > 0) {
+        console.log(`  Prose embeddings: ${embedCacheHits} cached, ${missTexts.length} new`)
+        const vectors = await embedBatch(missTexts, apiKey)
+        dimensions = vectors[0]?.length ?? 0
+
+        for (let j = 0; j < missIndices.length; j++) {
+          const idx = missIndices[j]
+          embeddingMap.set(allChunks[idx].id, vectors[j])
+          // Write to cache
+          cache.embeddings[allChunks[idx].id] = {
+            contentHash: hashContent(texts[idx]),
+            vector: vectors[j],
+            model: EMBEDDING_MODEL,
+            timestamp: Date.now(),
+          }
+        }
+        console.log(`  Generated ${vectors.length} new embeddings`)
+      } else {
+        console.log(`  Prose embeddings: ${embedCacheHits} cached, 0 new (all cached!)`)
+        const firstCached = embeddingMap.values().next().value
+        dimensions = firstCached?.length ?? 0
+      }
+
+      if (dimensions === 0) {
+        const anyVec = embeddingMap.values().next().value
+        dimensions = anyVec?.length ?? 0
+      }
+      mode = "hybrid"
     } catch (e) {
-      console.warn(`  ✗ Embedding failed: ${e}`)
+      console.warn(`  Embedding failed: ${e}`)
       console.log("  Falling back to BM25-only bundle")
     }
   } else {
@@ -278,14 +334,17 @@ async function main() {
     console.log("Set OPENAI_API_KEY to include vector embeddings")
   }
 
+  // Save build cache
+  await saveCache(cache)
+
   // Create Orama index
   console.log("\nBuilding Orama index...")
 
-  const schema: Record<string, string> = {
-    content: "string",
-    section: "string",
-    tags: "string",
-  }
+  const schema = {
+    content: "string" as const,
+    section: "string" as const,
+    tags: "string" as const,
+  } as Record<string, any>
   if (dimensions > 0) {
     schema.embedding = `vector[${dimensions}]`
   }
@@ -308,7 +367,7 @@ async function main() {
   await insertMultiple(db, docs)
   const raw = await save(db)
 
-  // Write bundle
+  // Write bundle (backward compatible with existing format)
   const bundle: Bundle = {
     version: crypto.createHash("sha256").update(JSON.stringify(sourceHashes)).digest("hex").slice(0, 16),
     createdAt: Date.now(),
@@ -323,7 +382,7 @@ async function main() {
   await fs.writeFile(BUNDLE_PATH, JSON.stringify(bundle))
 
   const bundleSize = (await fs.stat(BUNDLE_PATH)).size
-  console.log(`\n✓ Bundle written to ${BUNDLE_PATH}`)
+  console.log(`\nProse bundle written to ${BUNDLE_PATH}`)
   console.log(`  Size: ${(bundleSize / 1024 / 1024).toFixed(1)} MB`)
   console.log(`  Mode: ${mode}`)
   console.log(`  Chunks: ${allChunks.length}`)
@@ -345,6 +404,73 @@ async function main() {
     ),
   )
   console.log(`  Manifest: ${MANIFEST_PATH}`)
+}
+
+// --- Full multi-tier build ---
+
+async function buildAllTiers() {
+  console.log("=== DrC Full Knowledge Bundle Builder (All Tiers) ===\n")
+  console.log("This will build all four tiers:\n")
+  console.log("  Tier 0: Opcode Cards      (bun run scripts/build-opcode-cards.ts)")
+  console.log("  Tier 1: CSD Examples       (bun run scripts/build-csd-index.ts)")
+  console.log("  Tier 2: Prose Chunks       (this script)")
+  console.log("  Tier 3: Knowledge Graph    (bun run scripts/build-knowledge-graph.ts)")
+  console.log()
+
+  const { $ } = await import("bun")
+  const scriptsDir = path.resolve(import.meta.dir)
+
+  // Step 1: Build prose bundle (Tier 2)
+  console.log("--- Step 1/4: Prose Bundle (Tier 2) ---\n")
+  await buildProseBundle()
+
+  // Step 2: Build CSD index (Tier 1)
+  console.log("\n--- Step 2/4: CSD Example Index (Tier 1) ---\n")
+  try {
+    await $`bun run ${path.join(scriptsDir, "build-csd-index.ts")} --no-llm`
+  } catch (e) {
+    console.warn(`  Warning: CSD index build failed: ${e}`)
+  }
+
+  // Step 3: Build opcode cards (Tier 0)
+  console.log("\n--- Step 3/4: Opcode Cards (Tier 0) ---\n")
+  try {
+    await $`bun run ${path.join(scriptsDir, "build-opcode-cards.ts")}`
+  } catch (e) {
+    console.warn(`  Warning: Opcode cards build failed: ${e}`)
+  }
+
+  // Step 4: Build knowledge graph (Tier 3) — depends on all other tiers
+  console.log("\n--- Step 4/4: Knowledge Graph (Tier 3) ---\n")
+  try {
+    await $`bun run ${path.join(scriptsDir, "build-knowledge-graph.ts")}`
+  } catch (e) {
+    console.warn(`  Warning: Knowledge graph build failed: ${e}`)
+  }
+
+  // Summary
+  console.log("\n=== Build Complete ===\n")
+  console.log("Generated bundles:")
+  const bundleFiles = ["bundle.json", "bundle-core.json", "bundle-examples.json", "bundle-csd.json", "opcode-cards.json"]
+  for (const file of bundleFiles) {
+    const filePath = path.join(OUTPUT_DIR, file)
+    try {
+      const stat = await fs.stat(filePath)
+      console.log(`  ${file}: ${(stat.size / 1024 / 1024).toFixed(1)} MB`)
+    } catch {
+      console.log(`  ${file}: not generated`)
+    }
+  }
+}
+
+// --- Main ---
+
+async function main() {
+  if (buildAll) {
+    await buildAllTiers()
+  } else {
+    await buildProseBundle()
+  }
 }
 
 main().catch((e) => {

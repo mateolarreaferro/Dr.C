@@ -17,6 +17,7 @@ export namespace RetrievalFeedback {
     | "audio_clipping"
     | "user_thumbs_up"
     | "user_thumbs_down"
+    | "example_used"
 
   const SIGNAL_VALUES: Record<Signal, number> = {
     compile_success: 1.0,
@@ -29,6 +30,7 @@ export namespace RetrievalFeedback {
     audio_clipping: -0.2,
     user_thumbs_up: 1.5,
     user_thumbs_down: -1.5,
+    example_used: 0.7,
   }
 
   const ALPHA = 0.1 // EMA smoothing factor

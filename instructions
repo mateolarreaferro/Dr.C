@@ -1,0 +1,9 @@
+Dear Claude,
+
+this project is about making a highly knowledgable and highly efficient Csound Agent. The challenge is to create a very robust knowledge base that can be retrieved from and used very easily and with low latency. 
+
+for this I need you to do research on the state-of-the-art practices for an agent of this nature. It's almost like we need to design a database, we need to define how to store things (data structure) in a way that is clean an consistent, we need to think of metadata, and we want to optmize for latency - sometimes it will be about retrieving a csd file without having the LLM look at it (CAG). Sometimes it will involve changes, sometimes it will involve explanations. We need to design a hybrid memory arhictecture and retrieval that is highly efficient.
+
+for this I've put a lot of docs in the knowledge folder (raw) - we need to establish the convention and then have highly critical agents extract the knowledge and make embeddings (or whatever you think is the best practice for this). My believe is that this knowledge base will outperform claude and any plain LLM
+
+go into plan mode 

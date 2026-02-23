@@ -57,13 +57,32 @@ export namespace KnowledgeSources {
   }
 
   export function bundlePath(): string {
+    return path.join(bundleDir(), "bundle.json")
+  }
+
+  /** Directory containing all knowledge bundles. */
+  export function bundleDir(): string {
     return path.join(
       // Check resources dir relative to module location
       path.resolve(import.meta.dir, "..", ".."),
       "resources",
       "knowledge",
-      "bundle.json",
     )
+  }
+
+  /** Path to the core bundle (opcode cards + knowledge graph). */
+  export function coreBundlePath(): string {
+    return path.join(bundleDir(), "bundle-core.json")
+  }
+
+  /** Path to the CSD examples bundle. */
+  export function examplesBundlePath(): string {
+    return path.join(bundleDir(), "bundle-examples.json")
+  }
+
+  /** Path to the CSD content bundle (lazy-loaded). */
+  export function csdContentBundlePath(): string {
+    return path.join(bundleDir(), "bundle-csd.json")
   }
 
   export function list(worktree: string): Source[] {

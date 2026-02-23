@@ -6,13 +6,16 @@ import { KnowledgeSources } from "./knowledge-sources"
 import { CsoundKnowledge } from "./knowledge"
 import { Embeddings } from "./embeddings"
 import { RetrievalFeedback } from "./feedback"
+import { OpcodeCards } from "./opcode-cards"
+import { CsdExamples } from "./csd-examples"
+import { KnowledgeGraph } from "./knowledge-graph"
+import { QueryRouter } from "./router"
+import type { CoreBundle, ExamplesBundle, RouteResult, Domain } from "./schema"
 import { Log } from "../util/log"
 import { Instance } from "../project/instance"
 
 export namespace RetrievalEngine {
   const log = Log.create({ service: "retrieval.engine" })
-
-  export type Domain = "synthesis" | "effects" | "modulation" | "debugging" | "general"
 
   export interface SearchResult {
     chunkID: string
@@ -30,6 +33,15 @@ export namespace RetrievalEngine {
     confidence: "high" | "medium" | "low"
   }
 
+  /** Multi-tier search result combining all tiers. */
+  export interface MultiTierResult {
+    route: RouteResult
+    opcodeCards: string[] // Formatted opcode card blocks
+    csdExamples: string[] // Formatted CSD example blocks
+    proseResults: AdaptiveSearchResult
+    graphContext: string[] // Related items from graph traversal
+  }
+
   interface EngineState {
     db: AnyOrama | null
     chunks: CsoundKnowledge.Chunk[]
@@ -37,6 +49,9 @@ export namespace RetrievalEngine {
     dimensions: number
     ready: boolean
     mode: "hybrid" | "bm25-only"
+    // Multi-tier readiness
+    coreReady: boolean
+    examplesReady: boolean
   }
 
   let state: EngineState = {
@@ -46,6 +61,8 @@ export namespace RetrievalEngine {
     dimensions: 0,
     ready: false,
     mode: "bm25-only",
+    coreReady: false,
+    examplesReady: false,
   }
 
   let initPromise: Promise<void> | null = null
@@ -97,16 +114,18 @@ export namespace RetrievalEngine {
     return path.join(KnowledgeSources.dataDir(), "index.json")
   }
 
-  export function status(): { ready: boolean; chunkCount: number; mode: "hybrid" | "bm25-only" } {
+  export function status(): { ready: boolean; chunkCount: number; mode: "hybrid" | "bm25-only"; coreReady: boolean; examplesReady: boolean } {
     return {
       ready: state.ready,
       chunkCount: state.chunks.length,
       mode: state.mode,
+      coreReady: state.coreReady,
+      examplesReady: state.examplesReady,
     }
   }
 
   async function createDB(dimensions: number): Promise<AnyOrama> {
-    const schema: Record<string, string> = {
+    const schema: Record<string, any> = {
       content: "string",
       section: "string",
       tags: "string",
@@ -226,6 +245,7 @@ export namespace RetrievalEngine {
   /**
    * Load pre-computed bundle from resources/knowledge/bundle.json.
    * This is shipped with the binary and works without any API keys.
+   * Also attempts to load split bundles (core, examples) for multi-tier support.
    */
   async function loadBundle(): Promise<boolean> {
     try {
@@ -248,10 +268,61 @@ export namespace RetrievalEngine {
         mode: state.mode,
       })
 
+      // Also try loading split bundles for multi-tier (non-blocking)
+      loadSplitBundles().catch(() => {})
+
       return true
     } catch (e) {
       log.info("no pre-computed bundle found", { error: String(e) })
       return false
+    }
+  }
+
+  /**
+   * Load split bundles for multi-tier knowledge (core + examples).
+   * Runs in background after main bundle loads — non-blocking.
+   */
+  async function loadSplitBundles(): Promise<void> {
+    const bundleDir = path.dirname(KnowledgeSources.bundlePath())
+
+    // Load bundle-core.json (opcode cards + knowledge graph)
+    try {
+      const corePath = path.join(bundleDir, "bundle-core.json")
+      const coreFile = Bun.file(corePath)
+      if (await coreFile.exists()) {
+        const core = (await coreFile.json()) as CoreBundle
+        OpcodeCards.loadFromBundle(core)
+        KnowledgeGraph.loadFromBundle(core)
+        state.coreReady = true
+        log.info("loaded core bundle", {
+          opcodes: core.stats.totalOpcodes,
+          graphNodes: core.stats.totalGraphNodes,
+        })
+      }
+    } catch (e) {
+      log.info("no core bundle found", { error: String(e) })
+    }
+
+    // Load bundle-examples.json (CSD example metadata + Orama index)
+    try {
+      const examplesPath = path.join(bundleDir, "bundle-examples.json")
+      const examplesFile = Bun.file(examplesPath)
+      if (await examplesFile.exists()) {
+        const examples = (await examplesFile.json()) as ExamplesBundle
+        await CsdExamples.loadFromBundle(examples)
+
+        // Set lazy content path
+        const csdContentPath = path.join(bundleDir, "bundle-csd.json")
+        CsdExamples.setContentBundlePath(csdContentPath)
+
+        state.examplesReady = true
+        log.info("loaded examples bundle", {
+          count: examples.examples.length,
+          mode: examples.mode,
+        })
+      }
+    } catch (e) {
+      log.info("no examples bundle found", { error: String(e) })
     }
   }
 
@@ -483,5 +554,81 @@ export namespace RetrievalEngine {
       log.error("search failed", { error: e, query })
       return empty
     }
+  }
+
+  /**
+   * Multi-tier search: routes query to appropriate tiers and aggregates results.
+   * Falls back to prose-only search (existing behavior) when split bundles aren't loaded.
+   */
+  export async function searchMultiTier(
+    query: string,
+    opts?: { sessionID?: string; domain?: Domain },
+  ): Promise<MultiTierResult> {
+    const domain = opts?.domain ?? "general"
+    const route = QueryRouter.route(query, domain)
+
+    const result: MultiTierResult = {
+      route,
+      opcodeCards: [],
+      csdExamples: [],
+      proseResults: { results: [], totalScore: 0, truncatedAt: 0, confidence: "low" },
+      graphContext: [],
+    }
+
+    // Tier 0: Opcode cards (O(1) lookup)
+    if (route.tiers.includes(0) && state.coreReady && route.opcodeNames && route.opcodeNames.length > 0) {
+      const cards = OpcodeCards.getMany(route.opcodeNames)
+      for (const card of cards.slice(0, 2)) {
+        result.opcodeCards.push(OpcodeCards.formatForPrompt(card))
+      }
+    }
+
+    // Tier 1: CSD examples (CAG)
+    if (route.tiers.includes(1) && state.examplesReady) {
+      const exResults = await CsdExamples.searchExamples(query, {
+        domain: domain !== "general" ? domain : undefined,
+        limit: 2,
+      })
+
+      for (const exResult of exResults) {
+        // Try to get CSD content for CAG injection
+        const content = await CsdExamples.getContent(exResult.example.id)
+        result.csdExamples.push(CsdExamples.formatForPrompt(exResult.example, content ?? undefined))
+      }
+    }
+
+    // Tier 2: Prose search (existing RAG)
+    if (route.tiers.includes(2) || result.opcodeCards.length === 0 && result.csdExamples.length === 0) {
+      // Always fall back to prose if no other tier has results
+      result.proseResults = await searchChunksAdaptive(query, opts)
+    }
+
+    // Tier 3: Knowledge graph traversal
+    if (route.tiers.includes(3) && state.coreReady) {
+      const graphResults: string[] = []
+
+      // If we have opcode names, find related opcodes and techniques
+      if (route.opcodeNames && route.opcodeNames.length > 0) {
+        for (const opcodeName of route.opcodeNames.slice(0, 2)) {
+          const nodeId = `opcode:${opcodeName}`
+
+          // Related opcodes
+          const related = KnowledgeGraph.relatedOpcodes(nodeId, 3)
+          if (related.length > 0) {
+            graphResults.push(`Related opcodes for ${opcodeName}: ${related.map((n) => n.label).join(", ")}`)
+          }
+
+          // Techniques this opcode is used in
+          const techniques = KnowledgeGraph.techniquesForOpcode(nodeId, 3)
+          if (techniques.length > 0) {
+            graphResults.push(`${opcodeName} used in: ${techniques.map((n) => n.label).join(", ")}`)
+          }
+        }
+      }
+
+      result.graphContext = graphResults
+    }
+
+    return result
   }
 }

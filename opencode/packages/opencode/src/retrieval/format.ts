@@ -40,6 +40,42 @@ export namespace RetrievalFormat {
   }
 
   /**
+   * Format a multi-tier search result for prompt injection.
+   * Combines opcode cards, CSD examples, prose chunks, and graph context
+   * into a single injection block with labeled sections.
+   */
+  export function formatMultiTier(multiTier: RetrievalEngine.MultiTierResult): string {
+    const parts: string[] = []
+
+    // Tier 0: Opcode reference cards
+    if (multiTier.opcodeCards.length > 0) {
+      parts.push(...multiTier.opcodeCards)
+    }
+
+    // Tier 1: CSD examples (CAG)
+    if (multiTier.csdExamples.length > 0) {
+      parts.push(...multiTier.csdExamples)
+    }
+
+    // Tier 2: Prose chunks (RAG)
+    if (multiTier.proseResults.results.length > 0 && multiTier.proseResults.totalScore > 0.1) {
+      parts.push(formatContext(multiTier.proseResults.results, multiTier.proseResults.confidence))
+    }
+
+    // Tier 3: Knowledge graph context
+    if (multiTier.graphContext.length > 0) {
+      const graphSection = [
+        "<knowledge-context>",
+        ...multiTier.graphContext,
+        "</knowledge-context>",
+      ].join("\n")
+      parts.push(graphSection)
+    }
+
+    return parts.join("\n\n")
+  }
+
+  /**
    * Extract the last user query text from session messages for retrieval.
    */
   export function extractLastUserQuery(

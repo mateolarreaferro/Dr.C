@@ -3,3 +3,6 @@ dist
 gen
 app.log
 src/provider/models-snapshot.ts
+.env
+.env.*
+resources/knowledge/*.json

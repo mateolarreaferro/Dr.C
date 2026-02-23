@@ -14,6 +14,11 @@ export namespace CsoundKnowledge {
     content: string
     tokens: number
     tags: string[]
+    // Enhanced fields for multi-tier (optional, backward compatible)
+    sourceType?: "book" | "manual" | "tutorial" | "custom"
+    domain?: "synthesis" | "effects" | "modulation" | "debugging" | "general"
+    relatedOpcodes?: string[]
+    relatedExampleIDs?: string[]
   }
 
   // Known Csound opcodes for tag extraction
