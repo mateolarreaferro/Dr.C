@@ -2,6 +2,7 @@ import { createSignal, createMemo, createEffect, Show, For, on, onCleanup } from
 import { useTheme } from "../../context/theme"
 import { useSync } from "@tui/context/sync"
 import { useKV } from "../../context/kv"
+import { useToast } from "../../ui/toast"
 import { CsdParser } from "@/csound/parser"
 import { ParamPanel } from "./param-panel"
 import { spawn } from "child_process"
@@ -9,8 +10,39 @@ import path from "path"
 import { SessionWorkspace } from "@/session/workspace"
 import { WavReader } from "@/util/wav-reader"
 import { WaveformDisplay } from "../../component/waveform-display"
+import { CsoundProcessRegistry } from "@/csound/process-registry"
 
-export function CsdPanel(props: { filePath: string | undefined; width: number; sessionID?: string; refreshTrigger?: () => number }) {
+function embedPromptInCsd(content: string, prompt: string): string {
+  // Remove existing ; Prompt: block if present
+  const cleaned = content.replace(/; Prompt:.*(?:\n;         .*)*\n?/, "")
+
+  // Format prompt as comment lines (wrap at ~76 chars)
+  const words = prompt.replace(/\n/g, " ").split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ""
+  for (const word of words) {
+    if (current.length + word.length + 1 > 76) {
+      lines.push(current)
+      current = word
+    } else {
+      current = current ? current + " " + word : word
+    }
+  }
+  if (current) lines.push(current)
+
+  if (lines.length === 0) return cleaned
+
+  const block = lines
+    .map((l, i) => (i === 0 ? `; Prompt: ${l}` : `;         ${l}`))
+    .join("\n")
+
+  return cleaned.replace(
+    "<CsoundSynthesizer>\n",
+    `<CsoundSynthesizer>\n${block}\n`,
+  )
+}
+
+export function CsdPanel(props: { filePath: string | undefined; width: number; sessionID?: string; refreshTrigger?: () => number; renderTrigger?: () => number }) {
   const { theme } = useTheme()
   const kv = useKV()
   const sync = useSync()
@@ -138,7 +170,11 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
 
   const lines = createMemo(() => content().split("\n"))
   const instrumentCount = createMemo(() => structure()?.instruments.length ?? 0)
-  const paramCount = createMemo(() => structure()?.parameters.length ?? 0)
+  const paramCount = createMemo(() => {
+    const s = structure()
+    if (!s) return 0
+    return s.parameters.filter(p => p.value !== undefined && !isNaN(parseFloat(p.value!)) && !(p as any).pfieldVaries).length
+  })
 
   const displayPath = createMemo(() => {
     const fp = props.filePath
@@ -180,6 +216,57 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
 
   const [playing, setPlaying] = createSignal(false)
   const [playHover, setPlayHover] = createSignal(false)
+  const [saveHover, setSaveHover] = createSignal(false)
+  const toast = useToast()
+
+  // Extract first user message text as prompt
+  const userPrompt = createMemo(() => {
+    const sid = props.sessionID
+    if (!sid) return ""
+    const messages = sync.data.message[sid] ?? []
+    const firstUser = messages.find((m: any) => m.role === "user")
+    if (!firstUser) return ""
+    const parts = sync.data.part[firstUser.id] ?? []
+    return parts.reduce((acc: string, p: any) => {
+      if (p.type === "text" && !p.synthetic && !p.ignored) acc += p.text
+      return acc
+    }, "")
+  })
+
+  const handleSave = async () => {
+    const fp = resolvedFilePath()
+    const sid = props.sessionID
+    if (!fp || !sid) return
+
+    try {
+      // Read current CSD content from workspace-resolved path
+      let text = await Bun.file(fp).text()
+
+      // Embed prompt comment if we have one
+      const prompt = userPrompt()
+      if (prompt) {
+        text = embedPromptInCsd(text, prompt)
+        // Write modified content back to workspace temp file
+        await Bun.write(fp, text)
+      }
+
+      // Save workspace to project
+      const saved = await SessionWorkspace.save(sid)
+      toast.show({
+        variant: "success",
+        title: "Saved",
+        message: `Saved ${saved.length} file(s) to project`,
+      })
+      // Refresh content display
+      loadContent(fp)
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        title: "Save failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+      })
+    }
+  }
 
   const statusIcon = createMemo(() => {
     switch (compileStatus()) {
@@ -194,8 +281,9 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
 
   const playAudio = (audioPath: string) => {
     const player = process.platform === "darwin" ? "afplay" : "aplay"
-    const playProc = spawn(player, [audioPath], { stdio: "ignore", detached: true })
+    const playProc = spawn(player, [audioPath], { stdio: "ignore", detached: process.platform !== "win32" })
     playProc.unref()
+    CsoundProcessRegistry.register(playProc, "playback")
     playProc.once("exit", () => setPlaying(false))
     playProc.once("error", () => setPlaying(false))
     // Safety timeout for playback
@@ -203,6 +291,13 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
       try { playProc.kill("SIGTERM") } catch {}
     }, 30000)
     playProc.once("exit", () => clearTimeout(timer))
+  }
+
+  const handleStop = () => {
+    CsoundProcessRegistry.stopAll()
+    setPlaying(false)
+    setRenderState("idle")
+    setRenderStartTime(null)
   }
 
   const handlePlay = async () => {
@@ -227,6 +322,7 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
         stdio: ["ignore", "pipe", "pipe"],
         detached: process.platform !== "win32",
       })
+      CsoundProcessRegistry.register(proc, "render")
 
       proc.once("exit", (code) => {
         if (code === 0 || code === null) {
@@ -250,6 +346,67 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
       setPlaying(false)
     }
   }
+
+  // Debounced auto-render when renderTrigger fires (e.g. from param slider changes)
+  const RENDER_DEBOUNCE_MS = 600
+  let renderDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  createEffect(() => {
+    if (!props.renderTrigger) return
+    const trigger = props.renderTrigger()
+    if (trigger === 0) return // skip initial
+
+    // Debounce: reset timer on each trigger, only render after pause
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer)
+    renderDebounceTimer = setTimeout(() => {
+      const fp = resolvedFilePath()
+      if (!fp || renderState() === "rendering") return
+
+      const outputPath = fp.replace(".csd", ".wav")
+      setRenderState("rendering")
+      setRenderStartTime(Date.now())
+
+      // Stop any currently playing audio first
+      CsoundProcessRegistry.stopAll()
+      setPlaying(false)
+
+      const proc = spawn("csound", ["-W", "-d", "-m0", "-o", outputPath, fp], {
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+      })
+      CsoundProcessRegistry.register(proc, "render")
+
+      proc.once("exit", () => {
+        setRenderState("idle")
+        setRenderStartTime(null)
+        // Refresh waveform + code display
+        loadContent(fp)
+        const loadWav = async () => {
+          const info = await WavReader.read(outputPath, Math.max(20, props.width - 16))
+          setWavInfo(info)
+        }
+        loadWav()
+      })
+
+      proc.once("error", () => {
+        setRenderState("idle")
+        setRenderStartTime(null)
+      })
+
+      // Safety timeout
+      const timer = setTimeout(() => {
+        try {
+          if (proc.pid && process.platform !== "win32") process.kill(-proc.pid, "SIGTERM")
+          else proc.kill("SIGTERM")
+        } catch {}
+      }, 15000)
+      proc.once("exit", () => clearTimeout(timer))
+    }, RENDER_DEBOUNCE_MS)
+  })
+
+  // Clean up debounce timer
+  onCleanup(() => {
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer)
+  })
 
   return (
     <Show when={props.filePath}>
@@ -275,19 +432,42 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
               <span style={{ fg: theme.warning, bold: true }}> DRAFT</span>
             </Show>
           </text>
-          <text
-            fg={playHover() ? (playing() ? theme.error : theme.accent) : (renderState() === "rendering" ? theme.warning : theme.textMuted)}
-            onMouseOver={() => setPlayHover(true)}
-            onMouseOut={() => setPlayHover(false)}
-            onMouseUp={handlePlay}
-            flexShrink={0}
-          >
-            {renderState() === "rendering"
-              ? `\u25A0 rendering ${renderElapsed()}s`
-              : playing()
-                ? "\u25A0 playing..."
-                : "\u25B6 play"}
-          </text>
+          <box flexDirection="row" flexShrink={0} gap={1}>
+            <Show when={props.sessionID && (SessionWorkspace.status(props.sessionID!).unsavedChanges || userPrompt())}>
+              <text
+                fg={saveHover() ? theme.accent : theme.textMuted}
+                onMouseOver={() => setSaveHover(true)}
+                onMouseOut={() => setSaveHover(false)}
+                onMouseUp={handleSave}
+                flexShrink={0}
+              >
+                {"\u2193 save"}
+              </text>
+            </Show>
+            <Show when={renderState() === "rendering" || playing()} fallback={
+              <text
+                fg={playHover() ? theme.accent : theme.textMuted}
+                onMouseOver={() => setPlayHover(true)}
+                onMouseOut={() => setPlayHover(false)}
+                onMouseUp={handlePlay}
+                flexShrink={0}
+              >
+                {"\u25B6 play"}
+              </text>
+            }>
+              <text
+                fg={playHover() ? theme.error : theme.warning}
+                onMouseOver={() => setPlayHover(true)}
+                onMouseOut={() => setPlayHover(false)}
+                onMouseUp={handleStop}
+                flexShrink={0}
+              >
+                {renderState() === "rendering"
+                  ? `\u25A0 stop (${renderElapsed()}s)`
+                  : "\u25A0 stop"}
+              </text>
+            </Show>
+          </box>
         </box>
 
         {/* Code view */}

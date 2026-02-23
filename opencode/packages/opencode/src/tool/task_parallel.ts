@@ -40,7 +40,7 @@ const parameters = z.object({
     .min(10)
     .max(120)
     .optional()
-    .describe("Timeout per sub-task in seconds (default 60)"),
+    .describe("Timeout per sub-task in seconds (default 30)"),
 })
 
 export const TaskParallelTool = Tool.define(
@@ -50,7 +50,7 @@ export const TaskParallelTool = Tool.define(
     parameters,
     async execute(params, ctx) {
       const config = await Config.get()
-      const timeoutMs = (params.timeout_seconds ?? 60) * 1000
+      const timeoutMs = (params.timeout_seconds ?? 30) * 1000
 
       // Verify all requested agents exist
       const agentConfigs: Array<{ agent: Agent.Info; task: (typeof params.tasks)[0] }> = []

@@ -40,13 +40,14 @@ bun run scripts/build-knowledge.ts   # pre-compute RAG embeddings bundle
 
 ### Session Workspace
 
-All CSD/WAV edits to **existing** files are redirected to `~/.drc/sessions/{sessionID}/temp/`. Users must explicitly Save to copy results back to the project. New file creation goes directly to the project directory.
+All CSD/WAV edits to **existing** files are redirected to `~/.drc/sessions/{sessionID}/temp/`. Users must explicitly Save to copy results to `saved scripts/`. New file creation goes directly to the project directory.
 
 **IMPORTANT**: Workspace only activates for existing files being modified, never for new file creation. All Csound tools (compile, smoke, render, write, apply_csd_patch) resolve paths through `SessionWorkspace.resolve()`.
 
 - `src/session/workspace.ts` — `init()`, `resolve()`, `save()`, `discard()`, `status()`, `cleanup()`
+- **Save destination**: `<project root>/saved scripts/` — always creates a new copy, never overwrites (appends `_2`, `_3`, etc. if filename exists)
 - UI: "DRAFT" badge in CSD panel header when unsaved changes exist
-- Commands: "Save CSD to project" and "Discard workspace changes" in command palette
+- Commands: "Save CSD to saved scripts" and "Discard workspace changes" in command palette
 - Auto-cleanup: sessions older than 7 days removed on startup
 - Events: `workspace.saved`, `workspace.discarded`, `workspace.activated` (BusEvent)
 
@@ -78,7 +79,10 @@ Interactive Csound design exploration with non-destructive branching:
 #### Slider UI
 
 - `src/cli/cmd/tui/component/terminal-slider.tsx` — keyboard support via `useKeyboard()`: Left/Right fine, Shift+arrows coarse, Home/End min/max
-- `src/cli/cmd/tui/routes/session/param-bottom-panel.tsx` — full-width bottom panel with scrollbox, Tab/Shift-Tab cycles focus between sliders
+- `src/cli/cmd/tui/routes/session/param-bottom-panel.tsx` — full-width bottom panel with scrollbox, panel-level focus management
+- **Panel focus**: `panelFocused` prop gates all keyboard handlers (Tab/Shift-Tab/Escape). Click any slider to activate panel (blurs prompt), Escape to deactivate (refocuses prompt). Parent (`session/index.tsx`) owns `paramPanelFocused` signal and wires `prompt.blur()`/`prompt.focus()`.
+- **Responsive width**: slider bar width computed from `availableWidth - 30` (min 20) instead of hardcoded value; `availableWidth` passed from `dimensions().width`
+- **Visual indicators**: border turns accent when focused, header shows `[editing]` badge + contextual hints
 - Layout: column (top row: CSD panel + chat + tree | bottom row: parameter sliders)
 
 ### Multi-Agent Parallel Architecture

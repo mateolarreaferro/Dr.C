@@ -688,15 +688,20 @@ export namespace SessionPrompt {
         }
 
         // Run multi-tier retrieval and locked constraints in parallel
+        const rewritten = await QueryRewriter.rewrite(sessionMessages as any, activeCsdPath, csdContent).catch(() => null)
+
+        // Skip retrieval for debugging queries and trivial operational requests
+        const skipRetrieval = !rewritten
+          || rewritten.domain === "debugging"
+          || rewritten.rawQuery.length < 20
+
         const [multiTierResult, lockedConstraints] = await Promise.all([
-          // Multi-tier retrieval (query rewriting + router + all tiers)
-          (async () => {
+          // Multi-tier retrieval (query rewriting + router + all tiers) — skipped for debug/short queries
+          skipRetrieval ? Promise.resolve(null) : (async () => {
             try {
-              const rewritten = await QueryRewriter.rewrite(sessionMessages as any, activeCsdPath, csdContent)
-              if (!rewritten) return null
-              return await RetrievalEngine.searchMultiTier(rewritten.query, {
+              return await RetrievalEngine.searchMultiTier(rewritten!.query, {
                 sessionID,
-                domain: rewritten.domain,
+                domain: rewritten!.domain,
               })
             } catch {
               return null

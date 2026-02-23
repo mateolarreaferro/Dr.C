@@ -480,10 +480,53 @@ export namespace CsdParser {
     scoreSection: CsdSection,
     instruments: CsdInstrument[],
   ): CsdParameter[] {
-    // We don't duplicate pfield params here — they're already captured in instruments
-    // via the `iVar = p4` pattern. This function is reserved for future use
-    // (e.g., detecting pfield ranges from score values).
-    return []
+    // Parse score events: "i <instrNum> <start> <dur> <p4> <p5> ..."
+    const scoreEvents = new Map<string, number[][]>()
+
+    for (const line of scoreSection.content.split("\n")) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith(";") || !trimmed) continue
+      const match = trimmed.match(/^i\s+(\S+)\s+(.+)/)
+      if (!match) continue
+      const instrId = match[1]
+      const fields = match[2].split(/\s+/).map(s => parseFloat(s.split(";")[0]))
+      if (!scoreEvents.has(instrId)) scoreEvents.set(instrId, [])
+      scoreEvents.get(instrId)!.push(fields)
+    }
+
+    // For each instrument's pfield params, resolve values from score
+    for (const instr of instruments) {
+      const events = scoreEvents.get(instr.id)
+      if (!events || events.length === 0) continue
+
+      for (const param of instr.parameters) {
+        if (param.source !== "pfield") continue
+        const pfieldNum = parseInt(param.value?.replace("p", "") ?? "")
+        if (isNaN(pfieldNum) || pfieldNum < 4) continue
+
+        // pfield index in score: p4 → index 2 (after start, dur)
+        const fieldIndex = pfieldNum - 2
+        const values = events.map(e => e[fieldIndex]).filter(v => !isNaN(v))
+        if (values.length === 0) continue
+
+        // Resolve: first event value as the current value
+        param.value = String(values[0])
+        const allSame = values.every(v => v === values[0])
+
+        // Only set range when values actually span a range;
+        // for constant values, leave range undefined so the UI
+        // can apply a smart heuristic based on param name
+        if (!allSame) {
+          param.range = [Math.min(...values), Math.max(...values)]
+        }
+
+        // Mark whether values vary across score events
+        ;(param as any).pfieldNum = pfieldNum
+        ;(param as any).pfieldVaries = !allSame
+      }
+    }
+
+    return [] // params are mutated in-place on instrument objects, already in allParams
   }
 
   // --- Helpers ---

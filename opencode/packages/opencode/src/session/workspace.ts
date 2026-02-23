@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import z from "zod"
 import { Global } from "../global"
+import { Instance } from "../project/instance"
 import { Log } from "../util/log"
 import { Bus } from "../bus"
 import { BusEvent } from "../bus/bus-event"
@@ -103,15 +104,37 @@ export namespace SessionWorkspace {
     await persistState(sessionID, ws)
   }
 
+  const SAVED_SCRIPTS_DIR = "saved scripts"
+
   /**
-   * Save temp CSD+WAV files back to the project directory.
+   * Find a unique file path that doesn't overwrite existing files.
+   * e.g. foo.csd → foo.csd, foo_2.csd, foo_3.csd, ...
+   */
+  async function uniquePath(dir: string, filename: string): Promise<string> {
+    const ext = path.extname(filename)
+    const base = path.basename(filename, ext)
+    let candidate = path.join(dir, filename)
+    if (!(await Bun.file(candidate).exists())) return candidate
+
+    let n = 2
+    while (true) {
+      candidate = path.join(dir, `${base}_${n}${ext}`)
+      if (!(await Bun.file(candidate).exists())) return candidate
+      n++
+    }
+  }
+
+  /**
+   * Save temp CSD+WAV files to the "saved scripts" folder as new copies.
+   * Never overwrites existing files — appends _2, _3, etc. if needed.
    */
   export async function save(sessionID: string): Promise<string[]> {
     const ws = active.get(sessionID)
     if (!ws) throw new Error(`No active workspace for session ${sessionID}`)
 
     const tempDir = ws.tempDir
-    const projectDir = path.dirname(ws.originalCsdPath)
+    const savedDir = path.join(Instance.directory, SAVED_SCRIPTS_DIR)
+    await fs.mkdir(savedDir, { recursive: true })
     const saved: string[] = []
 
     try {
@@ -120,7 +143,7 @@ export namespace SessionWorkspace {
         const ext = path.extname(entry).toLowerCase()
         if (ext === ".csd" || ext === ".wav") {
           const src = path.join(tempDir, entry)
-          const dst = path.join(projectDir, entry)
+          const dst = await uniquePath(savedDir, entry)
           const content = await Bun.file(src).arrayBuffer()
           await Bun.write(dst, content)
           saved.push(dst)

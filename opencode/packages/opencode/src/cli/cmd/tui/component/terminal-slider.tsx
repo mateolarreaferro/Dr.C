@@ -2,12 +2,22 @@ import { createSignal, createMemo } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useKeyboard } from "@opentui/solid"
 
+/** Format a number compactly for display */
+function fmtNum(v: number): string {
+  if (Number.isInteger(v)) return v.toString()
+  if (Math.abs(v) >= 1000) return v.toFixed(0)
+  if (Math.abs(v) >= 100) return v.toFixed(0)
+  if (Math.abs(v) >= 10) return v.toFixed(1)
+  if (Math.abs(v) >= 1) return v.toFixed(2)
+  return v.toFixed(3)
+}
+
 /**
  * Text-mode slider for terminal UI.
  *
- * Renders: label [====|====] value unit
+ * Renders: label  min [====|====] max  value unit
  *
- * Keyboard: left/right for fine adjustment, shift+arrow for coarse, Home/End for min/max
+ * Keyboard: left/right fine, shift+arrows coarse, Home/End min/max
  * Mouse: click to set position
  */
 export function TerminalSlider(props: {
@@ -35,20 +45,16 @@ export function TerminalSlider(props: {
 
   const normalizedPosition = createMemo(() => {
     const range = props.max - props.min
-    if (range === 0) return 0
+    if (range === 0) return 0.5
     return Math.max(0, Math.min(1, (props.value - props.min) / range))
   })
 
   const filledWidth = createMemo(() => Math.round(normalizedPosition() * barWidth()))
   const emptyWidth = createMemo(() => barWidth() - filledWidth())
 
-  const displayValue = createMemo(() => {
-    const v = props.value
-    if (Number.isInteger(v)) return v.toString()
-    if (Math.abs(v) >= 100) return v.toFixed(0)
-    if (Math.abs(v) >= 10) return v.toFixed(1)
-    return v.toFixed(3)
-  })
+  const displayValue = createMemo(() => fmtNum(props.value))
+  const displayMin = createMemo(() => fmtNum(props.min))
+  const displayMax = createMemo(() => fmtNum(props.max))
 
   const clamp = (val: number) => Math.max(props.min, Math.min(props.max, val))
 
@@ -57,58 +63,31 @@ export function TerminalSlider(props: {
     props.onChange(newVal)
   }
 
-  // Keyboard support — only active when focused
   useKeyboard(
     (key) => {
       if (!isFocused()) return false
 
-      // Fine adjustment: Left/Right
-      if (key === "left") {
-        adjustValue(-step())
-        return true
-      }
-      if (key === "right") {
-        adjustValue(step())
-        return true
-      }
-
-      // Coarse adjustment: Shift+Left/Right
-      if (key === "S-left") {
-        adjustValue(-coarseStep())
-        return true
-      }
-      if (key === "S-right") {
-        adjustValue(coarseStep())
-        return true
-      }
-
-      // Min/Max: Home/End
-      if (key === "home") {
-        props.onChange(props.min)
-        return true
-      }
-      if (key === "end") {
-        props.onChange(props.max)
-        return true
-      }
+      if (key === "left") { adjustValue(-step()); return true }
+      if (key === "right") { adjustValue(step()); return true }
+      if (key === "S-left") { adjustValue(-coarseStep()); return true }
+      if (key === "S-right") { adjustValue(coarseStep()); return true }
+      if (key === "home") { props.onChange(props.min); return true }
+      if (key === "end") { props.onChange(props.max); return true }
 
       return false
     },
   )
 
   const handleClick = (x: number) => {
-    // Use element-relative coordinates
-    const labelLen = props.label.length + 1 // label + space
-    // Account for label width (might be padded)
-    const effectiveLabelLen = Math.max(12, props.label.length) + 1
-    const barStart = effectiveLabelLen
-    const barEnd = barStart + barWidth() + 2 // +2 for brackets
+    const effectiveLabelLen = Math.max(10, props.label.length) + 1
+    const minLen = displayMin().length + 1
+    const barStart = effectiveLabelLen + minLen
+    const barEnd = barStart + barWidth() + 2
     if (x >= barStart && x <= barEnd) {
       const ratio = Math.max(0, Math.min(1, (x - barStart - 1) / barWidth()))
       const newVal = clamp(props.min + ratio * (props.max - props.min))
       props.onChange(newVal)
     }
-    // Focus on click
     props.onFocus?.()
   }
 
@@ -125,23 +104,27 @@ export function TerminalSlider(props: {
       gap={1}
       onMouseOver={() => setHover(true)}
       onMouseOut={() => setHover(false)}
-      onMouseUp={(evt) => {
-        handleClick(evt.x)
-      }}
+      onMouseUp={(evt) => handleClick(evt.x)}
     >
       <text
         fg={isFocused() ? theme.accent : theme.text}
-        width={Math.max(12, props.label.length)}
+        width={Math.max(10, props.label.length)}
         flexShrink={0}
         bold={isFocused()}
       >
         {props.label}
       </text>
+      <text fg={theme.textMuted} flexShrink={0}>
+        {displayMin()}
+      </text>
       <text fg={isFocused() ? theme.accent : hover() ? theme.text : theme.textMuted}>
         {bar()}
       </text>
-      <text fg={isFocused() ? theme.accent : theme.text} width={8} flexShrink={0}>
-        {displayValue()}
+      <text fg={theme.textMuted} flexShrink={0}>
+        {displayMax()}
+      </text>
+      <text fg={isFocused() ? theme.accent : theme.text} width={8} flexShrink={0} bold={isFocused()}>
+        {" "}{displayValue()}
       </text>
       {props.unit ? <text fg={theme.textMuted}>{props.unit}</text> : null}
     </box>

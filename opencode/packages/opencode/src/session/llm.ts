@@ -225,7 +225,7 @@ export namespace LLM {
         ...input.model.headers,
         ...headers,
       },
-      maxRetries: input.retries ?? 0,
+      maxRetries: input.retries ?? 3,
       messages: [
         ...system.map(
           (x): ModelMessage => ({

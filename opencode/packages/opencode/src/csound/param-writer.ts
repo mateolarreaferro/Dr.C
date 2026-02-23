@@ -99,6 +99,68 @@ export namespace ParamWriter {
     return { success: true, line: modifiedLine }
   }
 
+  /**
+   * Update a pfield value in CsScore i-statements for a given instrument.
+   */
+  export async function updateScorePfield(
+    filePath: string,
+    instrId: string,
+    pfieldNum: number,
+    newValue: number,
+  ): Promise<{ success: boolean }> {
+    const content = await Bun.file(filePath).text()
+    const lines = content.split("\n")
+    let modified = false
+    const fieldIndex = pfieldNum - 1 // p4 → field index 3 (i, start, dur, p4)
+    const valStr = formatNumber(newValue)
+
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim()
+      if (trimmed.startsWith(";") || !trimmed) continue
+      const match = trimmed.match(/^i\s+(\S+)\s+(.+)/)
+      if (!match || match[1] !== instrId) continue
+
+      const fields = lines[i].split(/(\s+)/) // preserve whitespace tokens
+      let fieldCount = 0
+      let targetTokenIdx = -1
+      for (let t = 0; t < fields.length; t++) {
+        if (fields[t].trim()) {
+          if (fieldCount === fieldIndex) {
+            targetTokenIdx = t
+            break
+          }
+          fieldCount++
+        }
+      }
+      if (targetTokenIdx >= 0) {
+        // Strip inline comment from the field if present
+        const commentIdx = fields[targetTokenIdx].indexOf(";")
+        const comment = commentIdx >= 0 ? fields[targetTokenIdx].slice(commentIdx) : ""
+        fields[targetTokenIdx] = valStr + comment
+        lines[i] = fields.join("")
+        modified = true
+      }
+    }
+
+    if (!modified) {
+      log.warn("score pfield not found", { instrId, pfieldNum, filePath })
+      return { success: false }
+    }
+
+    const newContent = lines.join("\n")
+    await Bun.write(filePath, newContent)
+
+    // Capture snapshot
+    try {
+      await CsdSnapshot.capture(filePath)
+    } catch (e) {
+      log.warn("failed to capture snapshot after pfield update", { error: e })
+    }
+
+    log.info("score pfield updated", { instrId, pfieldNum, newValue: valStr })
+    return { success: true }
+  }
+
   function formatNumber(n: number): string {
     if (Number.isInteger(n)) return n.toString()
     // Preserve reasonable precision

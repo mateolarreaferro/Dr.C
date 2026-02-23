@@ -177,9 +177,9 @@ export namespace QueryRouter {
       case "debug":
         return {
           intent,
-          tiers: [2], // Prose only (debugging info)
+          tiers: [], // No tiers — debugging doesn't need book knowledge
           opcodeNames,
-          tokenBudget: { opcodeCards: 200, csdExamples: 0, proseChunks: 3000 },
+          tokenBudget: { opcodeCards: 0, csdExamples: 0, proseChunks: 0 },
         }
 
       case "design_explore":

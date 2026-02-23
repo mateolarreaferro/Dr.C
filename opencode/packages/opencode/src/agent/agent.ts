@@ -231,6 +231,7 @@ export namespace Agent {
         name: "csound-synthesis",
         description:
           "Csound synthesis specialist. Handles oscillators, FM/AM synthesis, additive/subtractive synthesis, wavetable design, and sound generation. Use for tasks focused on creating or modifying the core sound source.",
+        model: { providerID: "anthropic", modelID: "claude-haiku-4-5-20251001" },
         prompt: `You are a Csound synthesis specialist sub-agent. Your focus is exclusively on sound generation:
 - Oscillators (oscili, poscil, vco2, buzz, gbuzz)
 - FM/AM synthesis (foscili, cross modulation)
@@ -239,7 +240,7 @@ export namespace Agent {
 - Wavetable/table-based synthesis (tablei, oscili with custom GEN tables)
 - Physical modeling basics (pluck, wgbow, wgflute)
 
-Apply changes using apply_csd_patch. Always compile and smoke-test after changes.
+Apply changes using apply_csd_patch. Render to verify — skip compile unless render fails.
 Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for i-rate.`,
         permission: PermissionNext.merge(
           defaults,
@@ -247,7 +248,6 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
             "*": "deny",
             read: "allow",
             csound_compile: "allow",
-            csound_smoke: "allow",
             apply_csd_patch: "allow",
             csound_render: "allow",
           }),
@@ -261,6 +261,7 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
         name: "csound-effects",
         description:
           "Csound effects specialist. Handles reverb, delay, filters, distortion, EQ, and signal routing. Use for tasks focused on processing and shaping existing sound.",
+        model: { providerID: "anthropic", modelID: "claude-haiku-4-5-20251001" },
         prompt: `You are a Csound effects processing specialist sub-agent. Your focus is exclusively on signal processing:
 - Reverb (reverbsc, freeverb, nreverb, alpass, comb)
 - Delay (delay, vdelay3, flanger, chorus)
@@ -270,7 +271,7 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
 - Dynamics (compress2, dam, follow2)
 - Routing (outch, pan2, vbap)
 
-Apply changes using apply_csd_patch. Always compile and smoke-test after changes.
+Apply changes using apply_csd_patch. Render to verify — skip compile unless render fails.
 Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for i-rate.`,
         permission: PermissionNext.merge(
           defaults,
@@ -278,7 +279,6 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
             "*": "deny",
             read: "allow",
             csound_compile: "allow",
-            csound_smoke: "allow",
             apply_csd_patch: "allow",
             csound_render: "allow",
           }),
@@ -292,6 +292,7 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
         name: "csound-modulation",
         description:
           "Csound modulation specialist. Handles envelopes, LFOs, control signals, scheduling, and time-varying parameters. Use for tasks focused on movement and evolution in sound.",
+        model: { providerID: "anthropic", modelID: "claude-haiku-4-5-20251001" },
         prompt: `You are a Csound modulation and control specialist sub-agent. Your focus is exclusively on time-varying control:
 - Envelopes (madsr, linsegr, expsegr, transeg, jspline)
 - LFOs (lfo, oscili at sub-audio rate, randi, randh)
@@ -300,7 +301,7 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
 - Parameter mapping and scaling (port, portk, limit, scale)
 - MIDI/channel control (ctrl7, chnget, chnset)
 
-Apply changes using apply_csd_patch. Always compile and smoke-test after changes.
+Apply changes using apply_csd_patch. Render to verify — skip compile unless render fails.
 Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for i-rate.`,
         permission: PermissionNext.merge(
           defaults,
@@ -308,7 +309,6 @@ Use Csound naming: kCamelCase for k-rate, aCamelCase for a-rate, iCamelCase for 
             "*": "deny",
             read: "allow",
             csound_compile: "allow",
-            csound_smoke: "allow",
             apply_csd_patch: "allow",
             csound_render: "allow",
           }),

@@ -165,6 +165,7 @@ export function Session() {
   const [csdPanelVisible, setCsdPanelVisible] = kv.signal("csd_panel_visible", true)
   const [paramPanelVisible, setParamPanelVisible] = kv.signal("param_panel_visible", true)
   const [paramPanelHeight] = kv.signal("param_panel_height", 8)
+  const [paramPanelFocused, setParamPanelFocused] = createSignal(false)
   const [lockedParamsRaw, setLockedParamsRaw] = kv.signal<string>("locked_params", "")
   const lockedParams = createMemo(() => new Set(lockedParamsRaw().split(",").filter(Boolean)))
   // Sync locked params to shared store for prompt injection
@@ -172,19 +173,30 @@ export function Session() {
     CsdParser.setLockedParams(route.sessionID, lockedParams())
   })
   const [csdRefreshTrigger, setCsdRefreshTrigger] = createSignal(0)
+  const [csdRenderTrigger, setCsdRenderTrigger] = createSignal(0)
 
   // Auto-detect CSD file path from session tool activity
+  // Scans messages newest-first, parts newest-first to find the most recent CSD reference
   const [csdFilePath, setCsdFilePath] = createSignal<string | undefined>()
   createEffect(() => {
     const msgs = messages()
     for (let i = msgs.length - 1; i >= 0; i--) {
       const msg = msgs[i]
       const parts = sync.data.part[msg.id] ?? []
-      for (const part of parts) {
+      for (let j = parts.length - 1; j >= 0; j--) {
+        const part = parts[j]
         if (part.type === "tool" && part.state.status !== "pending") {
-          const input = (part.state as any).input
-          if (input?.filePath && typeof input.filePath === "string" && input.filePath.endsWith(".csd")) {
-            setCsdFilePath(input.filePath)
+          const state = part.state as any
+          // Check input.filePath (all csound tools, write, edit, apply_csd_patch)
+          const inputPath = state.input?.filePath
+          if (inputPath && typeof inputPath === "string" && inputPath.endsWith(".csd")) {
+            setCsdFilePath(inputPath)
+            return
+          }
+          // Fallback: check metadata.filepath (write tool uses lowercase)
+          const metaPath = state.metadata?.filepath ?? state.metadata?.filePath
+          if (metaPath && typeof metaPath === "string" && metaPath.endsWith(".csd")) {
+            setCsdFilePath(metaPath)
             return
           }
         }
@@ -602,7 +614,7 @@ export function Session() {
       },
     },
     {
-      title: "Save CSD to project",
+      title: "Save CSD to saved scripts",
       value: "session.workspace.save",
       category: "Csound",
       enabled: SessionWorkspace.status(route.sessionID).unsavedChanges,
@@ -610,7 +622,7 @@ export function Session() {
         try {
           const saved = await SessionWorkspace.save(route.sessionID)
           toast.show({
-            message: `Saved ${saved.length} file(s) to project`,
+            message: `Saved ${saved.length} file(s) to saved scripts/`,
             variant: "success",
           })
         } catch (err) {
@@ -1221,9 +1233,9 @@ export function Session() {
       }}
     >
       <box flexDirection="column" flexGrow={1}>
-        <box flexDirection="row" flexGrow={1}>
+        <box flexDirection="row" flexGrow={1} flexShrink={1}>
           <Show when={csdPanelActive()}>
-            <CsdPanel filePath={csdFilePath()} width={csdPanelWidth()} sessionID={route.sessionID} refreshTrigger={csdRefreshTrigger} />
+            <CsdPanel filePath={csdFilePath()} width={csdPanelWidth()} sessionID={route.sessionID} refreshTrigger={csdRefreshTrigger} renderTrigger={csdRenderTrigger} />
             <CsdPanelBorder />
           </Show>
           <box flexGrow={1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
@@ -1375,7 +1387,7 @@ export function Session() {
           <Show when={sidebarVisible()}>
             <Switch>
               <Match when={wide() && designMode() && csdFilePath()}>
-                <DesignTreePanel sessionID={route.sessionID} csdFilePath={csdFilePath()} onNodeSelect={() => setCsdRefreshTrigger((n) => n + 1)} />
+                <DesignTreePanel sessionID={route.sessionID} csdFilePath={csdFilePath()} onNodeSelect={() => { setCsdRefreshTrigger((n) => n + 1); setCsdRenderTrigger((n) => n + 1) }} />
               </Match>
               <Match when={wide()}>
                 <Sidebar sessionID={route.sessionID} csdFilePath={csdFilePath()} />
@@ -1399,8 +1411,20 @@ export function Session() {
         {/* Bottom parameter panel — full width below main content */}
         <ParamBottomPanel
           filePath={csdFilePath()}
+          sessionID={route.sessionID}
           height={paramPanelHeight()}
           visible={designMode() && paramPanelVisible() && !!csdFilePath()}
+          panelFocused={paramPanelFocused()}
+          onPanelFocus={() => {
+            setParamPanelFocused(true)
+            prompt?.blur()
+          }}
+          onPanelBlur={() => {
+            setParamPanelFocused(false)
+            prompt?.focus()
+          }}
+          availableWidth={dimensions().width}
+          onParamChange={() => setCsdRenderTrigger((n) => n + 1)}
         />
       </box>
     </context.Provider>

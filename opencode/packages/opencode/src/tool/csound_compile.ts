@@ -110,17 +110,25 @@ async function runCsoundCompile(
       stderr += chunk.toString()
     })
 
+    // Timeout: compile should never take more than 10s
+    const timer = setTimeout(() => {
+      try { proc.kill("SIGTERM") } catch {}
+    }, 10_000)
+
     const abortHandler = () => {
+      clearTimeout(timer)
       proc.kill("SIGTERM")
     }
 
     if (abort.aborted) {
+      clearTimeout(timer)
       proc.kill("SIGTERM")
     }
 
     abort.addEventListener("abort", abortHandler, { once: true })
 
     proc.once("exit", (code) => {
+      clearTimeout(timer)
       abort.removeEventListener("abort", abortHandler)
       const exitCode = code ?? 1
       const diagnostics = parseCsoundErrors(stderr)
@@ -128,6 +136,7 @@ async function runCsoundCompile(
     })
 
     proc.once("error", (err) => {
+      clearTimeout(timer)
       abort.removeEventListener("abort", abortHandler)
       if (err.message.includes("ENOENT")) {
         reject(new Error("csound command not found. Please install Csound: https://csound.com/download.html"))

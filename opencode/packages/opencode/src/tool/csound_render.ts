@@ -5,6 +5,7 @@ import { Tool } from "./tool"
 import DESCRIPTION from "./csound_render.txt"
 import { Log } from "../util/log"
 import { SessionWorkspace } from "../session/workspace"
+import { CsoundProcessRegistry } from "../csound/process-registry"
 
 const log = Log.create({ service: "csound-render" })
 
@@ -164,6 +165,8 @@ async function runRender(
       detached: process.platform !== "win32",
     })
 
+    CsoundProcessRegistry.register(proc, "render")
+
     proc.stdout?.on("data", (chunk: Buffer) => {
       stdout += chunk.toString()
     })
@@ -234,6 +237,7 @@ async function playAudio(filePath: string): Promise<{ success: boolean; player?:
         detached: true,
       })
       proc.unref()
+      CsoundProcessRegistry.register(proc, "playback")
       return { success: true, player }
     } catch {
       continue
