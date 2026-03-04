@@ -80,6 +80,16 @@ export namespace KnowledgeSources {
         overlapTokens: 15,
       },
     },
+    {
+      id: "lazzarini-web",
+      name: "Csound 7 Web Examples (Lazzarini)",
+      path: "sources/lazzarini-web.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 350,
+        overlapTokens: 25,
+      },
+    },
   ]
 
   export function dataDir(): string {

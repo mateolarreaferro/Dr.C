@@ -2,7 +2,48 @@
 
 DrC is a fork/rebrand of "opencode" — an AI coding assistant TUI specialized for Csound sound design. Binary: `drc`. All source lives in `opencode/packages/opencode/`.
 
-## Build & Run
+## Installation (New Users)
+
+**Prerequisites**: [Bun](https://bun.sh) runtime, [Csound 7+](https://csound.com) (recommended), Git.
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/<org>/Dr.C.git
+cd Dr.C
+
+# 2. Install dependencies
+cd opencode/packages/opencode
+bun install
+
+# 3. Build the binary for your platform
+bun run build
+
+# 4. Install globally (adds `drc` to PATH)
+bun install -g .
+
+# 5. Run
+drc
+```
+
+**Alternative (dev mode without global install)**:
+```bash
+cd opencode/packages/opencode
+bun run dev
+```
+
+**Updating to latest**:
+```bash
+cd Dr.C
+git pull
+cd opencode/packages/opencode
+bun install
+bun run build
+bun install -g .
+```
+
+Build outputs platform binaries to `dist/drc-<platform>/bin/drc`. Global install via bun symlinks to `~/.bun/bin/drc`.
+
+## Build & Run (Development)
 
 ```bash
 cd opencode/packages/opencode
@@ -51,6 +92,29 @@ All CSD/WAV operations (both new files and edits to existing files) are redirect
 - Auto-cleanup: sessions older than 7 days removed on startup
 - Events: `workspace.saved`, `workspace.discarded`, `workspace.activated` (BusEvent)
 
+### Two-Column Layout
+
+The TUI uses a two-column layout (no sidebar):
+
+```
+┌─────────────────────────────────┬──────────────────────────────────────────────┐
+│  Chat messages (scrollbox)      │  CSD header (filename + save/web/cabbage/play│
+│  (~70% of left column)          │  Code view (scrollbox, ~80%)                 │
+│                                 │  ─── border ───                              │
+│  Prompt                         │  Waveform + Signal Flow (combined, ~20%)     │
+│  Session footer (model/tokens)  │  Footer (instr/flow/params/lines)            │
+│  ─── border ───                 │                                              │
+│  Version History (~30%)         │                                              │
+└─────────────────────────────────┴──────────────────────────────────────────────┘
+   ~35% width                        ~65% width
+```
+
+- **Left column**: `session/index.tsx` — chat (flexGrow=5) + `VersionHistoryPanel` (flexGrow=1, maxHeight=10)
+- **Right column**: `session/csd-panel.tsx` — code (flexGrow=4) + combined waveform+signal flow (flexGrow=1)
+- **Chat footer**: agent name, model, tokens, %, cost, directory, drC version
+- **No sidebar**: the old `sidebar.tsx` and `design-tree-view.tsx` are unused; all version history lives in `VersionHistoryPanel` (exported from `csd-panel.tsx`)
+- Column widths: CSD panel = `max(40, floor(width * 0.6))`, chat = remainder
+
 ### Design Space Explorer
 
 Interactive Csound design exploration with non-destructive branching:
@@ -59,31 +123,27 @@ Interactive Csound design exploration with non-destructive branching:
 - `src/csound/design-tree.ts` — tree of design exploration paths with snapshot restore, branch naming, soft-delete pruning
 - `src/csound/param-writer.ts` — updates param values in CSD files
 - `src/tool/csound_propose_alternatives.ts` — presents 2-4 design choices via `Question.ask()`, auto-names branches
-- `src/cli/cmd/tui/routes/session/csd-panel.tsx` — always-visible CSD panel (left pane), DRAFT badge, waveform display, render progress
-- `src/cli/cmd/tui/routes/session/design-tree-view.tsx` — tree view with visible inactive branches, branch names, pruned filtering
-- `src/cli/cmd/tui/routes/session/param-bottom-panel.tsx` — full-width bottom parameter slider panel with keyboard navigation
+- `src/cli/cmd/tui/routes/session/csd-panel.tsx` — CSD panel (right column), version history panel (left column), DRAFT badge, waveform, signal flow, render progress
 - `src/cli/cmd/tui/routes/session/dialog-lock-params.tsx` — parameter locking dialog with toggle checkboxes
 - `src/cli/cmd/tui/component/waveform-display.tsx` — ASCII waveform envelope renderer (Unicode block chars)
 - `src/cli/cmd/tui/component/csd-change-summary.tsx` — semantic diff summary for CSD changes
 
-#### Design Tree Operations
+#### Version History
 
-- `DesignNode` fields: `branchName?`, `pruned?` (in addition to existing fields)
-- `renameBranch(state, nodeID, name)` — set branch name
-- `pruneNode(state, nodeID)` / `unpruneNode()` — soft delete/restore (with descendants)
-- `getBranches(state)` — find all leaf nodes, trace paths to root
-- `compareBranches(state, nodeA, nodeB)` — diff two snapshots
-- `findDescendantByHash(state, nodeID, hash)` — prevent duplicate branch creation
-- `getDescendants(state, nodeID)` — all children recursively
+Session-scoped version history tracks all CSD file changes across a session in one timeline:
+
+- Stored at `~/.drc/version-history/<base64(sessionID)>.json`
+- Each `CsdVersion` has: `id`, `description`, `snapshotHash`, `timestamp`, `changeSummary`, `csdBasename`, `resolvedPath`
+- Auto-populates via 2s polling — detects content hash changes, captures `CsdSnapshot`
+- When the CSD file path changes to a new file, a new version entry is created automatically
+- Same user prompt round + same file = update in place (no duplicate entries)
+- Click any version to restore via `CsdSnapshot.restore()`
+- `VersionHistoryPanel` component: exported from `csd-panel.tsx`, used in `index.tsx` below chat
 
 #### Slider UI
 
 - `src/cli/cmd/tui/component/terminal-slider.tsx` — keyboard support via `useKeyboard()`: Left/Right fine, Shift+arrows coarse, Home/End min/max
-- `src/cli/cmd/tui/routes/session/param-bottom-panel.tsx` — full-width bottom panel with scrollbox, panel-level focus management
-- **Panel focus**: `panelFocused` prop gates all keyboard handlers (Tab/Shift-Tab/Escape). Click any slider to activate panel (blurs prompt), Escape to deactivate (refocuses prompt). Parent (`session/index.tsx`) owns `paramPanelFocused` signal and wires `prompt.blur()`/`prompt.focus()`.
-- **Responsive width**: slider bar width computed from `availableWidth - 30` (min 20) instead of hardcoded value; `availableWidth` passed from `dimensions().width`
-- **Visual indicators**: border turns accent when focused, header shows `[editing]` badge + contextual hints
-- Layout: column (top row: CSD panel + chat + tree | bottom row: parameter sliders)
+- Parameter editing now uses dialog overlay (command palette → "Edit parameters")
 
 ### Multi-Agent Parallel Architecture
 
@@ -172,11 +232,14 @@ When `apply_csd_patch` targets CSD files, a structured diff summary renders belo
 - Parsed from unified diff lines (no CSD re-read needed)
 - Shows up to 6 changes with `+`/`-`/`~` icons, color-coded
 
-### Audio Visualization
+### Audio Visualization & Signal Flow
+
+Waveform and signal flow are combined in one scrollable section below the code view in the CSD panel:
 
 - **WAV Reader** (`src/util/wav-reader.ts`): Reads 44-byte header + PCM data, downsamples to N columns of peak amplitudes
 - **Waveform Display** (`src/cli/cmd/tui/component/waveform-display.tsx`): Unicode block chars `▁▂▃▄▅▆▇█`, green (<-3dB) / yellow (-3 to -1dB) / red (>-1dB)
-- **CSD Panel**: Waveform appears between code scrollbox and footer when `.wav` exists; auto-reloads after render
+- **Signal Flow** (`src/csound/signal-flow.ts` + `src/cli/cmd/tui/component/signal-flow-diagram.tsx`): Topological analysis of instrument signal chains, rendered below waveform
+- **Combined section**: waveform on top, signal flow below, in a single scrollbox with `flexGrow={1}` (code view gets `flexGrow={4}`)
 - **Render Progress**: Elapsed time counter in CSD panel header during `csound_render` ("■ rendering 5s"); WAV duration/format info in tool output
 
 ## Conventions

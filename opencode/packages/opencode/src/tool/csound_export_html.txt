@@ -1,0 +1,11 @@
+Export a Csound .csd file to a standalone HTML file that plays in the browser using @csound/browser@7 from CDN.
+
+The generated HTML is self-contained with Play/Stop controls, a status indicator, CSD code display, and console output. Opens in any modern browser without server setup.
+
+Parameters:
+- filePath: Absolute path to the .csd file to export
+- title: Display title for the HTML page (defaults to filename)
+
+Returns:
+- Output HTML file path
+- Export status

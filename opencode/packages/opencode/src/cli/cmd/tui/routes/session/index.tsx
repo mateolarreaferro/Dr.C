@@ -1,5 +1,4 @@
 import {
-  batch,
   createContext,
   createEffect,
   createMemo,
@@ -29,6 +28,8 @@ import {
 } from "@opentui/core"
 import { Prompt, type PromptRef } from "@tui/component/prompt"
 import type { AssistantMessage, Part, ToolPart, UserMessage, TextPart, ReasoningPart } from "@drc/sdk/v2"
+import { Installation } from "@/installation"
+import { useDirectory } from "../../context/directory"
 import { useLocal } from "@tui/context/local"
 import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
@@ -58,11 +59,8 @@ import type { PromptInfo } from "../../component/prompt/history"
 import { DialogConfirm } from "@tui/ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
-import { DialogDesignTree } from "./dialog-design-tree"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
-import { Sidebar } from "./sidebar"
-import { CsdPanel, CsdPanelBorder } from "./csd-panel"
-import { DesignTreePanel } from "./design-tree-view"
+import { CsdPanel, CsdPanelBorder, VersionHistoryPanel } from "./csd-panel"
 import { DialogEditParams } from "./dialog-edit-params"
 import { Flag } from "@/flag/flag"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
@@ -78,7 +76,9 @@ import { useExit } from "../../context/exit"
 import { Filesystem } from "@/util/filesystem"
 import { Global } from "@/global"
 import { SessionWorkspace } from "@/session/workspace"
+import { SystemPrompt } from "@/session/system"
 import { RetrievalEngine } from "@/retrieval/engine"
+import { ExternalApps } from "@/util/external-apps"
 import { RetrievalFeedback } from "@/retrieval/feedback"
 import { CsdParser } from "@/csound/parser"
 import { DialogLockParams } from "./dialog-lock-params"
@@ -149,9 +149,30 @@ export function Session() {
     return messages().findLast((x) => x.role === "assistant")
   })
 
+  const directory = useDirectory()
+
+  // Session info for chat footer
+  const sessionCost = createMemo(() => {
+    const total = messages().reduce((sum, x) => sum + (x.role === "assistant" ? x.cost : 0), 0)
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)
+  })
+
+  const sessionContext = createMemo(() => {
+    const last = messages().findLast((x) => x.role === "assistant" && x.tokens.output > 0) as AssistantMessage
+    if (!last) return undefined
+    const total =
+      last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
+    const model = sync.data.provider.find((x) => x.id === last.providerID)?.models[last.modelID]
+    const modelName = last.modelID ? last.modelID.split("/").pop() ?? last.modelID : undefined
+    return {
+      tokens: total.toLocaleString(),
+      percentage: model?.limit.context ? Math.round((total / model.limit.context) * 100) : undefined,
+      modelName,
+    }
+  })
+
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
-  const [sidebarOpen, setSidebarOpen] = createSignal(false)
+  // sidebar removed — two-column layout
   const [conceal, setConceal] = createSignal(true)
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
@@ -205,20 +226,13 @@ export function Session() {
     }
   })
 
-  const wide = createMemo(() => dimensions().width > 120)
-  const sidebarVisible = createMemo(() => {
-    if (session()?.parentID) return false
-    if (sidebarOpen()) return true
-    if (sidebar() === "auto" && wide()) return true
-    return false
-  })
   const showTimestamps = createMemo(() => timestamps() === "show")
   const csdPanelActive = createMemo(() => designMode() && csdPanelVisible() && !!csdFilePath())
   const csdPanelWidth = createMemo(() => {
     if (!csdPanelActive()) return 0
-    return Math.max(30, Math.floor(dimensions().width * 0.4))
+    return Math.max(40, Math.floor(dimensions().width * 0.6))
   })
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - csdPanelWidth() - (csdPanelWidth() > 0 ? 1 : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - csdPanelWidth() - (csdPanelWidth() > 0 ? 1 : 0) - 4)
 
   const scrollAcceleration = createMemo(() => {
     const tui = sync.data.config.tui
@@ -250,6 +264,20 @@ export function Session() {
 
   const toast = useToast()
   const sdk = useSDK()
+
+  // Check Csound version and show toast warning if < 7
+  createEffect(async () => {
+    try {
+      const info = await SystemPrompt.getCsoundVersionInfo()
+      if (info.major !== null && !info.isV7) {
+        toast.show({
+          message: `Csound ${info.version} detected — Csound 7+ recommended for DrC`,
+          variant: "warning",
+          duration: 8000,
+        })
+      }
+    } catch {}
+  })
 
   // Handle initial prompt from fork
   createEffect(() => {
@@ -570,20 +598,6 @@ export function Session() {
       },
     },
     {
-      title: sidebarVisible() ? "Hide sidebar" : "Show sidebar",
-      value: "session.sidebar.toggle",
-      keybind: "sidebar_toggle",
-      category: "Session",
-      onSelect: (dialog) => {
-        batch(() => {
-          const isVisible = sidebarVisible()
-          setSidebar(() => (isVisible ? "hide" : "auto"))
-          setSidebarOpen(!isVisible)
-        })
-        dialog.clear()
-      },
-    },
-    {
       title: designMode() ? "Disable Design Mode" : "Enable Design Mode",
       value: "session.design_mode.toggle",
       category: "Csound",
@@ -600,18 +614,6 @@ export function Session() {
       onSelect: (dialog) => {
         setCsdPanelVisible((prev) => !prev)
         dialog.clear()
-      },
-    },
-    {
-      title: "Browse Design Tree",
-      value: "session.design_tree",
-      category: "Csound",
-      enabled: designMode() && !!csdFilePath(),
-      onSelect: (dialog) => {
-        if (!csdFilePath()) return
-        dialog.replace(() => (
-          <DialogDesignTree csdFilePath={csdFilePath()!} sessionID={route.sessionID} />
-        ))
       },
     },
     {
@@ -632,56 +634,6 @@ export function Session() {
             variant: "error",
           })
         }
-        dialog.clear()
-      },
-    },
-    {
-      title: "Name current branch",
-      value: "session.design_tree.name_branch",
-      category: "Csound",
-      enabled: designMode() && !!csdFilePath(),
-      onSelect: async (dialog) => {
-        if (!csdFilePath()) return
-        const tree = await import("@/csound/design-tree").then((m) => m.DesignTree)
-        const state = await tree.load(csdFilePath()!)
-        if (!state) {
-          toast.show({ message: "No design tree found", variant: "warning" })
-          dialog.clear()
-          return
-        }
-        // Simple prompt — reuse DialogSessionRename pattern
-        const name = prompt ? "Branch" : "Branch"
-        tree.renameBranch(state, state.currentNodeID, name)
-        await tree.save(state)
-        toast.show({ message: `Branch named: ${name}`, variant: "success" })
-        dialog.clear()
-      },
-    },
-    {
-      title: "Prune current branch",
-      value: "session.design_tree.prune",
-      category: "Csound",
-      enabled: designMode() && !!csdFilePath(),
-      onSelect: async (dialog) => {
-        if (!csdFilePath()) return
-        const tree = await import("@/csound/design-tree").then((m) => m.DesignTree)
-        const state = await tree.load(csdFilePath()!)
-        if (!state) {
-          dialog.clear()
-          return
-        }
-        // Can't prune root or current
-        const current = state.nodes[state.currentNodeID]
-        if (!current || !current.parentNodeID) {
-          toast.show({ message: "Cannot prune root node", variant: "warning" })
-          dialog.clear()
-          return
-        }
-        tree.pruneNode(state, state.currentNodeID)
-        // Move to parent
-        tree.selectNode(state, current.parentNodeID)
-        await tree.save(state)
-        toast.show({ message: "Branch pruned (can be restored)", variant: "success" })
         dialog.clear()
       },
     },
@@ -822,6 +774,96 @@ export function Session() {
           toast.show({ message: `Failed to parse CSD: ${String(err)}`, variant: "error" })
           dialog.clear()
         }
+      },
+    },
+    {
+      title: "Show Signal Flow",
+      value: "session.signal_flow",
+      category: "Csound",
+      enabled: designMode() && !!csdFilePath(),
+      onSelect: async (dialog) => {
+        const fp = csdFilePath()
+        if (!fp) { dialog.clear(); return }
+        try {
+          const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+          const content = await Bun.file(resolved).text()
+          const { DialogSignalFlow } = await import("./dialog-signal-flow")
+          dialog.replace(() => (
+            <DialogSignalFlow
+              csdContent={content}
+              onClose={() => dialog.clear()}
+            />
+          ))
+        } catch (err) {
+          toast.show({ message: `Failed to analyze CSD: ${String(err)}`, variant: "error" })
+          dialog.clear()
+        }
+      },
+    },
+    {
+      title: "Export CSD to HTML",
+      value: "session.export_html",
+      category: "Csound",
+      enabled: designMode() && !!csdFilePath(),
+      onSelect: async (dialog) => {
+        const fp = csdFilePath()
+        if (!fp) { dialog.clear(); return }
+        try {
+          const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+          const content = await Bun.file(resolved).text()
+          const { generateCsoundHTML } = await import("@/tool/csound_export_html_template")
+          const basename = path.basename(resolved, ".csd")
+          const html = generateCsoundHTML(content, basename)
+          const htmlPath = path.join(path.dirname(resolved), `${basename}.html`)
+          await Bun.write(htmlPath, html)
+          toast.show({
+            message: `Exported to ${basename}.html`,
+            variant: "success",
+          })
+        } catch (err) {
+          toast.show({ message: `Export failed: ${String(err)}`, variant: "error" })
+        }
+        dialog.clear()
+      },
+    },
+    {
+      title: "Open in CsoundQt",
+      value: "session.open_csoundqt",
+      category: "Csound",
+      enabled: designMode() && !!csdFilePath(),
+      onSelect: async (dialog) => {
+        const fp = csdFilePath()
+        if (!fp) { dialog.clear(); return }
+        const appPath = await ExternalApps.findCsoundQt()
+        if (!appPath) {
+          toast.show({ message: "CsoundQt not found on this system", variant: "error" })
+          dialog.clear()
+          return
+        }
+        const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+        ExternalApps.openInApp(appPath, resolved)
+        toast.show({ message: "Opened in CsoundQt (editing temp workspace copy)", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Open in Cabbage",
+      value: "session.open_cabbage",
+      category: "Csound",
+      enabled: designMode() && !!csdFilePath(),
+      onSelect: async (dialog) => {
+        const fp = csdFilePath()
+        if (!fp) { dialog.clear(); return }
+        const appPath = await ExternalApps.findCabbage()
+        if (!appPath) {
+          toast.show({ message: "Cabbage not found on this system", variant: "error" })
+          dialog.clear()
+          return
+        }
+        const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+        ExternalApps.openInApp(appPath, resolved)
+        toast.show({ message: "Opened in Cabbage (editing temp workspace copy)", variant: "success" })
+        dialog.clear()
       },
     },
     {
@@ -1274,175 +1316,187 @@ export function Session() {
             <CsdPanel filePath={csdFilePath()} width={csdPanelWidth()} sessionID={route.sessionID} refreshTrigger={csdRefreshTrigger} renderTrigger={csdRenderTrigger} />
             <CsdPanelBorder />
           </Show>
-          <box flexGrow={1} paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
-            <Show when={session()}>
-              <Show when={showHeader() && (!sidebarVisible() || !wide())}>
-                <Header />
-              </Show>
-              <scrollbox
-              ref={(r) => (scroll = r)}
-              viewportOptions={{
-                paddingRight: showScrollbar() ? 1 : 0,
-              }}
-              verticalScrollbarOptions={{
-                paddingLeft: 1,
-                visible: showScrollbar(),
-                trackOptions: {
-                  backgroundColor: theme.backgroundElement,
-                  foregroundColor: theme.border,
-                },
-              }}
-              stickyScroll={true}
-              stickyStart="bottom"
-              flexGrow={1}
-              scrollAcceleration={scrollAcceleration()}
-            >
-              <For each={messages()}>
-                {(message, index) => (
-                  <Switch>
-                    <Match when={message.id === revert()?.messageID}>
-                      {(function () {
-                        const command = useCommandDialog()
-                        const [hover, setHover] = createSignal(false)
-                        const dialog = useDialog()
+          <box flexGrow={1} flexDirection="column">
+            {/* Chat section — top portion */}
+            <box flexGrow={5} flexDirection="column" paddingBottom={1} paddingTop={1} paddingLeft={2} paddingRight={2} gap={1}>
+              <Show when={session()}>
+                <Show when={showHeader()}>
+                  <Header />
+                </Show>
+                <scrollbox
+                ref={(r) => (scroll = r)}
+                viewportOptions={{
+                  paddingRight: showScrollbar() ? 1 : 0,
+                }}
+                verticalScrollbarOptions={{
+                  paddingLeft: 1,
+                  visible: showScrollbar(),
+                  trackOptions: {
+                    backgroundColor: theme.backgroundElement,
+                    foregroundColor: theme.border,
+                  },
+                }}
+                stickyScroll={true}
+                stickyStart="bottom"
+                flexGrow={1}
+                scrollAcceleration={scrollAcceleration()}
+              >
+                <For each={messages()}>
+                  {(message, index) => (
+                    <Switch>
+                      <Match when={message.id === revert()?.messageID}>
+                        {(function () {
+                          const command = useCommandDialog()
+                          const [hover, setHover] = createSignal(false)
+                          const dialog = useDialog()
 
-                        const handleUnrevert = async () => {
-                          const confirmed = await DialogConfirm.show(
-                            dialog,
-                            "Confirm Redo",
-                            "Are you sure you want to restore the reverted messages?",
-                          )
-                          if (confirmed) {
-                            command.trigger("session.redo")
+                          const handleUnrevert = async () => {
+                            const confirmed = await DialogConfirm.show(
+                              dialog,
+                              "Confirm Redo",
+                              "Are you sure you want to restore the reverted messages?",
+                            )
+                            if (confirmed) {
+                              command.trigger("session.redo")
+                            }
                           }
-                        }
 
-                        return (
-                          <box
-                            onMouseOver={() => setHover(true)}
-                            onMouseOut={() => setHover(false)}
-                            onMouseUp={handleUnrevert}
-                            marginTop={1}
-                            flexShrink={0}
-                            border={["left"]}
-                            customBorderChars={SplitBorder.customBorderChars}
-                            borderColor={theme.backgroundPanel}
-                          >
+                          return (
                             <box
-                              paddingTop={1}
-                              paddingBottom={1}
-                              paddingLeft={2}
-                              backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                              onMouseOver={() => setHover(true)}
+                              onMouseOut={() => setHover(false)}
+                              onMouseUp={handleUnrevert}
+                              marginTop={1}
+                              flexShrink={0}
+                              border={["left"]}
+                              customBorderChars={SplitBorder.customBorderChars}
+                              borderColor={theme.backgroundPanel}
                             >
-                              <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
-                              <text fg={theme.textMuted}>
-                                <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
-                                restore
-                              </text>
-                              <Show when={revert()!.diffFiles?.length}>
-                                <box marginTop={1}>
-                                  <For each={revert()!.diffFiles}>
-                                    {(file) => (
-                                      <text fg={theme.text}>
-                                        {file.filename}
-                                        <Show when={file.additions > 0}>
-                                          <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                        </Show>
-                                        <Show when={file.deletions > 0}>
-                                          <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                        </Show>
-                                      </text>
-                                    )}
-                                  </For>
-                                </box>
-                              </Show>
+                              <box
+                                paddingTop={1}
+                                paddingBottom={1}
+                                paddingLeft={2}
+                                backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                              >
+                                <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                <text fg={theme.textMuted}>
+                                  <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
+                                  restore
+                                </text>
+                                <Show when={revert()!.diffFiles?.length}>
+                                  <box marginTop={1}>
+                                    <For each={revert()!.diffFiles}>
+                                      {(file) => (
+                                        <text fg={theme.text}>
+                                          {file.filename}
+                                          <Show when={file.additions > 0}>
+                                            <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                          </Show>
+                                          <Show when={file.deletions > 0}>
+                                            <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                          </Show>
+                                        </text>
+                                      )}
+                                    </For>
+                                  </box>
+                                </Show>
+                              </box>
                             </box>
-                          </box>
-                        )
-                      })()}
-                    </Match>
-                    <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
-                      <></>
-                    </Match>
-                    <Match when={message.role === "user"}>
-                      <UserMessage
-                        index={index()}
-                        onMouseUp={() => {
-                          if (renderer.getSelection()?.getSelectedText()) return
-                          dialog.replace(() => (
-                            <DialogMessage
-                              messageID={message.id}
-                              sessionID={route.sessionID}
-                              setPrompt={(promptInfo) => prompt.set(promptInfo)}
-                            />
-                          ))
-                        }}
-                        message={message as UserMessage}
-                        parts={sync.data.part[message.id] ?? []}
-                        pending={pending()}
-                      />
-                    </Match>
-                    <Match when={message.role === "assistant"}>
-                      <AssistantMessage
-                        last={lastAssistant()?.id === message.id}
-                        message={message as AssistantMessage}
-                        parts={sync.data.part[message.id] ?? []}
-                      />
-                    </Match>
-                  </Switch>
-                )}
-              </For>
-            </scrollbox>
-            <box flexShrink={0}>
-              <Show when={permissions().length > 0}>
-                <PermissionPrompt request={permissions()[0]} />
-              </Show>
-              <Show when={permissions().length === 0 && questions().length > 0}>
-                <QuestionPrompt request={questions()[0]} />
-              </Show>
-              <Prompt
-                visible={!session()?.parentID && permissions().length === 0 && questions().length === 0}
-                ref={(r) => {
-                  prompt = r
-                  promptRef.set(r)
-                  // Apply initial prompt when prompt component mounts (e.g., from fork)
-                  if (route.initialPrompt) {
-                    r.set(route.initialPrompt)
-                  }
-                }}
-                disabled={permissions().length > 0 || questions().length > 0}
-                onSubmit={() => {
-                  toBottom()
-                }}
-                sessionID={route.sessionID}
-              />
-            </box>
+                          )
+                        })()}
+                      </Match>
+                      <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
+                        <></>
+                      </Match>
+                      <Match when={message.role === "user"}>
+                        <UserMessage
+                          index={index()}
+                          onMouseUp={() => {
+                            if (renderer.getSelection()?.getSelectedText()) return
+                            dialog.replace(() => (
+                              <DialogMessage
+                                messageID={message.id}
+                                sessionID={route.sessionID}
+                                setPrompt={(promptInfo) => prompt.set(promptInfo)}
+                              />
+                            ))
+                          }}
+                          message={message as UserMessage}
+                          parts={sync.data.part[message.id] ?? []}
+                          pending={pending()}
+                        />
+                      </Match>
+                      <Match when={message.role === "assistant"}>
+                        <AssistantMessage
+                          last={lastAssistant()?.id === message.id}
+                          message={message as AssistantMessage}
+                          parts={sync.data.part[message.id] ?? []}
+                        />
+                      </Match>
+                    </Switch>
+                  )}
+                </For>
+              </scrollbox>
+              <box flexShrink={0}>
+                <Show when={permissions().length > 0}>
+                  <PermissionPrompt request={permissions()[0]} />
+                </Show>
+                <Show when={permissions().length === 0 && questions().length > 0}>
+                  <QuestionPrompt request={questions()[0]} />
+                </Show>
+                <Prompt
+                  visible={!session()?.parentID && permissions().length === 0 && questions().length === 0}
+                  ref={(r) => {
+                    prompt = r
+                    promptRef.set(r)
+                    if (route.initialPrompt) {
+                      r.set(route.initialPrompt)
+                    }
+                  }}
+                  disabled={permissions().length > 0 || questions().length > 0}
+                  onSubmit={() => {
+                    toBottom()
+                  }}
+                  sessionID={route.sessionID}
+                />
+              </box>
+              {/* Chat footer — session info */}
+              <box flexShrink={0} flexDirection="column">
+                <Show when={sessionContext()}>
+                  <text fg={theme.textMuted} wrapMode="none">
+                    Csound
+                    <Show when={sessionContext()?.modelName}>
+                      {" \u00B7 "}{sessionContext()!.modelName}
+                    </Show>
+                    {" \u00B7 "}{sessionContext()!.tokens} tokens
+                    <Show when={sessionContext()!.percentage}>
+                      {" \u00B7 "}{sessionContext()!.percentage}%
+                    </Show>
+                    {" \u00B7 "}{sessionCost()}
+                  </text>
+                </Show>
+                <text fg={theme.textMuted} wrapMode="none">
+                  <span style={{ fg: theme.textMuted }}>{directory().split("/").slice(0, -1).join("/")}/</span>
+                  <span style={{ fg: theme.text }}>{directory().split("/").at(-1)}</span>
+                  {" \u00B7 "}
+                  <span style={{ fg: theme.success }}>{"\u2022"}</span>{" "}
+                  <b>dr</b><span style={{ fg: theme.text }}><b>C</b></span>{" "}
+                  {Installation.VERSION}
+                </text>
+              </box>
+            </Show>
+            <Toast />
+          </box>
+
+          {/* Version history — below chat */}
+          <Show when={csdPanelActive()}>
+            <VersionHistoryPanel
+              sessionID={route.sessionID}
+              csdFilePath={csdFilePath()}
+              onVersionSelect={() => { setCsdRefreshTrigger((n) => n + 1); setCsdRenderTrigger((n) => n + 1) }}
+            />
           </Show>
-          <Toast />
         </box>
-          <Show when={sidebarVisible()}>
-            <Switch>
-              <Match when={wide() && designMode() && csdFilePath()}>
-                <DesignTreePanel sessionID={route.sessionID} csdFilePath={csdFilePath()} onNodeSelect={() => { setCsdRefreshTrigger((n) => n + 1); setCsdRenderTrigger((n) => n + 1) }} />
-              </Match>
-              <Match when={wide()}>
-                <Sidebar sessionID={route.sessionID} csdFilePath={csdFilePath()} />
-              </Match>
-              <Match when={!wide()}>
-                <box
-                  position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
-                  alignItems="flex-end"
-                  backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
-                >
-                  <Sidebar sessionID={route.sessionID} csdFilePath={csdFilePath()} />
-                </box>
-              </Match>
-            </Switch>
-          </Show>
         </box>
         {/* Parameter editing now handled via dialog overlay (Ctrl+P → Edit parameters) */}
       </box>

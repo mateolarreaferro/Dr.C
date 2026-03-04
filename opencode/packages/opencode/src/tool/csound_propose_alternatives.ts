@@ -100,7 +100,6 @@ export const CsoundProposeAlternativesTool = Tool.define(
         metadata: {
           selected: selected.label,
           request,
-          snapshotHash,
           approach: selected.approach,
         },
       }

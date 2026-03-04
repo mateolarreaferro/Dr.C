@@ -29,6 +29,24 @@ export namespace SystemPrompt {
     return [PROMPT_ANTHROPIC_WITHOUT_TODO]
   }
 
+  export function parseCsoundMajorVersion(versionStr: string): number | null {
+    const match = versionStr.match(/^(\d+)/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  let _cachedVersionInfo: { version: string; major: number | null; isV7: boolean } | null = null
+
+  export async function getCsoundVersionInfo(): Promise<{ version: string; major: number | null; isV7: boolean }> {
+    if (_cachedVersionInfo) return _cachedVersionInfo
+    const version = await csoundVersion()
+    const major = version !== "not installed" && version !== "installed (version unknown)"
+      ? parseCsoundMajorVersion(version)
+      : null
+    const isV7 = major !== null && major >= 7
+    _cachedVersionInfo = { version, major, isV7 }
+    return _cachedVersionInfo
+  }
+
   async function csoundVersion(): Promise<string> {
     try {
       const result = await $`csound --version 2>&1`.quiet().nothrow().text()
@@ -80,7 +98,8 @@ export namespace SystemPrompt {
 
   export async function environment(model: Provider.Model) {
     const project = Instance.project
-    const csound = await csoundVersion()
+    const versionInfo = await getCsoundVersionInfo()
+    const csound = versionInfo.version
     const cabbage = await cabbageVersion()
     const audioPlayer = await audioPlaybackPlayer()
     const csdFiles = await listCsdFiles(Instance.directory)
@@ -93,6 +112,14 @@ export namespace SystemPrompt {
       csdFiles.length > 0
         ? `  CSD files in workspace:\n${csdFiles.map((f) => `    - ${f}`).join("\n")}`
         : `  CSD files in workspace: none`
+
+    let csoundLabel = `  Csound: ${csound}`
+    if (csound === "not installed") {
+      csoundLabel += " ⚠ USE csound_install TOOL TO INSTALL BEFORE ANY CSOUND OPERATIONS"
+    } else if (versionInfo.major !== null && !versionInfo.isV7) {
+      csoundLabel += ` (WARNING: Csound 7+ recommended — you have v${versionInfo.major})`
+    }
+
     return [
       [
         `You are DrC — an expert Csound sound designer and synthesis programmer, powered by the model ${model.api.id}.`,
@@ -102,7 +129,7 @@ export namespace SystemPrompt {
         `  Is directory a git repo: ${project.vcs === "git" ? "yes" : "no"}`,
         `  Platform: ${process.platform}`,
         `  Today's date: ${new Date().toDateString()}`,
-        `  Csound: ${csound}${csound === "not installed" ? " ⚠ USE csound_install TOOL TO INSTALL BEFORE ANY CSOUND OPERATIONS" : ""}`,
+        csoundLabel,
         `  Cabbage: ${cabbage}`,
         `  Audio playback: ${audioPlayer}`,
         csdSection,

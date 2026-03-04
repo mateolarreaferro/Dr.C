@@ -35,6 +35,7 @@ import { CsoundRenderTool } from "./csound_render"
 import { CsoundInstallTool } from "./csound_install"
 import { CsoundProposeAlternativesTool } from "./csound_propose_alternatives"
 import { TaskParallelTool } from "./task_parallel"
+import { CsoundExportHtmlTool } from "./csound_export_html"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -131,6 +132,7 @@ export namespace ToolRegistry {
       ApplyCsdPatchTool,
       CsoundProposeAlternativesTool,
       TaskParallelTool,
+      CsoundExportHtmlTool,
       ...custom,
     ]
   }

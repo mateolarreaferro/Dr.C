@@ -95,6 +95,7 @@ export namespace Agent {
             csound_propose_alternatives: "allow",
             task_parallel: "allow",
             task: "allow",
+            csound_export_html: "allow",
           }),
           user,
         ),
