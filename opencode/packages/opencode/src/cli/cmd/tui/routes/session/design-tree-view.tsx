@@ -10,6 +10,7 @@ import type { AssistantMessage } from "@drc/sdk/v2"
 import crypto from "crypto"
 import path from "path"
 import { RetrievalEngine } from "@/retrieval/engine"
+import { computeCsdChanges } from "../../component/csd-change-summary"
 
 export function DesignTreePanel(props: {
   csdFilePath: string | undefined
@@ -22,6 +23,9 @@ export function DesignTreePanel(props: {
   const [treeState, setTreeState] = createSignal<DesignTree.DesignTreeState | null>(null)
   const [focusedNodeID, setFocusedNodeID] = createSignal<string | undefined>()
   const [lastContentHash, setLastContentHash] = createSignal<string | undefined>()
+  // One node per user prompt: track user msg count to collapse edits within a single turn
+  const [lastCreatedNodeID, setLastCreatedNodeID] = createSignal<string | undefined>()
+  const [lastNodeUserCount, setLastNodeUserCount] = createSignal<number>(0)
 
   // --- Session info ---
 
@@ -44,6 +48,10 @@ export function DesignTreePanel(props: {
       percentage: model?.limit.context ? Math.round((total / model.limit.context) * 100) : undefined,
     }
   })
+
+  const userMsgCount = createMemo(() =>
+    messages().filter((m) => m.role === "user").length,
+  )
 
   const displayFile = createMemo(() => {
     const fp = props.csdFilePath
@@ -120,13 +128,12 @@ export function DesignTreePanel(props: {
     const hash = contentHash(content)
     const prevHash = lastContentHash()
 
-    // Skip if content hasn't changed since last check
+    // No change since last poll
     if (hash === prevHash) return
     setLastContentHash(hash)
 
-    // Skip the very first check (initial load)
+    // First poll (initial load) — create the root node
     if (prevHash === undefined) {
-      // On initial load, always create a fresh tree for this session
       let snapshotHash: string
       try {
         snapshotHash = await CsdSnapshot.capture(fp, props.sessionID)
@@ -139,7 +146,7 @@ export function DesignTreePanel(props: {
       return
     }
 
-    // Content changed — create a new node
+    // Content changed — create or update node based on user prompt count
     let snapshotHash: string
     try {
       snapshotHash = await CsdSnapshot.capture(fp, props.sessionID)
@@ -161,23 +168,43 @@ export function DesignTreePanel(props: {
       return
     }
 
-    // Also check if a descendant of current node already has this hash
-    const descendantID = DesignTree.findDescendantByHash(tree, tree.currentNodeID, snapshotHash)
-    if (descendantID) {
-      DesignTree.selectNode(tree, descendantID)
+    const description = latestUserText() ?? `Change ${Object.keys(tree.nodes).length}`
+
+    let changeSummary = ""
+    try {
+      const parentNode = tree.nodes[tree.currentNodeID]
+      if (parentNode) {
+        const parentContent = await CsdSnapshot.getContent(fp, parentNode.snapshotHash)
+        const changes = computeCsdChanges(parentContent, content)
+        changeSummary = changes.slice(0, 3).map((c) => c.detail).join(", ")
+      }
+    } catch { /* parent snapshot may not exist */ }
+
+    // Same user prompt as last node? Update it instead of creating a new one.
+    const currentUserCount = userMsgCount()
+    const prevNodeID = lastCreatedNodeID()
+
+    if (prevNodeID && currentUserCount === lastNodeUserCount() && tree.nodes[prevNodeID]) {
+      const node = tree.nodes[prevNodeID]
+      node.snapshotHash = snapshotHash
+      node.timestamp = Date.now()
+      if (changeSummary) node.metadata.changeSummary = changeSummary
+      DesignTree.selectNode(tree, prevNodeID)
       await DesignTree.save(tree)
       setTreeState({ ...tree })
       return
     }
 
-    const description = latestUserText() ?? `Change ${Object.keys(tree.nodes).length}`
-
+    // New user prompt — create a new node
     const { state: updatedTree, nodeID } = DesignTree.addNode(tree, {
       snapshotHash,
       description,
       sessionID: props.sessionID,
-      metadata: {},
+      metadata: { changeSummary },
     })
+
+    setLastCreatedNodeID(nodeID)
+    setLastNodeUserCount(currentUserCount)
 
     DesignTree.selectNode(updatedTree, nodeID)
     await DesignTree.save(updatedTree)
@@ -201,11 +228,10 @@ export function DesignTreePanel(props: {
   interface TreeLine {
     node: DesignTree.DesignNode
     depth: number
-    prefix: string
-    connector: string
     isCurrent: boolean
     isOnPath: boolean
     childCount: number
+    changeSummary?: string
   }
 
   const treeLines = createMemo((): TreeLine[] => {
@@ -215,15 +241,12 @@ export function DesignTreePanel(props: {
     const pathNodeIDs = new Set(DesignTree.getPath(state).map((n) => n.id))
     const lines: TreeLine[] = []
 
-    function walk(nodeID: string, depth: number, parentPrefixes: string[], isLast: boolean) {
+    function walk(nodeID: string, depth: number) {
       const node = state!.nodes[nodeID]
       if (!node) return
 
       // Skip pruned nodes unless showPruned is enabled
       if (node.pruned && !showPruned()) return
-
-      const prefix = depth > 0 ? parentPrefixes.join("") : ""
-      const connector = depth > 0 ? (isLast ? "\u2514\u2500" : "\u251C\u2500") : ""
 
       const children = node.alternatives
         .map((id) => state!.nodes[id])
@@ -234,22 +257,18 @@ export function DesignTreePanel(props: {
       lines.push({
         node,
         depth,
-        prefix,
-        connector,
         isCurrent: nodeID === state!.currentNodeID,
         isOnPath: pathNodeIDs.has(nodeID),
         childCount: children.length,
+        changeSummary: node.metadata?.changeSummary as string | undefined,
       })
 
-      for (let i = 0; i < children.length; i++) {
-        const childIsLast = i === children.length - 1
-        const nextPrefixes =
-          depth > 0 ? [...parentPrefixes, isLast ? "  " : "\u2502 "] : []
-        walk(children[i].id, depth + 1, nextPrefixes, childIsLast)
+      for (const child of children) {
+        walk(child.id, depth + 1)
       }
     }
 
-    walk(state.rootNodeID, 0, [], true)
+    walk(state.rootNodeID, 0)
     return lines
   })
 
@@ -385,33 +404,36 @@ export function DesignTreePanel(props: {
               const isFocused = createMemo(() => focusedNodeID() === line.node.id)
 
               const isPruned = createMemo(() => !!line.node.pruned)
+              const indent = "  ".repeat(line.depth)
               const marker = createMemo(() =>
                 line.isCurrent ? "\u25C6" : line.isOnPath ? "\u25CF" : "\u25CB",
               )
               const markerColor = createMemo(() => {
                 if (isPruned()) return theme.textMuted
-                if (line.isCurrent) return theme.accent
-                if (line.isOnPath) return theme.accent
-                // Inactive branches: visible but distinct (NOT textMuted)
+                if (line.isCurrent || line.isOnPath) return theme.accent
                 return theme.text
               })
               const labelColor = createMemo(() => {
                 if (isPruned()) return theme.textMuted
-                if (isFocused() || hover()) return theme.text
                 if (line.isCurrent) return theme.accent
+                if (isFocused() || hover()) return theme.text
                 if (line.isOnPath) return theme.accent
-                // Inactive branches: secondary color (visible)
                 return theme.text
               })
               const bg = createMemo(() => {
+                if (line.isCurrent) return theme.backgroundElement
                 if (isFocused() || hover()) return theme.backgroundElement
                 return undefined
               })
 
+              const truncDesc = createMemo(() => {
+                const desc = line.node.description
+                return desc.length > 25 ? desc.slice(0, 22) + "..." : desc
+              })
+
               return (
                 <box
-                  flexDirection="row"
-                  justifyContent="space-between"
+                  flexDirection="column"
                   onMouseOver={() => {
                     setHover(true)
                     setFocusedNodeID(line.node.id)
@@ -420,19 +442,29 @@ export function DesignTreePanel(props: {
                   onMouseUp={() => handleSelect(line.node.id)}
                   backgroundColor={bg()}
                 >
-                  <box flexDirection="row" flexShrink={1}>
-                    <text fg={theme.textMuted}>{line.prefix}{line.connector}</text>
-                    <text fg={markerColor()}>{marker()} </text>
-                    <text fg={labelColor()} wrapMode="none">
-                      <Show when={line.node.branchName}>
-                        <span style={{ fg: theme.accent, bold: true }}>[{line.node.branchName}] </span>
-                      </Show>
-                      {line.node.description}
+                  <box flexDirection="row" justifyContent="space-between">
+                    <box flexDirection="row" flexShrink={1}>
+                      <text fg={theme.textMuted}>{indent}</text>
+                      <text fg={markerColor()}>{marker()} </text>
+                      <text fg={labelColor()} wrapMode="none">
+                        <Show when={line.node.branchName}>
+                          <span style={{ fg: theme.accent, bold: true }}>[{line.node.branchName}] </span>
+                        </Show>
+                        {truncDesc()}
+                        <Show when={isPruned()}>
+                          <span style={{ fg: theme.textMuted }}> [pruned]</span>
+                        </Show>
+                      </text>
+                    </box>
+                    <text fg={theme.textMuted} flexShrink={0}>
+                      {" "}{relativeTime(line.node.timestamp)}
                     </text>
                   </box>
-                  <text fg={theme.textMuted} flexShrink={0}>
-                    {" "}{relativeTime(line.node.timestamp)}
-                  </text>
+                  <Show when={line.changeSummary}>
+                    <text fg={theme.textMuted} wrapMode="none">
+                      {indent}{"    "}{line.changeSummary!.length > 34 ? line.changeSummary!.slice(0, 31) + "..." : line.changeSummary}
+                    </text>
+                  </Show>
                 </box>
               )
             }}
@@ -457,9 +489,17 @@ export function DesignTreePanel(props: {
                 {line().node.sonicCharacter}
               </text>
             </Show>
+            <Show when={line().changeSummary}>
+              <text fg={theme.textMuted} wrapMode="word">
+                {line().changeSummary}
+              </text>
+            </Show>
             <box flexDirection="row" gap={2} paddingTop={1}>
               <text fg={theme.textMuted}>
                 {line().childCount} {line().childCount === 1 ? "branch" : "branches"}
+              </text>
+              <text fg={theme.textMuted}>
+                {line().node.snapshotHash.slice(0, 8)}
               </text>
               <Show when={line().isCurrent}>
                 <text fg={theme.accent}><b>current</b></text>

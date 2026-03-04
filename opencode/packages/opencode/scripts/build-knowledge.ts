@@ -85,6 +85,12 @@ function sanitizeID(text: string): string {
 }
 
 function isChapterHeader(line: string): { level: number; title: string } | null {
+  // Markdown headers: ## Section (level 1) and ### Subsection (level 2)
+  const mdH2 = line.match(/^##\s+(.+)/)
+  if (mdH2) return { level: 1, title: mdH2[1].trim() }
+  const mdH3 = line.match(/^###\s+(.+)/)
+  if (mdH3) return { level: 2, title: mdH3[1].trim() }
+
   const chapterMatch = line.match(/^(Chapter|CHAPTER|Part|PART)\s+(\d+|[IVXLC]+)[.:]\s*(.*)/)
   if (chapterMatch) return { level: 1, title: line.trim() }
   const sectionMatch = line.match(/^(\d+\.\d+)\s+(.+)/)
@@ -140,6 +146,8 @@ function chunkSource(sourcePath: string, content: string, maxTokens = 350, overl
     if (inFrontMatter) {
       const trimmed = line.trim()
       if (
+        // Markdown files: if first non-blank line starts with #, content starts immediately
+        /^#{1,3}\s+/.test(trimmed) ||
         /^(Chapter|CHAPTER)\s+1\b/.test(trimmed) ||
         /^Part\s+[I1]\b/.test(trimmed) ||
         /^(Foreword|Introduction to Sound Design|1\.\s+Introduction)/i.test(trimmed)

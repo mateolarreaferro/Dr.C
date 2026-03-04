@@ -179,7 +179,11 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
   const displayPath = createMemo(() => {
     const fp = props.filePath
     if (!fp) return ""
-    if (path.isAbsolute(fp)) return path.relative(process.cwd(), fp) || path.basename(fp)
+    if (path.isAbsolute(fp)) {
+      const rel = path.relative(process.cwd(), fp)
+      // Workspace paths produce ugly ../../../ relative paths — just show basename
+      return rel.startsWith("..") ? path.basename(fp) : rel
+    }
     return fp
   })
 

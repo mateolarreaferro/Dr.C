@@ -40,7 +40,10 @@ export const ApplyCsdPatchTool = Tool.define(
         ? params.filePath
         : path.join(Instance.directory, params.filePath)
 
-      // Resolve through workspace if active (redirects to temp dir)
+      // Initialize workspace if not yet active, then resolve to temp dir
+      if (!SessionWorkspace.isActive(ctx.sessionID)) {
+        await SessionWorkspace.init(ctx.sessionID, rawPath)
+      }
       const filePath = SessionWorkspace.resolve(ctx.sessionID, rawPath)
 
       if (!filePath.endsWith(".csd")) {

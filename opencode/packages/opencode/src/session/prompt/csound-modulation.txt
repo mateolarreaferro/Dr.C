@@ -17,4 +17,11 @@ Conventions:
 - LFO rates typically 0.1-20 Hz for audible movement
 - Use port/portk for smoothing discrete parameter changes
 
+Csound 7 Rules (CRITICAL):
+- `linseg`/`expseg` args alternate value,dur,value,dur,...,value — always an ODD count
+- `linsegr` handles release automatically — do NOT use `p3` arithmetic to force total duration
+- `expseg`/`expsegr` values must ALL be > 0 — use 0.0001 instead of 0
+- Envelopes MUST use functional style: `kEnv = madsr(...)` not `kEnv madsr ...`
+- MIDI instruments need `massign 0, instrNum` to route MIDI channels
+
 Always compile and smoke-test after making changes.

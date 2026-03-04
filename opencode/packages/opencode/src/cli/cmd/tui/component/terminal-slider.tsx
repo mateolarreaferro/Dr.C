@@ -1,4 +1,4 @@
-import { createSignal, createMemo } from "solid-js"
+import { createSignal, createMemo, Show } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useKeyboard } from "@opentui/solid"
 
@@ -15,10 +15,15 @@ function fmtNum(v: number): string {
 /**
  * Text-mode slider for terminal UI.
  *
- * Renders: label  min [====|====] max  value unit
+ * Renders: label  value  min [====|====] max  unit
  *
- * Keyboard: left/right fine, shift+arrows coarse, Home/End min/max
- * Mouse: click to set position
+ * Keyboard:
+ *   Left/Right   — fine step
+ *   Shift+arrows — coarse step
+ *   Home/End     — min/max
+ *   Enter        — type an exact value (number input mode)
+ *   0-9 / . / -  — start typing immediately
+ * Mouse: click/drag to set position
  */
 export function TerminalSlider(props: {
   label: string
@@ -36,6 +41,11 @@ export function TerminalSlider(props: {
 }) {
   const { theme } = useTheme()
   const [hover, setHover] = createSignal(false)
+  const [dragging, setDragging] = createSignal(false)
+
+  // Number input mode
+  const [inputMode, setInputMode] = createSignal(false)
+  const [inputBuffer, setInputBuffer] = createSignal("")
 
   const isFocused = createMemo(() => props.focused ?? false)
 
@@ -63,32 +73,136 @@ export function TerminalSlider(props: {
     props.onChange(newVal)
   }
 
-  useKeyboard(
-    (key) => {
-      if (!isFocused()) return false
+  const enterInputMode = (initial?: string) => {
+    setInputMode(true)
+    setInputBuffer(initial ?? "")
+  }
 
-      if (key === "left") { adjustValue(-step()); return true }
-      if (key === "right") { adjustValue(step()); return true }
-      if (key === "S-left") { adjustValue(-coarseStep()); return true }
-      if (key === "S-right") { adjustValue(coarseStep()); return true }
-      if (key === "home") { props.onChange(props.min); return true }
-      if (key === "end") { props.onChange(props.max); return true }
+  const confirmInput = () => {
+    const text = inputBuffer().trim()
+    setInputMode(false)
+    setInputBuffer("")
+    if (text === "") return
+    const parsed = parseFloat(text)
+    if (!isNaN(parsed)) {
+      props.onChange(clamp(parsed))
+    }
+  }
 
-      return false
-    },
-  )
+  const cancelInput = () => {
+    setInputMode(false)
+    setInputBuffer("")
+  }
 
-  const handleClick = (x: number) => {
+  useKeyboard((evt) => {
+    if (!isFocused()) return
+
+    // Number input mode: capture all keys for editing
+    if (inputMode()) {
+      if (evt.name === "return") {
+        confirmInput()
+        evt.preventDefault()
+        return
+      }
+      if (evt.name === "escape") {
+        cancelInput()
+        evt.preventDefault()
+        return
+      }
+      if (evt.name === "backspace") {
+        setInputBuffer((b) => b.slice(0, -1))
+        evt.preventDefault()
+        return
+      }
+      // Allow typing digits, decimal point, minus
+      if (/^[0-9.\-]$/.test(evt.name)) {
+        setInputBuffer((b) => b + evt.name)
+        evt.preventDefault()
+        return
+      }
+      evt.preventDefault()
+      return // consume all keys in input mode
+    }
+
+    // Normal slider mode — check shift variants first
+    if (evt.shift && evt.name === "left") {
+      adjustValue(-coarseStep())
+      evt.preventDefault()
+      return
+    }
+    if (evt.shift && evt.name === "right") {
+      adjustValue(coarseStep())
+      evt.preventDefault()
+      return
+    }
+    if (evt.name === "left") {
+      adjustValue(-step())
+      evt.preventDefault()
+      return
+    }
+    if (evt.name === "right") {
+      adjustValue(step())
+      evt.preventDefault()
+      return
+    }
+    if (evt.name === "home") {
+      props.onChange(props.min)
+      evt.preventDefault()
+      return
+    }
+    if (evt.name === "end") {
+      props.onChange(props.max)
+      evt.preventDefault()
+      return
+    }
+
+    // Enter: open number input with current value pre-filled
+    if (evt.name === "return") {
+      enterInputMode(fmtNum(props.value))
+      evt.preventDefault()
+      return
+    }
+
+    // Typing a digit/dot/minus starts input mode immediately
+    if (/^[0-9.\-]$/.test(evt.name)) {
+      enterInputMode(evt.name)
+      evt.preventDefault()
+      return
+    }
+  })
+
+  const handleMousePosition = (x: number) => {
+    if (inputMode()) return // don't move slider while typing
     const effectiveLabelLen = Math.max(10, props.label.length) + 1
+    const valueLen = 9 // value display width + gap
     const minLen = displayMin().length + 1
-    const barStart = effectiveLabelLen + minLen
+    const barStart = effectiveLabelLen + valueLen + minLen
     const barEnd = barStart + barWidth() + 2
     if (x >= barStart && x <= barEnd) {
       const ratio = Math.max(0, Math.min(1, (x - barStart - 1) / barWidth()))
       const newVal = clamp(props.min + ratio * (props.max - props.min))
       props.onChange(newVal)
     }
+  }
+
+  const handleMouseDown = (x: number) => {
+    if (inputMode()) return
+    setDragging(true)
+    handleMousePosition(x)
     props.onFocus?.()
+  }
+
+  const handleMouseMove = (x: number) => {
+    if (dragging()) {
+      handleMousePosition(x)
+    }
+  }
+
+  const handleMouseUp = (x: number) => {
+    if (dragging()) {
+      handleMousePosition(x)
+      setDragging(false)
+    }
   }
 
   const bar = createMemo(() => {
@@ -103,8 +217,10 @@ export function TerminalSlider(props: {
       flexDirection="row"
       gap={1}
       onMouseOver={() => setHover(true)}
-      onMouseOut={() => setHover(false)}
-      onMouseUp={(evt) => handleClick(evt.x)}
+      onMouseOut={() => { setHover(false); setDragging(false) }}
+      onMouseDown={(evt: any) => handleMouseDown(evt.x)}
+      onMouseMove={(evt: any) => handleMouseMove(evt.x)}
+      onMouseUp={(evt: any) => handleMouseUp(evt.x)}
     >
       <text
         fg={isFocused() ? theme.accent : theme.text}
@@ -114,19 +230,36 @@ export function TerminalSlider(props: {
       >
         {props.label}
       </text>
+      {/* Value display — shows input field when typing, otherwise current value */}
+      <Show when={inputMode()} fallback={
+        <text
+          fg={isFocused() ? theme.accent : theme.text}
+          width={8}
+          flexShrink={0}
+          bold={isFocused()}
+        >
+          {displayValue()}
+        </text>
+      }>
+        <text
+          fg={theme.accent}
+          width={8}
+          flexShrink={0}
+          bold
+        >
+          {inputBuffer() + "\u2588"}
+        </text>
+      </Show>
       <text fg={theme.textMuted} flexShrink={0}>
         {displayMin()}
       </text>
-      <text fg={isFocused() ? theme.accent : hover() ? theme.text : theme.textMuted}>
+      <text fg={inputMode() ? theme.textMuted : isFocused() ? theme.accent : hover() ? theme.text : theme.textMuted}>
         {bar()}
       </text>
       <text fg={theme.textMuted} flexShrink={0}>
         {displayMax()}
       </text>
-      <text fg={isFocused() ? theme.accent : theme.text} width={8} flexShrink={0} bold={isFocused()}>
-        {" "}{displayValue()}
-      </text>
-      {props.unit ? <text fg={theme.textMuted}>{props.unit}</text> : null}
+      {props.unit ? <text fg={theme.textMuted}> {props.unit}</text> : null}
     </box>
   )
 }

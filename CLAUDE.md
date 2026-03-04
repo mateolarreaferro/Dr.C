@@ -40,9 +40,9 @@ bun run scripts/build-knowledge.ts   # pre-compute RAG embeddings bundle
 
 ### Session Workspace
 
-All CSD/WAV edits to **existing** files are redirected to `~/.drc/sessions/{sessionID}/temp/`. Users must explicitly Save to copy results to `saved scripts/`. New file creation goes directly to the project directory.
+All CSD/WAV operations (both new files and edits to existing files) are redirected to `~/.drc/sessions/{sessionID}/temp/`. Users must explicitly Save to copy results to `saved scripts/`. The project directory stays clean.
 
-**IMPORTANT**: Workspace only activates for existing files being modified, never for new file creation. All Csound tools (compile, smoke, render, write, apply_csd_patch) resolve paths through `SessionWorkspace.resolve()`.
+**IMPORTANT**: Workspace activates automatically on the first CSD write/patch in a session. All Csound tools (compile, smoke, render, write, apply_csd_patch) resolve paths through `SessionWorkspace.resolve()`.
 
 - `src/session/workspace.ts` — `init()`, `resolve()`, `save()`, `discard()`, `status()`, `cleanup()`
 - **Save destination**: `<project root>/saved scripts/` — always creates a new copy, never overwrites (appends `_2`, `_3`, etc. if filename exists)
@@ -194,4 +194,7 @@ When `apply_csd_patch` targets CSD files, a structured diff summary renders belo
 - **The Csound Book** (Boulanger, MIT Press 2000): `csound_book.txt` (53K lines, 1.2MB) at project root
 - **FLOSS Csound Manual**: `floss_manual.txt` (when available in `resources/knowledge/sources/`)
 - **Opcode Reference**: `opcode_reference.txt` (when available in `resources/knowledge/sources/`)
+- **Csound 7 Anti-Patterns**: `antipatterns.md` — 19 common AI failure modes with correct fixes
+- **Csound 7 Syntax Rules**: `syntax-rules.md` — rate system, UDO syntax, control flow, structs
+- **Csound 7 Code Patterns**: `patterns.md` — curated synthesis, effects, envelope, and MIDI templates
 - **Custom**: any `.txt`/`.md` in `~/.drc/knowledge/custom/`

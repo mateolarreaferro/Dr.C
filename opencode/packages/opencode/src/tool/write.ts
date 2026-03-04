@@ -26,18 +26,18 @@ export const WriteTool = Tool.define("write", {
   async execute(params, ctx) {
     let filepath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
 
-    // For .csd and .wav files, route through workspace — but ONLY for existing files.
-    // New file creation should go to the project directory directly.
+    // Route .csd and .wav files through workspace (temp dir) — both new and existing.
+    // This keeps the project directory clean; users explicitly Save to copy results out.
     const ext = path.extname(filepath).toLowerCase()
-    const fileExistsOnDisk = await Bun.file(filepath).exists()
-    if ((ext === ".csd" || ext === ".wav") && fileExistsOnDisk) {
+    if (ext === ".csd" || ext === ".wav") {
       if (!SessionWorkspace.isActive(ctx.sessionID) && ext === ".csd") {
         await SessionWorkspace.init(ctx.sessionID, filepath)
       }
       filepath = SessionWorkspace.resolve(ctx.sessionID, filepath)
     }
+    const workspacePath = SessionWorkspace.isWorkspacePath(ctx.sessionID, filepath)
 
-    await assertExternalDirectory(ctx, filepath)
+    await assertExternalDirectory(ctx, filepath, { bypass: workspacePath })
 
     const file = Bun.file(filepath)
     const exists = await file.exists()
@@ -91,7 +91,7 @@ export const WriteTool = Tool.define("write", {
     }
 
     return {
-      title: path.relative(Instance.worktree, filepath),
+      title: workspacePath ? path.basename(filepath) : path.relative(Instance.worktree, filepath),
       metadata: {
         diagnostics,
         filepath,

@@ -63,7 +63,7 @@ import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { CsdPanel, CsdPanelBorder } from "./csd-panel"
 import { DesignTreePanel } from "./design-tree-view"
-import { ParamBottomPanel } from "./param-bottom-panel"
+import { DialogEditParams } from "./dialog-edit-params"
 import { Flag } from "@/flag/flag"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import parsers from "../../../../../../parsers-config.ts"
@@ -163,9 +163,7 @@ export function Session() {
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [designMode, setDesignMode] = kv.signal("design_mode", true)
   const [csdPanelVisible, setCsdPanelVisible] = kv.signal("csd_panel_visible", true)
-  const [paramPanelVisible, setParamPanelVisible] = kv.signal("param_panel_visible", true)
-  const [paramPanelHeight] = kv.signal("param_panel_height", 8)
-  const [paramPanelFocused, setParamPanelFocused] = createSignal(false)
+  // paramPanel signals removed — parameter editing now uses dialog overlay
   const [lockedParamsRaw, setLockedParamsRaw] = kv.signal<string>("locked_params", "")
   const lockedParams = createMemo(() => new Set(lockedParamsRaw().split(",").filter(Boolean)))
   // Sync locked params to shared store for prompt injection
@@ -187,16 +185,19 @@ export function Session() {
         const part = parts[j]
         if (part.type === "tool" && part.state.status !== "pending") {
           const state = part.state as any
-          // Check input.filePath (all csound tools, write, edit, apply_csd_patch)
-          const inputPath = state.input?.filePath
-          if (inputPath && typeof inputPath === "string" && inputPath.endsWith(".csd")) {
-            setCsdFilePath(inputPath)
-            return
-          }
-          // Fallback: check metadata.filepath (write tool uses lowercase)
+          // Prefer metadata paths — these are workspace-resolved (temp dir) for completed tools.
+          // Using input.filePath first would return the original project path, which can cause
+          // the CSD panel to read from the wrong location since SessionWorkspace.resolve() in
+          // the memo isn't reactive to workspace activation.
           const metaPath = state.metadata?.filepath ?? state.metadata?.filePath
           if (metaPath && typeof metaPath === "string" && metaPath.endsWith(".csd")) {
             setCsdFilePath(metaPath)
+            return
+          }
+          // Fallback: input.filePath (original path from LLM, used when tool is still running)
+          const inputPath = state.input?.filePath
+          if (inputPath && typeof inputPath === "string" && inputPath.endsWith(".csd")) {
+            setCsdFilePath(inputPath)
             return
           }
         }
@@ -779,6 +780,41 @@ export function Session() {
                 })
                 dialog.clear()
               }}
+              onClose={() => dialog.clear()}
+            />
+          ))
+        } catch (err) {
+          toast.show({ message: `Failed to parse CSD: ${String(err)}`, variant: "error" })
+          dialog.clear()
+        }
+      },
+    },
+    {
+      title: "Edit parameters",
+      value: "session.edit_params",
+      category: "Csound",
+      enabled: designMode() && !!csdFilePath(),
+      onSelect: async (dialog) => {
+        const fp = csdFilePath()
+        if (!fp) {
+          dialog.clear()
+          return
+        }
+        try {
+          const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+          const content = await Bun.file(resolved).text()
+          const structure = CsdParser.parse(content)
+          const params = structure.parameters.filter((p) => p.value !== undefined)
+          if (params.length === 0) {
+            toast.show({ message: "No tuneable parameters found in CSD", variant: "error" })
+            dialog.clear()
+            return
+          }
+          dialog.replace(() => (
+            <DialogEditParams
+              filePath={fp}
+              sessionID={route.sessionID}
+              onParamChange={() => setCsdRenderTrigger((n) => n + 1)}
               onClose={() => dialog.clear()}
             />
           ))
@@ -1408,24 +1444,7 @@ export function Session() {
             </Switch>
           </Show>
         </box>
-        {/* Bottom parameter panel — full width below main content */}
-        <ParamBottomPanel
-          filePath={csdFilePath()}
-          sessionID={route.sessionID}
-          height={paramPanelHeight()}
-          visible={designMode() && paramPanelVisible() && !!csdFilePath()}
-          panelFocused={paramPanelFocused()}
-          onPanelFocus={() => {
-            setParamPanelFocused(true)
-            prompt?.blur()
-          }}
-          onPanelBlur={() => {
-            setParamPanelFocused(false)
-            prompt?.focus()
-          }}
-          availableWidth={dimensions().width}
-          onParamChange={() => setCsdRenderTrigger((n) => n + 1)}
-        />
+        {/* Parameter editing now handled via dialog overlay (Ctrl+P → Edit parameters) */}
       </box>
     </context.Provider>
   )
@@ -1772,6 +1791,12 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
         <Match when={props.part.tool === "skill"}>
           <Skill {...toolprops} />
         </Match>
+        <Match when={props.part.tool === "csound_render" || props.part.tool === "csound_compile" || props.part.tool === "csound_smoke"}>
+          <></>
+        </Match>
+        <Match when={props.part.tool === "apply_csd_patch"}>
+          <></>
+        </Match>
         <Match when={true}>
           <GenericTool {...toolprops} />
         </Match>
@@ -2009,40 +2034,37 @@ function Write(props: ToolProps<typeof WriteTool>) {
   const isCsd = createMemo(() => props.input.filePath?.endsWith(".csd"))
 
   return (
-    <Switch>
-      <Match when={isCsd() && props.metadata.diagnostics !== undefined}>
-        <InlineTool icon="\u2190" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
-          Wrote {normalizePath(props.input.filePath!)}
-        </InlineTool>
-      </Match>
-      <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
-          <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
-            <code
-              conceal={false}
-              fg={theme.text}
-              filetype={filetype(props.input.filePath!)}
-              syntaxStyle={syntax()}
-              content={code()}
-            />
-          </line_number>
-          <Show when={diagnostics().length}>
-            <For each={diagnostics()}>
-              {(diagnostic) => (
-                <text fg={theme.error}>
-                  Error [{diagnostic.range.start.line}:{diagnostic.range.start.character}]: {diagnostic.message}
-                </text>
-              )}
-            </For>
-          </Show>
-        </BlockTool>
-      </Match>
-      <Match when={true}>
-        <InlineTool icon="\u2190" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
-          Write {normalizePath(props.input.filePath!)}
-        </InlineTool>
-      </Match>
-    </Switch>
+    <Show when={!isCsd()} fallback={<></>}>
+      <Switch>
+        <Match when={props.metadata.diagnostics !== undefined}>
+          <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
+            <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
+              <code
+                conceal={false}
+                fg={theme.text}
+                filetype={filetype(props.input.filePath!)}
+                syntaxStyle={syntax()}
+                content={code()}
+              />
+            </line_number>
+            <Show when={diagnostics().length}>
+              <For each={diagnostics()}>
+                {(diagnostic) => (
+                  <text fg={theme.error}>
+                    Error [{diagnostic.range.start.line}:{diagnostic.range.start.character}]: {diagnostic.message}
+                  </text>
+                )}
+              </For>
+            </Show>
+          </BlockTool>
+        </Match>
+        <Match when={true}>
+          <InlineTool icon="\u2190" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
+            Write {normalizePath(props.input.filePath!)}
+          </InlineTool>
+        </Match>
+      </Switch>
+    </Show>
   )
 }
 
@@ -2059,6 +2081,7 @@ function Glob(props: ToolProps<typeof GlobTool>) {
 
 function Read(props: ToolProps<typeof ReadTool>) {
   const { theme } = useTheme()
+  const isCsd = createMemo(() => props.input.filePath?.endsWith(".csd"))
   const loaded = createMemo(() => {
     if (props.part.state.status !== "completed") return []
     if (props.part.state.time.compacted) return []
@@ -2067,7 +2090,7 @@ function Read(props: ToolProps<typeof ReadTool>) {
     return value.filter((p): p is string => typeof p === "string")
   })
   return (
-    <>
+    <Show when={!isCsd()} fallback={<></>}>
       <InlineTool icon="→" pending="Reading file..." complete={props.input.filePath} part={props.part}>
         Read {normalizePath(props.input.filePath!)} {input(props.input, ["filePath"])}
       </InlineTool>
@@ -2080,7 +2103,7 @@ function Read(props: ToolProps<typeof ReadTool>) {
           </box>
         )}
       </For>
-    </>
+    </Show>
   )
 }
 
@@ -2227,55 +2250,52 @@ function Edit(props: ToolProps<typeof EditTool>) {
   const isCsd = createMemo(() => props.input.filePath?.endsWith(".csd"))
 
   return (
-    <Switch>
-      <Match when={isCsd() && props.metadata.diff !== undefined}>
-        <InlineTool icon="\u2190" pending="Preparing edit..." complete={props.input.filePath} part={props.part}>
-          Edit {normalizePath(props.input.filePath!)}
-        </InlineTool>
-      </Match>
-      <Match when={props.metadata.diff !== undefined}>
-        <BlockTool title={"\u2190 Edit " + normalizePath(props.input.filePath!)} part={props.part}>
-          <box paddingLeft={1}>
-            <diff
-              diff={diffContent()}
-              view={view()}
-              filetype={ft()}
-              syntaxStyle={syntax()}
-              showLineNumbers={true}
-              width="100%"
-              wrapMode={ctx.diffWrapMode()}
-              fg={theme.text}
-              addedBg={theme.diffAddedBg}
-              removedBg={theme.diffRemovedBg}
-              contextBg={theme.diffContextBg}
-              addedSignColor={theme.diffHighlightAdded}
-              removedSignColor={theme.diffHighlightRemoved}
-              lineNumberFg={theme.diffLineNumber}
-              lineNumberBg={theme.diffContextBg}
-              addedLineNumberBg={theme.diffAddedLineNumberBg}
-              removedLineNumberBg={theme.diffRemovedLineNumberBg}
-            />
-          </box>
-          <Show when={diagnostics().length}>
-            <box>
-              <For each={diagnostics()}>
-                {(diagnostic) => (
-                  <text fg={theme.error}>
-                    Error [{diagnostic.range.start.line + 1}:{diagnostic.range.start.character + 1}]{" "}
-                    {diagnostic.message}
-                  </text>
-                )}
-              </For>
+    <Show when={!isCsd()} fallback={<></>}>
+      <Switch>
+        <Match when={props.metadata.diff !== undefined}>
+          <BlockTool title={"\u2190 Edit " + normalizePath(props.input.filePath!)} part={props.part}>
+            <box paddingLeft={1}>
+              <diff
+                diff={diffContent()}
+                view={view()}
+                filetype={ft()}
+                syntaxStyle={syntax()}
+                showLineNumbers={true}
+                width="100%"
+                wrapMode={ctx.diffWrapMode()}
+                fg={theme.text}
+                addedBg={theme.diffAddedBg}
+                removedBg={theme.diffRemovedBg}
+                contextBg={theme.diffContextBg}
+                addedSignColor={theme.diffHighlightAdded}
+                removedSignColor={theme.diffHighlightRemoved}
+                lineNumberFg={theme.diffLineNumber}
+                lineNumberBg={theme.diffContextBg}
+                addedLineNumberBg={theme.diffAddedLineNumberBg}
+                removedLineNumberBg={theme.diffRemovedLineNumberBg}
+              />
             </box>
-          </Show>
-        </BlockTool>
-      </Match>
-      <Match when={true}>
-        <InlineTool icon="\u2190" pending="Preparing edit..." complete={props.input.filePath} part={props.part}>
-          Edit {normalizePath(props.input.filePath!)} {input({ replaceAll: props.input.replaceAll })}
-        </InlineTool>
-      </Match>
-    </Switch>
+            <Show when={diagnostics().length}>
+              <box>
+                <For each={diagnostics()}>
+                  {(diagnostic) => (
+                    <text fg={theme.error}>
+                      Error [{diagnostic.range.start.line + 1}:{diagnostic.range.start.character + 1}]{" "}
+                      {diagnostic.message}
+                    </text>
+                  )}
+                </For>
+              </box>
+            </Show>
+          </BlockTool>
+        </Match>
+        <Match when={true}>
+          <InlineTool icon="\u2190" pending="Preparing edit..." complete={props.input.filePath} part={props.part}>
+            Edit {normalizePath(props.input.filePath!)} {input({ replaceAll: props.input.replaceAll })}
+          </InlineTool>
+        </Match>
+      </Switch>
+    </Show>
   )
 }
 

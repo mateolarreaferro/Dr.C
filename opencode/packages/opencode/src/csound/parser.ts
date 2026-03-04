@@ -391,7 +391,7 @@ export namespace CsdParser {
         continue
       }
 
-      // init assignments: iVar = value, kVar init value
+      // init assignments: iVar = value, kVar init value, kVar = value
       const initMatch = text.match(/^([ikaS]\w+)\s*=\s*([\d.eE+-]+)/) ||
         text.match(/^([ikaS]\w+)\s+init\s+([\d.eE+-]+)/)
       if (initMatch) {
@@ -399,9 +399,10 @@ export namespace CsdParser {
         const value = initMatch[2]
         const rate = detectRate(varName)
 
-        // Only include i-rate assignments that look like user-tuneable params
-        // Skip loop counters, index vars, etc.
-        if (rate === "i" && isLikelyParameter(varName, value)) {
+        // Include i-rate and k-rate assignments that look like user-tuneable params
+        // Skip loop counters, index vars, audio-rate signals, etc.
+        const isTuneable = (rate === "k" && isLikelyKRateParameter(varName)) || (rate === "i" && isLikelyParameter(varName, value))
+        if (isTuneable) {
           params.push({
             name: varName,
             rate,
@@ -409,7 +410,8 @@ export namespace CsdParser {
             value,
             line: lineNum,
             instrument: instrumentId,
-            smoothed: false,
+            smoothed: smoothedVars.has(varName),
+            smoothTime: smoothedVars.get(varName)?.time,
           })
         }
       }
@@ -536,6 +538,15 @@ export namespace CsdParser {
     if (varName.startsWith("a") || varName.startsWith("A")) return "a"
     if (varName.startsWith("S")) return "S"
     return "i"
+  }
+
+  /** Check if a k-rate variable is likely a tuneable parameter (not a counter/state var) */
+  function isLikelyKRateParameter(varName: string): boolean {
+    const skipPatterns = [/^kCount/, /^kIdx/, /^kNdx/, /^kState/, /^kTrig/, /^kFlag/]
+    for (const pat of skipPatterns) {
+      if (pat.test(varName)) return false
+    }
+    return true
   }
 
   function isLikelyParameter(varName: string, value: string): boolean {

@@ -48,6 +48,40 @@ export namespace KnowledgeSources {
     },
   ]
 
+  /** Sources bundled inside resources/knowledge/sources/ (resolved at runtime) */
+  const bundledSources: Source[] = [
+    {
+      id: "antipatterns",
+      name: "Csound 7 Anti-Patterns",
+      path: "sources/antipatterns.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 400,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "syntax-rules",
+      name: "Csound 7 Syntax Rules",
+      path: "sources/syntax-rules.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 300,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "patterns",
+      name: "Csound 7 Code Patterns",
+      path: "sources/patterns.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 400,
+        overlapTokens: 15,
+      },
+    },
+  ]
+
   export function dataDir(): string {
     return path.join(os.homedir(), ".drc", "knowledge")
   }
@@ -86,12 +120,17 @@ export namespace KnowledgeSources {
   }
 
   export function list(worktree: string): Source[] {
-    // Only return sources that actually exist on disk
-    return defaults
-      .map((s) => ({
-        ...s,
-        path: s.path.startsWith("/") ? s.path : path.join(worktree, s.path),
-      }))
+    // Resolve worktree-relative sources (csound_book.txt etc.)
+    const worktreeSources = defaults.map((s) => ({
+      ...s,
+      path: s.path.startsWith("/") ? s.path : path.join(worktree, s.path),
+    }))
+    // Resolve bundled sources relative to resources/knowledge/
+    const resolved = bundledSources.map((s) => ({
+      ...s,
+      path: path.join(bundleDir(), s.path),
+    }))
+    return [...worktreeSources, ...resolved]
   }
 
   /**

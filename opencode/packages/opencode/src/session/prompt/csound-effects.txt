@@ -17,4 +17,11 @@ Conventions:
 - Wet/dry mixing: use kMix parameter (0=dry, 1=wet)
 - Effects chain: process in instrument order or via global audio buses (ga variables)
 
+Csound 7 Rules (CRITICAL):
+- `reverbsc` requires 4 args: `aL, aR reverbsc aInL, aInR, kFbk, kCutoff` — missing second input is a common error
+- Global audio accumulators (`gaReverb += aSig`) must be cleared with `clear gaReverb` in the master instrument
+- Use `out(aL, aR)` for output — `outs` is deprecated in Csound 7
+- Single-output opcodes MUST use functional style: `aOut = moogladder(...)` not `aOut moogladder ...`
+- Rate promotion is automatic: k-rate auto-promotes to a-rate — do NOT use `upsamp` for simple arithmetic
+
 Always compile and smoke-test after making changes.

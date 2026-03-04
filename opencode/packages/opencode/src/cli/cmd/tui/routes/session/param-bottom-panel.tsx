@@ -157,24 +157,25 @@ export function ParamBottomPanel(props: {
   })
 
   // Tab/Shift-Tab to cycle focus, Escape to blur panel
-  useKeyboard((key) => {
-    if (!props.visible || flatParams().length === 0) return false
-    if (!props.panelFocused) return false
+  useKeyboard((evt) => {
+    if (!props.visible || flatParams().length === 0) return
+    if (!props.panelFocused) return
 
-    if (key === "escape") {
+    if (evt.name === "escape") {
       props.onPanelBlur?.()
-      return true
+      evt.preventDefault()
+      return
     }
-    if (key === "tab") {
-      setFocusIndex((prev) => (prev + 1) % flatParams().length)
-      return true
-    }
-    if (key === "S-tab") {
+    if (evt.shift && evt.name === "tab") {
       setFocusIndex((prev) => (prev - 1 + flatParams().length) % flatParams().length)
-      return true
+      evt.preventDefault()
+      return
     }
-
-    return false
+    if (evt.name === "tab") {
+      setFocusIndex((prev) => (prev + 1) % flatParams().length)
+      evt.preventDefault()
+      return
+    }
   })
 
   const handleChange = async (param: CsdParser.CsdParameter, value: number) => {
@@ -222,7 +223,7 @@ export function ParamBottomPanel(props: {
             <text fg={theme.accent} bold> [editing]</text>
           </Show>
           <text fg={theme.textMuted}>
-            {"  "}{props.panelFocused ? "←→ adjust | Tab next | Esc done" : "click to edit"}
+            {"  "}{props.panelFocused ? "\u2190\u2192 adjust | Enter/0-9 type value | Tab next | Esc done" : "click to edit"}
           </text>
         </box>
         <scrollbox flexGrow={1}>

@@ -17,6 +17,7 @@ import { Filesystem } from "../util/filesystem"
 import { Instance } from "../project/instance"
 import { Snapshot } from "@/snapshot"
 import { assertExternalDirectory } from "./external-directory"
+import { SessionWorkspace } from "../session/workspace"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
@@ -41,8 +42,16 @@ export const EditTool = Tool.define("edit", {
       throw new Error("No changes to apply: oldString and newString are identical.")
     }
 
-    const filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
-    await assertExternalDirectory(ctx, filePath)
+    let filePath = path.isAbsolute(params.filePath) ? params.filePath : path.join(Instance.directory, params.filePath)
+
+    // Route .csd and .wav edits through workspace temp dir when active
+    const ext = path.extname(filePath).toLowerCase()
+    if (ext === ".csd" || ext === ".wav") {
+      filePath = SessionWorkspace.resolve(ctx.sessionID, filePath)
+    }
+    const workspacePath = SessionWorkspace.isWorkspacePath(ctx.sessionID, filePath)
+
+    await assertExternalDirectory(ctx, filePath, { bypass: workspacePath })
 
     let diff = ""
     let contentOld = ""
@@ -148,7 +157,7 @@ export const EditTool = Tool.define("edit", {
         diff,
         filediff,
       },
-      title: `${path.relative(Instance.worktree, filePath)}`,
+      title: workspacePath ? path.basename(filePath) : path.relative(Instance.worktree, filePath),
       output,
     }
   },

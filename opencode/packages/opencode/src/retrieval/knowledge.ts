@@ -57,6 +57,12 @@ export namespace CsoundKnowledge {
    * or all-caps short lines, or lines ending with a page number.
    */
   function isChapterHeader(line: string): string | null {
+    // Markdown headers: ## Section (level 1) and ### Subsection (level 2)
+    const mdH2 = line.match(/^##\s+(.+)/)
+    if (mdH2) return mdH2[1].trim()
+    const mdH3 = line.match(/^###\s+(.+)/)
+    if (mdH3) return mdH3[1].trim()
+
     // Pattern: "N.  Chapter Title" or "N.N  Section Title"
     const chapterMatch = line.match(/^(\d{1,2}\.(?:\d{1,2})?)\s+(.+)/)
     if (chapterMatch && chapterMatch[2].length > 5) return chapterMatch[2].trim()
@@ -115,8 +121,11 @@ export namespace CsoundKnowledge {
 
       // Skip blank lines at start
       if (!contentStarted) {
-        // Look for "Foreword" or "Chapter 1" as content start
-        if (/^(Foreword|Introduction to Sound Design|1\.\s+Introduction)/i.test(trimmed)) {
+        // Markdown files: if first non-blank line starts with #, content starts immediately
+        if (/^#{1,3}\s+/.test(trimmed)) {
+          contentStarted = true
+        // Look for "Foreword" or "Chapter 1" as content start (book format)
+        } else if (/^(Foreword|Introduction to Sound Design|1\.\s+Introduction)/i.test(trimmed)) {
           contentStarted = true
         } else {
           continue

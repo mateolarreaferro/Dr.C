@@ -16,4 +16,11 @@ Conventions:
 - Global tables: giTableName
 - UDOs: PascalCase
 
+Csound 7 Rules (CRITICAL):
+- Variable prefix MUST match opcode output rate: `aOut = oscili(...)` not `kOut = oscili(...)`
+- ALWAYS set `0dbfs = 1` — without it, amplitude 0.5 means 0.5/32768 (silent)
+- Single-output opcodes MUST use functional style: `aSig = vco2(0.5, 440)` not `aSig vco2 0.5, 440`
+- `expseg`/`expsegr` values must ALL be > 0 — use 0.0001 instead of 0
+- New-style UDOs: `opcode Name(args):type` — args available by name, NEVER add `xin`
+
 Always compile and smoke-test after making changes.

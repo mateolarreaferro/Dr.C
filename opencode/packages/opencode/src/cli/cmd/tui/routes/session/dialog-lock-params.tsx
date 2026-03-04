@@ -27,18 +27,23 @@ export function DialogLockParams(props: {
     setSelected(next)
   }
 
-  useKeyboard((key) => {
-    if (key === "up" || key === "k") {
+  useKeyboard((evt) => {
+    if (evt.name === "up" || evt.name === "k") {
       setFocusIndex((i) => Math.max(0, i - 1))
-    } else if (key === "down" || key === "j") {
+      evt.preventDefault()
+    } else if (evt.name === "down" || evt.name === "j") {
       setFocusIndex((i) => Math.min(params().length - 1, i + 1))
-    } else if (key === " " || key === "return") {
+      evt.preventDefault()
+    } else if (evt.name === "space" || evt.name === "return") {
       const p = params()[focusIndex()]
       if (p) toggle(paramKey(p))
-    } else if (key === "escape" || key === "q") {
+      evt.preventDefault()
+    } else if (evt.name === "escape" || evt.name === "q") {
       props.onClose()
-    } else if (key === "s") {
+      evt.preventDefault()
+    } else if (evt.name === "s") {
       props.onSave(selected())
+      evt.preventDefault()
     }
   })
 

@@ -1,8 +1,6 @@
 import z from "zod"
 import { Tool } from "./tool"
 import { Question } from "../question"
-import { CsdSnapshot } from "../validation/snapshot"
-import { DesignTree } from "../csound/design-tree"
 import { Log } from "../util/log"
 
 const log = Log.create({ service: "tool.csound-propose-alternatives" })
@@ -84,40 +82,7 @@ export const CsoundProposeAlternativesTool = Tool.define(
         }
       }
 
-      // Capture snapshot before changes
-      let snapshotHash: string | undefined
-      try {
-        snapshotHash = await CsdSnapshot.capture(filePath)
-      } catch (e) {
-        log.warn("failed to capture pre-change snapshot", { error: e })
-      }
-
-      // Load or create design tree and add node
-      try {
-        let tree = await DesignTree.load(filePath)
-        if (!tree) {
-          // Create tree with initial state
-          const initialHash = snapshotHash ?? "unknown"
-          tree = DesignTree.create(filePath, initialHash, "Initial CSD")
-        }
-
-        const { state: updatedTree, nodeID } = DesignTree.addNode(tree, {
-          snapshotHash: snapshotHash ?? "pending",
-          description: selected.label,
-          sonicCharacter: selected.description,
-          sessionID: ctx.sessionID,
-          metadata: { request, approach: selected.approach },
-        })
-
-        // Auto-name branch from selected alternative label
-        DesignTree.renameBranch(updatedTree, nodeID, selected.label)
-
-        DesignTree.selectNode(updatedTree, nodeID)
-        // Fire-and-forget tree save — don't block the main pipeline
-        DesignTree.save(updatedTree).catch((e) => log.warn("tree save failed", { error: e }))
-      } catch (e) {
-        log.warn("failed to update design tree", { error: e })
-      }
+      // Design tree nodes are created by the TUI autoPopulate — no need to create here.
 
       return {
         title: `Selected: ${selected.label}`,

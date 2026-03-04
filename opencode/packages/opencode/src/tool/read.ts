@@ -9,6 +9,7 @@ import { Instance } from "../project/instance"
 import { Identifier } from "../id/id"
 import { assertExternalDirectory } from "./external-directory"
 import { InstructionPrompt } from "../session/instruction"
+import { SessionWorkspace } from "../session/workspace"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -29,13 +30,21 @@ export const ReadTool = Tool.define("read", {
     if (!path.isAbsolute(filepath)) {
       filepath = path.resolve(Instance.directory, filepath)
     }
-    const title = path.relative(Instance.worktree, filepath)
+
+    // Route .csd and .wav reads through workspace temp dir when active
+    const ext = path.extname(filepath).toLowerCase()
+    if (ext === ".csd" || ext === ".wav") {
+      filepath = SessionWorkspace.resolve(ctx.sessionID, filepath)
+    }
+    const workspacePath = SessionWorkspace.isWorkspacePath(ctx.sessionID, filepath)
+
+    const title = workspacePath ? path.basename(filepath) : path.relative(Instance.worktree, filepath)
 
     const file = Bun.file(filepath)
     const stat = await file.stat().catch(() => undefined)
 
     await assertExternalDirectory(ctx, filepath, {
-      bypass: Boolean(ctx.extra?.["bypassCwdCheck"]),
+      bypass: Boolean(ctx.extra?.["bypassCwdCheck"]) || workspacePath,
       kind: stat?.isDirectory() ? "directory" : "file",
     })
 

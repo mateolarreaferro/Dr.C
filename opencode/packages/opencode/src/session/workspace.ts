@@ -1,4 +1,5 @@
 import fs from "fs/promises"
+import { readFileSync, statSync } from "node:fs"
 import path from "path"
 import z from "zod"
 import { Global } from "../global"
@@ -44,7 +45,27 @@ export namespace SessionWorkspace {
   }
 
   /**
-   * Initialize workspace for a session — copies CSD to temp dir.
+   * Sync hydration: load persisted workspace state from disk into the active Map.
+   * Needed because the TUI runs in a separate thread from the worker where init() is called.
+   * After the first successful load, subsequent calls are a no-op (Map already populated).
+   */
+  function hydrateSync(sessionID: string): boolean {
+    if (active.has(sessionID)) return true
+    try {
+      const content = readFileSync(statePath(sessionID), "utf-8")
+      const state = JSON.parse(content) as WorkspaceState
+      const stat = statSync(state.tempDir, { throwIfNoEntry: false })
+      if (!stat) return false
+      active.set(sessionID, state)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Initialize workspace for a session — copies existing CSD to temp dir,
+   * or just creates temp dir for new file creation.
    * Called lazily when csound agent first writes/patches a CSD.
    */
   export async function init(sessionID: string, csdFilePath: string): Promise<void> {
@@ -53,12 +74,14 @@ export namespace SessionWorkspace {
     const tempDir = sessionDir(sessionID)
     await fs.mkdir(tempDir, { recursive: true })
 
-    // Copy CSD to temp dir
+    // Copy existing CSD to temp dir (skip for new file creation)
     const csdFile = Bun.file(csdFilePath)
     if (await csdFile.exists()) {
       const tempCsd = path.join(tempDir, path.basename(csdFilePath))
       await Bun.write(tempCsd, await csdFile.text())
       log.info("workspace initialized", { sessionID, csdFilePath, tempCsd })
+    } else {
+      log.info("workspace initialized for new file", { sessionID, csdFilePath })
     }
 
     const state: WorkspaceState = {
@@ -80,6 +103,7 @@ export namespace SessionWorkspace {
    * Returns original path if no workspace or not a CSD/WAV.
    */
   export function resolve(sessionID: string, filePath: string): string {
+    hydrateSync(sessionID)
     const ws = active.get(sessionID)
     if (!ws) return filePath
 
@@ -94,9 +118,20 @@ export namespace SessionWorkspace {
   }
 
   /**
+   * Check if a file path is inside a workspace temp directory.
+   */
+  export function isWorkspacePath(sessionID: string, filePath: string): boolean {
+    hydrateSync(sessionID)
+    const ws = active.get(sessionID)
+    if (!ws) return false
+    return filePath.startsWith(ws.tempDir)
+  }
+
+  /**
    * Mark workspace as having unsaved changes.
    */
   export async function markDirty(sessionID: string): Promise<void> {
+    await loadIfExists(sessionID)
     const ws = active.get(sessionID)
     if (!ws) return
     if (ws.unsavedChanges) return
@@ -129,6 +164,7 @@ export namespace SessionWorkspace {
    * Never overwrites existing files — appends _2, _3, etc. if needed.
    */
   export async function save(sessionID: string): Promise<string[]> {
+    await loadIfExists(sessionID)
     const ws = active.get(sessionID)
     if (!ws) throw new Error(`No active workspace for session ${sessionID}`)
 
@@ -166,6 +202,7 @@ export namespace SessionWorkspace {
    * Discard temp workspace — removes temp dir.
    */
   export async function discard(sessionID: string): Promise<void> {
+    await loadIfExists(sessionID)
     const ws = active.get(sessionID)
     if (!ws) return
 
@@ -184,6 +221,7 @@ export namespace SessionWorkspace {
    * Check if a workspace is active for a session.
    */
   export function isActive(sessionID: string): boolean {
+    hydrateSync(sessionID)
     return active.has(sessionID)
   }
 
@@ -191,6 +229,7 @@ export namespace SessionWorkspace {
    * Get workspace status for a session.
    */
   export function status(sessionID: string): { active: boolean; unsavedChanges: boolean; tempDir?: string } {
+    hydrateSync(sessionID)
     const ws = active.get(sessionID)
     if (!ws) return { active: false, unsavedChanges: false }
     return {
@@ -204,6 +243,7 @@ export namespace SessionWorkspace {
    * Get the original CSD file path for a workspace.
    */
   export function originalPath(sessionID: string): string | undefined {
+    hydrateSync(sessionID)
     return active.get(sessionID)?.originalCsdPath
   }
 
