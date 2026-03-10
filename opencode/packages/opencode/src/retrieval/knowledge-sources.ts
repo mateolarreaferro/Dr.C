@@ -90,6 +90,26 @@ export namespace KnowledgeSources {
         overlapTokens: 25,
       },
     },
+    {
+      id: "opcodes",
+      name: "Csound 7 Opcode Reference Guide",
+      path: "sources/opcodes.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 300,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "csound7-llms-reference",
+      name: "Csound 7 LLM Reference",
+      path: "sources/csound7-llms-reference.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 350,
+        overlapTokens: 25,
+      },
+    },
   ]
 
   export function dataDir(): string {

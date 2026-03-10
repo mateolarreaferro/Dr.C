@@ -58,7 +58,7 @@ export namespace RetrievalFormat {
     }
 
     // Tier 2: Prose chunks (RAG)
-    if (multiTier.proseResults.results.length > 0 && multiTier.proseResults.totalScore > 0.1) {
+    if (multiTier.proseResults.results.length > 0 && multiTier.proseResults.totalScore > 0.3) {
       parts.push(formatContext(multiTier.proseResults.results, multiTier.proseResults.confidence))
     }
 

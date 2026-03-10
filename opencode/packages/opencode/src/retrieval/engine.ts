@@ -530,8 +530,8 @@ export namespace RetrievalEngine {
         }
       }
 
-      // Clamp between 2 and 8
-      truncateAt = Math.max(2, Math.min(maxK, truncateAt))
+      // Clamp between 1 and 8 (was min 2 — reduced to avoid injecting irrelevant chunks)
+      truncateAt = Math.max(1, Math.min(maxK, truncateAt))
       const final = candidates.slice(0, truncateAt)
 
       const totalScore = final.reduce((sum, r) => sum + r.score, 0)

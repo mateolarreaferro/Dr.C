@@ -650,15 +650,21 @@ export namespace SessionPrompt {
       await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: sessionMessages })
 
       // Build system prompt, adding structured output instruction if needed
-      const system = [...(await SystemPrompt.environment(model)), ...(await InstructionPrompt.system())]
+      // In sine mode, skip CLAUDE.md/instruction injection to save ~3,900 tokens
+      const isSineModePrompt = agent.options?.mode === "sine"
+      const system = [
+        ...(await SystemPrompt.environment(model)),
+        ...(isSineModePrompt ? [] : await InstructionPrompt.system()),
+      ]
       const format = lastUser.format ?? { type: "text" }
       if (format.type === "json_schema") {
         system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
       }
 
-      // Dynamic Csound knowledge retrieval for csound agent
+      // Dynamic Csound knowledge retrieval for csound agent (skipped in sine mode)
       let retrievedChunkIDs: string[] = []
-      if (agent.name === "csound") {
+      const isSineMode = agent.options?.mode === "sine"
+      if (agent.name === "csound" && !isSineMode) {
         // Find active CSD path from recent tool calls (scan backwards, stop at first hit)
         let activeCsdPath: string | undefined
         for (let i = sessionMessages.length - 1; i >= 0 && !activeCsdPath; i--) {
@@ -690,10 +696,20 @@ export namespace SessionPrompt {
         // Run multi-tier retrieval and locked constraints in parallel
         const rewritten = await QueryRewriter.rewrite(sessionMessages as any, activeCsdPath, csdContent).catch(() => null)
 
-        // Skip retrieval for debugging queries and trivial operational requests
+        // Turn-aware RAG gating: skip retrieval when CSD is established and query is operational
+        const userTurnCount = sessionMessages.filter(m =>
+          m.info.role === "user" && !m.parts.every(p => p.type === "text" && (p as any).synthetic)
+        ).length
+        const csdEstablished = !!csdContent && userTurnCount > 3
+        const hasNewDomainKeywords = rewritten
+          ? /\b(oscil|reverb|delay|filter|envelope|lfo|granular|waveguide|FM|additive|subtractive|wavetable|spectral)\b/i.test(rewritten.rawQuery)
+          : false
+
+        // Skip retrieval for: debugging, trivial queries, or established sessions with operational requests
         const skipRetrieval = !rewritten
           || rewritten.domain === "debugging"
           || rewritten.rawQuery.length < 20
+          || (csdEstablished && !hasNewDomainKeywords)
 
         const [multiTierResult, lockedConstraints] = await Promise.all([
           // Multi-tier retrieval (query rewriting + router + all tiers) — skipped for debug/short queries
@@ -765,8 +781,8 @@ export namespace SessionPrompt {
         toolChoice: format.type === "json_schema" ? "required" : undefined,
       })
 
-      // Record retrieval feedback for csound agent
-      if (agent.name === "csound" && retrievedChunkIDs.length > 0) {
+      // Record retrieval feedback for csound agent (skip in sine mode — no retrieval)
+      if (agent.name === "csound" && !isSineMode && retrievedChunkIDs.length > 0) {
         try {
           const toolParts = (await MessageV2.filterCompacted(MessageV2.stream(sessionID)))
             .flatMap((m) => m.parts)

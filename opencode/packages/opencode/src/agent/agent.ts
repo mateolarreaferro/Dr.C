@@ -14,6 +14,7 @@ import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_CSOUND from "../session/prompt/csound.txt"
+import PROMPT_CSOUND_SINE from "../session/prompt/csound-sine.txt"
 import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -96,6 +97,26 @@ export namespace Agent {
             task_parallel: "allow",
             task: "allow",
             csound_export_html: "allow",
+          }),
+          user,
+        ),
+        mode: "primary",
+        native: true,
+      },
+      "csound-sine": {
+        name: "csound-sine",
+        description: "Lightweight Csound agent for quick edits, param tweaks, and bug fixes. Uses Haiku for speed and cost savings. No RAG retrieval, no sub-agents, no design exploration.",
+        prompt: PROMPT_CSOUND_SINE,
+        model: { providerID: "anthropic", modelID: "claude-haiku-4-5-20251001" },
+        options: { designMode: true, mode: "sine" },
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            question: "allow",
+            csound_compile: "allow",
+            csound_smoke: "allow",
+            csound_render: "allow",
+            apply_csd_patch: "allow",
           }),
           user,
         ),

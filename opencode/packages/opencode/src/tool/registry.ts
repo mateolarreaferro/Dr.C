@@ -36,9 +36,21 @@ import { CsoundInstallTool } from "./csound_install"
 import { CsoundProposeAlternativesTool } from "./csound_propose_alternatives"
 import { TaskParallelTool } from "./task_parallel"
 import { CsoundExportHtmlTool } from "./csound_export_html"
+import { SystemPrompt } from "../session/system"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
+
+  // Tools included in sine mode (lightweight, cost-optimized)
+  const SINE_MODE_TOOLS = new Set([
+    "invalid", "question", "bash", "read", "glob", "grep",
+    "edit", "write", "apply_csd_patch", "csound_compile", "csound_render", "csound_smoke",
+  ])
+
+  // Tools deferred from default loading — only included when contextually relevant
+  const DEFERRED_TOOLS = new Set([
+    "csound_install", "csound_export_html", "todowrite",
+  ])
 
   export const state = Instance.state(async () => {
     const custom = [] as Tool.Info[]
@@ -100,11 +112,12 @@ export namespace ToolRegistry {
     custom.push(tool)
   }
 
-  async function all(): Promise<Tool.Info[]> {
+  async function all(agent?: Agent.Info): Promise<Tool.Info[]> {
     const custom = await state().then((x) => x.custom)
     const config = await Config.get()
+    const isSineMode = agent?.options?.mode === "sine"
 
-    return [
+    const allTools: Tool.Info[] = [
       InvalidTool,
       ...(["app", "cli", "desktop"].includes(Flag.DRC_CLIENT) ? [QuestionTool] : []),
       BashTool,
@@ -113,28 +126,43 @@ export namespace ToolRegistry {
       GrepTool,
       EditTool,
       WriteTool,
-      TaskTool,
-      WebFetchTool,
-      TodoWriteTool,
+      ...(!isSineMode ? [TaskTool] : []),
+      ...(!isSineMode ? [WebFetchTool] : []),
+      ...(!isSineMode ? [TodoWriteTool] : []),
       // TodoReadTool,
-      WebSearchTool,
-      CodeSearchTool,
-      SkillTool,
+      ...(!isSineMode ? [WebSearchTool] : []),
+      ...(!isSineMode ? [CodeSearchTool] : []),
+      ...(!isSineMode ? [SkillTool] : []),
       ApplyPatchTool,
-      ...(Flag.DRC_EXPERIMENTAL_LSP_TOOL ? [LspTool] : []),
-      ...(config.experimental?.batch_tool === true ? [BatchTool] : []),
-      ...(Flag.DRC_EXPERIMENTAL_PLAN_MODE && Flag.DRC_CLIENT === "cli" ? [PlanExitTool, PlanEnterTool] : []),
-      CsoundInstallTool,
+      ...(Flag.DRC_EXPERIMENTAL_LSP_TOOL && !isSineMode ? [LspTool] : []),
+      ...(config.experimental?.batch_tool === true && !isSineMode ? [BatchTool] : []),
+      ...(Flag.DRC_EXPERIMENTAL_PLAN_MODE && Flag.DRC_CLIENT === "cli" && !isSineMode ? [PlanExitTool, PlanEnterTool] : []),
       CsoundCompileTool,
       CsoundSmokeTool,
       CsoundRenderTool,
-      ErrorParseTool,
       ApplyCsdPatchTool,
-      CsoundProposeAlternativesTool,
-      TaskParallelTool,
-      CsoundExportHtmlTool,
+      ...(!isSineMode ? [ErrorParseTool] : []),
+      ...(!isSineMode ? [CsoundProposeAlternativesTool] : []),
+      ...(!isSineMode ? [TaskParallelTool] : []),
+      ...(!isSineMode ? [CsoundExportHtmlTool] : []),
       ...custom,
     ]
+
+    // In complex mode, defer rarely-used tools unless contextually needed
+    if (!isSineMode && agent) {
+      // Only include csound_install if Csound is not installed
+      const versionInfo = await SystemPrompt.getCsoundVersionInfo()
+      if (versionInfo.version !== "not installed") {
+        // Csound is installed — skip the install tool
+      } else {
+        allTools.push(CsoundInstallTool)
+      }
+    } else if (!isSineMode) {
+      // No agent context — include install tool as fallback
+      allTools.push(CsoundInstallTool)
+    }
+
+    return allTools
   }
 
   export async function ids() {
@@ -148,7 +176,7 @@ export namespace ToolRegistry {
     },
     agent?: Agent.Info,
   ) {
-    const tools = await all()
+    const tools = await all(agent)
     const result = await Promise.all(
       tools
         .filter((t) => {
