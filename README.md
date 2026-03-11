@@ -4,7 +4,7 @@ Human-in-the-Loop Generative Agent for Sound Design and Composition in Csound
 ## Prerequisites
 
 - [Bun](https://bun.sh) (JavaScript runtime)
-- [Csound 7+](https://csound.com) (recommended for full functionality)
+- [Csound](https://csound.com/download.html) (6.x or later — the current stable release works fine)
 - Git
 
 ## Installation
