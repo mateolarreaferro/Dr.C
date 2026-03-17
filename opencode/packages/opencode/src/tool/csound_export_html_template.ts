@@ -1,16 +1,22 @@
 /**
- * Generates a self-contained HTML file that plays a CSD using @csound/browser@7 from CDN.
- * Ultra-minimal playback page with parameter sliders and signal flow diagram.
+ * Generates a self-contained HTML synth player with parameter knobs,
+ * piano keyboard, waveform, and signal flow — all specific to the current CSD.
  */
 export function generateCsoundHTML(
   csdContent: string,
   title: string,
   theme: "light" | "dark" = "light",
 ): string {
-  // Extract parameters and rewrite CSD to use channels for slider control
   const params = extractParams(csdContent)
-  const rewrittenCsd = params.length > 0 ? rewriteCsdForChannels(csdContent, params) : csdContent
-  const flowDiagram = buildSignalFlow(csdContent)
+  let rewrittenCsd = params.length > 0 ? rewriteCsdForChannels(csdContent, params) : csdContent
+  const flow = buildSignalFlow(csdContent)
+  const instrName = detectInstrName(csdContent)
+  const hasP4Freq = /\bp4\b/.test(csdContent) && /freq|pitch|cpsmidi/i.test(csdContent)
+
+  // For keyboard mode: replace score with infinite duration so keyboard controls playback
+  if (hasP4Freq) {
+    rewrittenCsd = rewriteCsdForKeyboard(rewrittenCsd)
+  }
 
   const escapedCsd = rewrittenCsd
     .replace(/\\/g, "\\\\")
@@ -18,36 +24,21 @@ export function generateCsoundHTML(
     .replace(/\$/g, "\\$")
 
   const paramsJSON = JSON.stringify(params)
-
   const isLight = theme === "light"
   const bg = isLight ? "#fafafa" : "#0a0a0a"
   const text = isLight ? "#1a1a1a" : "#f0f0f0"
-  const muted = isLight ? "#999" : "#666"
+  const muted = isLight ? "#888" : "#666"
   const accent = isLight ? "#1a1a1a" : "#f0f0f0"
-  const codeBg = isLight ? "#f5f5f5" : "#1a1a1a"
-  const canvasFg = isLight ? "40, 40, 40" : "220, 220, 220"
-  const borderColor = isLight ? "#e8e8e8" : "#222"
-  const detailsBorder = isLight ? "#eee" : "#1e1e1e"
-  const hoverBg = isLight ? "#f0f0f0" : "#1a1a1a"
-  const shadowColor = isLight
-    ? "rgba(0, 0, 0, 0.08)"
-    : "rgba(255, 255, 255, 0.04)"
-  const pulseRing = isLight
-    ? "rgba(26, 26, 26, 0.15)"
-    : "rgba(240, 240, 240, 0.12)"
-  const sliderTrack = isLight ? "#ddd" : "#333"
-
-  // Signal flow colors
-  const flowColors: Record<string, string> = {
-    source: isLight ? "#16a34a" : "#4ade80",
-    filter: isLight ? "#2563eb" : "#60a5fa",
-    effect: isLight ? "#9333ea" : "#c084fc",
-    output: isLight ? "#dc2626" : "#f87171",
-    envelope: isLight ? "#ca8a04" : "#fbbf24",
-    modulator: isLight ? "#0891b2" : "#22d3ee",
-    other: isLight ? "#64748b" : "#94a3b8",
-  }
-  const flowColorsJSON = JSON.stringify(flowColors)
+  const codeBg = isLight ? "#f5f5f5" : "#141414"
+  const canvasFg = isLight ? "40,40,40" : "200,200,200"
+  const border = isLight ? "#e0e0e0" : "#222"
+  const panelBg = isLight ? "#fff" : "#111"
+  const shadow = isLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.03)"
+  const keyWhite = isLight ? "#fff" : "#e8e8e8"
+  const keyBlack = isLight ? "#1a1a1a" : "#333"
+  const keyActive = isLight ? "#d0d0ff" : "#446"
+  const knobTrack = isLight ? "#ddd" : "#333"
+  const knobFill = isLight ? "#1a1a1a" : "#e0e0e0"
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -56,364 +47,205 @@ export function generateCsoundHTML(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHTML(title)}</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:${bg};color:${text};min-height:100vh;display:flex;justify-content:center;-webkit-font-smoothing:antialiased}
+.container{width:100%;max-width:560px;padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:1.25rem}
+h1{font-size:1.2rem;font-weight:600;letter-spacing:-0.02em}
+.meta{font-size:0.78rem;color:${muted};margin-top:-0.5rem}
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: ${bg};
-    color: ${text};
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    -webkit-font-smoothing: antialiased;
-  }
+/* Transport */
+.transport{display:flex;align-items:center;gap:1rem;width:100%}
+.play-btn{width:48px;height:48px;border-radius:50%;border:none;background:${accent};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px ${shadow};transition:transform .15s;flex-shrink:0}
+.play-btn:hover{transform:scale(1.06)}
+.play-btn:active{transform:scale(.96)}
+.play-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+.icon-play{width:0;height:0;border-style:solid;border-width:8px 0 8px 14px;border-color:transparent transparent transparent ${isLight ? "#fff" : "#0a0a0a"};margin-left:2px}
+.icon-pause{display:flex;gap:3px}
+.icon-pause span{display:block;width:3px;height:14px;background:${isLight ? "#fff" : "#0a0a0a"};border-radius:1px}
+.transport-info{flex:1;min-width:0}
+.transport-title{font-size:.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.transport-status{font-size:.7rem;color:${muted};letter-spacing:.03em;text-transform:uppercase}
+.transport-status.error{color:#e54}
 
-  .container {
-    width: 100%;
-    max-width: 480px;
-    padding: 3rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
-  }
+/* Waveform */
+.waveform{width:100%;height:48px}
+.waveform canvas{width:100%;height:100%;display:block;border-radius:6px}
 
-  .title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    text-align: center;
-  }
+/* Signal flow */
+.flow{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 12px;background:${panelBg};border:1px solid ${border};border-radius:8px}
+.flow-node{font-size:.7rem;padding:3px 8px;border-radius:4px;border:1px solid;font-family:'SF Mono',monospace;white-space:nowrap}
+.flow-arrow{color:${muted};font-size:.65rem}
 
-  .meta { font-size: 0.8rem; color: ${muted}; margin-top: -0.75rem; }
+/* Knobs */
+.knobs{width:100%;display:flex;flex-wrap:wrap;justify-content:center;gap:1.25rem}
+.knob-group{display:flex;flex-direction:column;align-items:center;gap:4px;width:72px}
+.knob-canvas{width:56px;height:56px;cursor:pointer}
+.knob-label{font-size:.68rem;color:${muted};text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+.knob-value{font-size:.7rem;font-family:'SF Mono',monospace;color:${text};text-align:center}
 
-  .play-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+/* Keyboard */
+.keyboard-wrap{width:100%;overflow:hidden;border-radius:8px;border:1px solid ${border}}
+.keyboard{display:flex;position:relative;height:100px;user-select:none;touch-action:none}
+.key-white{flex:1;background:${keyWhite};border-right:1px solid ${border};position:relative;z-index:1;border-radius:0 0 4px 4px;transition:background .08s}
+.key-white:last-child{border-right:none}
+.key-white.active{background:${keyActive}}
+.key-white .note-label{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:.55rem;color:${muted}}
+.key-black{width:8%;background:${keyBlack};position:absolute;height:60%;z-index:2;border-radius:0 0 3px 3px;transition:background .08s}
+.key-black.active{background:${isLight ? "#555" : "#666"}}
 
-  .play-btn {
-    width: 80px; height: 80px;
-    border-radius: 50%; border: none;
-    background: ${accent};
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    position: relative; z-index: 1;
-    box-shadow: 0 2px 20px ${shadowColor};
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .play-btn:hover { transform: scale(1.05); box-shadow: 0 4px 30px ${shadowColor}; }
-  .play-btn:active { transform: scale(0.97); }
-  .play-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  .icon-play {
-    width: 0; height: 0;
-    border-style: solid;
-    border-width: 12px 0 12px 22px;
-    border-color: transparent transparent transparent ${isLight ? "#fff" : "#0a0a0a"};
-    margin-left: 4px;
-  }
-
-  .icon-pause { display: flex; gap: 6px; }
-  .icon-pause span {
-    display: block; width: 5px; height: 22px;
-    background: ${isLight ? "#fff" : "#0a0a0a"};
-    border-radius: 2px;
-  }
-
-  .pulse-ring {
-    position: absolute; width: 80px; height: 80px;
-    border-radius: 50%;
-    border: 2px solid ${pulseRing};
-    opacity: 0; pointer-events: none;
-  }
-
-  .playing .pulse-ring { animation: pulse 2s ease-out infinite; }
-
-  @keyframes pulse {
-    0% { transform: scale(1); opacity: 0.6; }
-    100% { transform: scale(1.8); opacity: 0; }
-  }
-
-  .canvas-wrap { width: 100%; height: 80px; }
-  canvas { width: 100%; height: 100%; display: block; border-radius: 8px; }
-
-  .status {
-    font-size: 0.75rem; color: ${muted};
-    letter-spacing: 0.04em; text-transform: uppercase;
-    min-height: 1.2em;
-  }
-  .status.error { color: #e54; }
-
-  /* Signal flow */
-  .flow {
-    width: 100%;
-    padding: 1rem;
-    border: 1px solid ${detailsBorder};
-    border-radius: 8px;
-    overflow-x: auto;
-  }
-
-  .flow-title {
-    font-size: 0.75rem;
-    color: ${muted};
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    margin-bottom: 0.75rem;
-  }
-
-  .flow-level {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    align-items: center;
-  }
-
-  .flow-node {
-    font-size: 0.75rem;
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
-    border: 1px solid;
-    white-space: nowrap;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-  }
-
-  .flow-arrow {
-    color: ${muted};
-    font-size: 0.7rem;
-    flex-shrink: 0;
-  }
-
-  /* Controls */
-  .controls-toggle {
-    font-size: 0.8rem; color: ${muted};
-    background: none; border: 1px solid ${detailsBorder};
-    border-radius: 6px; padding: 0.4rem 0.9rem;
-    cursor: pointer; transition: all 0.2s ease;
-  }
-  .controls-toggle:hover { border-color: ${borderColor}; color: ${text}; }
-
-  .controls-panel {
-    width: 100%;
-    display: none;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  .controls-panel.visible { display: flex; }
-
-  .param {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .param-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-  }
-
-  .param-name { font-size: 0.8rem; font-weight: 500; }
-  .param-value {
-    font-size: 0.75rem; color: ${muted};
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    min-width: 3.5em; text-align: right;
-  }
-
-  input[type="range"] {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 4px;
-    border-radius: 2px;
-    background: ${sliderTrack};
-    outline: none; cursor: pointer;
-  }
-
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 16px; height: 16px;
-    border-radius: 50%;
-    background: ${accent};
-    border: none;
-    box-shadow: 0 1px 4px ${shadowColor};
-    transition: transform 0.15s ease;
-  }
-  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
-
-  input[type="range"]::-moz-range-thumb {
-    width: 16px; height: 16px;
-    border-radius: 50%;
-    background: ${accent};
-    border: none; cursor: pointer;
-  }
-
-  details {
-    width: 100%;
-    border: 1px solid ${detailsBorder};
-    border-radius: 8px; overflow: hidden;
-  }
-  details[open] { border-color: ${borderColor}; }
-
-  summary {
-    padding: 0.75rem 1rem;
-    font-size: 0.8rem; color: ${muted};
-    cursor: pointer; user-select: none;
-    list-style: none;
-    display: flex; align-items: center; gap: 0.5rem;
-    transition: background 0.2s ease;
-  }
-  summary::-webkit-details-marker { display: none; }
-  summary::before {
-    content: "\\203A"; font-size: 1.1rem;
-    transition: transform 0.2s ease; display: inline-block;
-  }
-  details[open] summary::before { transform: rotate(90deg); }
-  summary:hover { background: ${hoverBg}; color: ${text}; }
-
-  .code-block {
-    background: ${codeBg}; padding: 1rem; overflow-x: auto;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 0.75rem; line-height: 1.6;
-    white-space: pre; tab-size: 2; color: ${muted};
-    max-height: 300px; overflow-y: auto;
-  }
-
-  .debug-log {
-    background: ${codeBg}; padding: 0.75rem 1rem;
-    font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 0.7rem; line-height: 1.6; color: ${muted};
-    max-height: 180px; overflow-y: auto;
-    white-space: pre-wrap; word-break: break-all;
-  }
-
-  .footer {
-    font-size: 0.7rem; color: ${muted};
-    opacity: 0.6; transition: opacity 0.2s ease;
-  }
-  .footer:hover { opacity: 1; }
-
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: ${borderColor}; border-radius: 4px; }
+/* Sections */
+details{width:100%;border:1px solid ${border};border-radius:8px;overflow:hidden}
+summary{padding:.6rem .8rem;font-size:.78rem;color:${muted};cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem;user-select:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"\\203A";font-size:1rem;transition:transform .15s;display:inline-block}
+details[open] summary::before{transform:rotate(90deg)}
+summary:hover{color:${text}}
+.code-block{background:${codeBg};padding:.8rem;font-family:'SF Mono',monospace;font-size:.7rem;line-height:1.5;white-space:pre;tab-size:2;color:${muted};max-height:260px;overflow:auto}
+.debug-log{background:${codeBg};padding:.6rem .8rem;font-family:'SF Mono',monospace;font-size:.65rem;line-height:1.5;color:${muted};max-height:150px;overflow:auto;white-space:pre-wrap}
+.footer{font-size:.65rem;color:${muted};opacity:.5;transition:opacity .2s}
+.footer:hover{opacity:1}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:${border};border-radius:3px}
 </style>
 </head>
 <body>
-
 <div class="container">
-  <h1 class="title">${escapeHTML(title)}</h1>
+  <h1>${escapeHTML(title)}</h1>
   <p class="meta">Csound instrument</p>
 
-  <div class="play-wrap" id="playWrap">
-    <div class="pulse-ring"></div>
+  <!-- Transport -->
+  <div class="transport">
     <button class="play-btn" id="playBtn" aria-label="Play">
       <div class="icon-play" id="btnIcon"></div>
     </button>
+    <div class="transport-info">
+      <div class="transport-title">${escapeHTML(title)}</div>
+      <div class="transport-status" id="status">Ready</div>
+    </div>
   </div>
 
-  <div class="canvas-wrap">
-    <canvas id="waveform"></canvas>
-  </div>
+  <!-- Waveform -->
+  <div class="waveform"><canvas id="waveform"></canvas></div>
 
-  <div class="status" id="status"></div>
+  ${flow ? `<!-- Signal Flow -->\n  <div class="flow">${flow}</div>` : ""}
 
-  ${flowDiagram ? `<div class="flow">
-    <div class="flow-title">Signal Flow</div>
-    ${flowDiagram}
-  </div>` : ""}
+  ${params.length > 0 ? `<!-- Knobs -->\n  <div class="knobs" id="knobs"></div>` : ""}
 
-  <div id="controlsSection"></div>
+  ${hasP4Freq ? `<!-- Keyboard -->\n  <div class="keyboard-wrap"><div class="keyboard" id="keyboard"></div></div>` : ""}
 
   <details>
     <summary>View CSD</summary>
     <div class="code-block">${escapeHTML(csdContent)}</div>
   </details>
-
   <details>
     <summary>Debug</summary>
     <div class="debug-log" id="console"></div>
   </details>
-
   <div class="footer">Made with DrC</div>
 </div>
 
 <script type="module">
 const CSD = \`${escapedCsd}\`;
 const CSOUND_URL = "https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta28/dist/csound.js";
-const CANVAS_FG = "${canvasFg}";
 const PARAMS = ${paramsJSON};
-const FLOW_COLORS = ${flowColorsJSON};
+const INSTR = "${instrName}";
+const HAS_KEYBOARD = ${hasP4Freq};
+const KNOB_TRACK = "${knobTrack}";
+const KNOB_FILL = "${knobFill}";
+const CANVAS_FG = "${canvasFg}";
 
-let csound = null;
-let audioCtx = null;
-let analyser = null;
-let animFrame = null;
-let isPlaying = false;
-let isLoaded = false;
+let csound = null, audioCtx = null, analyser = null, animFrame = null;
+let isPlaying = false, isLoaded = false;
+const activeNotes = new Map();
 
 const playBtn = document.getElementById("playBtn");
 const btnIcon = document.getElementById("btnIcon");
-const playWrap = document.getElementById("playWrap");
 const statusEl = document.getElementById("status");
 const canvas = document.getElementById("waveform");
 const ctx = canvas.getContext("2d");
 const consoleEl = document.getElementById("console");
-const controlsSection = document.getElementById("controlsSection");
 
-// Build controls UI
+// ─── Knobs ───
+const knobEls = [];
 if (PARAMS.length > 0) {
-  const toggleBtn = document.createElement("button");
-  toggleBtn.className = "controls-toggle";
-  toggleBtn.textContent = "Controls";
-
-  const panel = document.createElement("div");
-  panel.className = "controls-panel";
-
-  toggleBtn.addEventListener("click", () => {
-    const vis = panel.classList.toggle("visible");
-    toggleBtn.textContent = vis ? "Hide controls" : "Controls";
-  });
-
-  controlsSection.appendChild(toggleBtn);
-  controlsSection.appendChild(panel);
-
+  const container = document.getElementById("knobs");
   for (const p of PARAMS) {
-    const div = document.createElement("div");
-    div.className = "param";
+    const group = document.createElement("div");
+    group.className = "knob-group";
 
-    const header = document.createElement("div");
-    header.className = "param-header";
+    const cv = document.createElement("canvas");
+    cv.className = "knob-canvas";
+    cv.width = 112; cv.height = 112;
 
-    const nameEl = document.createElement("span");
-    nameEl.className = "param-name";
-    nameEl.textContent = p.label;
-    header.appendChild(nameEl);
+    const label = document.createElement("div");
+    label.className = "knob-label";
+    label.textContent = p.label;
 
-    const valEl = document.createElement("span");
-    valEl.className = "param-value";
+    const valEl = document.createElement("div");
+    valEl.className = "knob-value";
     valEl.textContent = fmtVal(p.value, p.step);
-    header.appendChild(valEl);
 
-    div.appendChild(header);
+    group.appendChild(cv);
+    group.appendChild(valEl);
+    group.appendChild(label);
+    container.appendChild(group);
 
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.min = p.min;
-    slider.max = p.max;
-    slider.step = p.step;
-    slider.value = p.value;
-    slider.dataset.channel = p.channel;
-    slider.addEventListener("input", () => {
-      valEl.textContent = fmtVal(parseFloat(slider.value), p.step);
-      if (csound && isPlaying) {
-        csound.setControlChannel(p.channel, parseFloat(slider.value));
-      }
-    });
-    div.appendChild(slider);
-    panel.appendChild(div);
+    const knob = { canvas: cv, ctx: cv.getContext("2d"), param: p, value: p.value, valEl };
+    knobEls.push(knob);
+    drawKnob(knob);
+
+    // Drag interaction
+    let dragging = false, startY = 0, startVal = 0;
+    const onMove = (e) => {
+      if (!dragging) return;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const dy = startY - clientY;
+      const range = p.max - p.min;
+      const sensitivity = range / 150;
+      let newVal = startVal + dy * sensitivity;
+      newVal = Math.max(p.min, Math.min(p.max, newVal));
+      knob.value = newVal;
+      knob.valEl.textContent = fmtVal(newVal, p.step);
+      drawKnob(knob);
+      if (csound && isPlaying) csound.setControlChannel(p.channel, newVal);
+    };
+    const onUp = () => { dragging = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); document.removeEventListener("touchmove", onMove); document.removeEventListener("touchend", onUp); };
+    const onDown = (e) => {
+      dragging = true;
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      startVal = knob.value;
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      document.addEventListener("touchmove", onMove, { passive: true });
+      document.addEventListener("touchend", onUp);
+      e.preventDefault();
+    };
+    cv.addEventListener("mousedown", onDown);
+    cv.addEventListener("touchstart", onDown, { passive: false });
   }
+}
+
+function drawKnob(k) {
+  const c = k.ctx, w = k.canvas.width, h = k.canvas.height;
+  const cx = w/2, cy = h/2, r = w/2 - 8;
+  const startAngle = 0.75 * Math.PI, endAngle = 2.25 * Math.PI;
+  const pct = (k.value - k.param.min) / (k.param.max - k.param.min);
+  const valAngle = startAngle + pct * (endAngle - startAngle);
+
+  c.clearRect(0, 0, w, h);
+  // Track
+  c.beginPath(); c.arc(cx, cy, r, startAngle, endAngle);
+  c.lineWidth = 4; c.strokeStyle = KNOB_TRACK; c.lineCap = "round"; c.stroke();
+  // Fill
+  if (pct > 0.005) {
+    c.beginPath(); c.arc(cx, cy, r, startAngle, valAngle);
+    c.lineWidth = 4; c.strokeStyle = KNOB_FILL; c.lineCap = "round"; c.stroke();
+  }
+  // Dot indicator
+  const dotX = cx + (r - 2) * Math.cos(valAngle);
+  const dotY = cy + (r - 2) * Math.sin(valAngle);
+  c.beginPath(); c.arc(dotX, dotY, 4, 0, Math.PI * 2);
+  c.fillStyle = KNOB_FILL; c.fill();
 }
 
 function fmtVal(v, step) {
@@ -422,120 +254,206 @@ function fmtVal(v, step) {
   return v.toFixed(d);
 }
 
-function setStatus(msg, isError) {
-  statusEl.textContent = msg;
-  statusEl.className = isError ? "status error" : "status";
+// ─── Keyboard ───
+if (HAS_KEYBOARD) {
+  const kb = document.getElementById("keyboard");
+  const notes = [
+    {note:"C",midi:60,black:false},{note:"C#",midi:61,black:true},
+    {note:"D",midi:62,black:false},{note:"D#",midi:63,black:true},
+    {note:"E",midi:64,black:false},
+    {note:"F",midi:65,black:false},{note:"F#",midi:66,black:true},
+    {note:"G",midi:67,black:false},{note:"G#",midi:68,black:true},
+    {note:"A",midi:69,black:false},{note:"A#",midi:70,black:true},
+    {note:"B",midi:71,black:false},
+    {note:"C",midi:72,black:false},{note:"C#",midi:73,black:true},
+    {note:"D",midi:74,black:false},{note:"D#",midi:75,black:true},
+    {note:"E",midi:76,black:false},
+  ];
+
+  const whites = notes.filter(n => !n.black);
+  const blacks = notes.filter(n => n.black);
+
+  for (const n of whites) {
+    const key = document.createElement("div");
+    key.className = "key-white";
+    key.dataset.midi = n.midi;
+    const lbl = document.createElement("span");
+    lbl.className = "note-label";
+    lbl.textContent = n.note + (n.midi === 60 ? "4" : n.midi === 72 ? "5" : "");
+    key.appendChild(lbl);
+    kb.appendChild(key);
+  }
+
+  const whiteWidth = 100 / whites.length;
+  let whiteIdx = 0;
+  for (const n of notes) {
+    if (n.black) {
+      const key = document.createElement("div");
+      key.className = "key-black";
+      key.dataset.midi = n.midi;
+      key.style.left = (whiteIdx * whiteWidth - whiteWidth * 0.15) + "%";
+      key.style.width = (whiteWidth * 0.6) + "%";
+      kb.appendChild(key);
+    } else {
+      whiteIdx++;
+    }
+  }
+
+  // Use fractional instrument numbers: instr 1.060 for MIDI 60, 1.061 for 61, etc.
+  // This lets us turn off specific notes independently.
+  // Named instruments get a high base number (100) to avoid conflicts.
+  const INSTR_BASE = /^\\d+$/.test(INSTR) ? parseInt(INSTR) : 100;
+
+  function noteOn(midi) {
+    if (!csound || !isPlaying || activeNotes.has(midi)) return;
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const instrNum = INSTR_BASE + midi / 1000;
+    csound.inputMessage("i " + instrNum.toFixed(3) + " 0 -1 " + freq.toFixed(3) + " 0.5");
+    activeNotes.set(midi, instrNum);
+    const el = kb.querySelector('[data-midi="' + midi + '"]');
+    if (el) el.classList.add("active");
+  }
+
+  function noteOff(midi) {
+    if (!csound || !activeNotes.has(midi)) return;
+    const instrNum = activeNotes.get(midi);
+    csound.inputMessage("i -" + instrNum.toFixed(3) + " 0 0");
+    activeNotes.delete(midi);
+    const el = kb.querySelector('[data-midi="' + midi + '"]');
+    if (el) el.classList.remove("active");
+  }
+
+  let mouseDown = false;
+  kb.addEventListener("mousedown", (e) => {
+    const midi = e.target.dataset?.midi;
+    if (midi) { mouseDown = true; noteOn(+midi); }
+  });
+  kb.addEventListener("mouseover", (e) => {
+    if (mouseDown && e.target.dataset?.midi) noteOn(+e.target.dataset.midi);
+  });
+  kb.addEventListener("mouseout", (e) => {
+    if (e.target.dataset?.midi) noteOff(+e.target.dataset.midi);
+  });
+  document.addEventListener("mouseup", () => {
+    mouseDown = false;
+    for (const midi of activeNotes.keys()) noteOff(midi);
+  });
+
+  kb.addEventListener("touchstart", (e) => {
+    for (const t of e.changedTouches) {
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      if (el?.dataset?.midi) noteOn(+el.dataset.midi);
+    }
+    e.preventDefault();
+  }, { passive: false });
+  kb.addEventListener("touchend", (e) => {
+    for (const midi of activeNotes.keys()) noteOff(midi);
+  });
+
+  const keyMap = {a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72};
+  const heldKeys = new Set();
+  document.addEventListener("keydown", (e) => {
+    if (e.repeat || e.target.tagName === "INPUT") return;
+    const midi = keyMap[e.key.toLowerCase()];
+    if (midi && !heldKeys.has(e.key)) { heldKeys.add(e.key); noteOn(midi); }
+  });
+  document.addEventListener("keyup", (e) => {
+    const midi = keyMap[e.key.toLowerCase()];
+    if (midi) { heldKeys.delete(e.key); noteOff(midi); }
+  });
 }
 
-function log(msg) {
-  consoleEl.textContent += msg + "\\n";
-  consoleEl.scrollTop = consoleEl.scrollHeight;
-}
-
+// ─── Audio engine ───
+function setStatus(msg, err) { statusEl.textContent = msg; statusEl.className = "transport-status" + (err ? " error" : ""); }
+function log(msg) { consoleEl.textContent += msg + "\\n"; consoleEl.scrollTop = consoleEl.scrollHeight; }
 function setPlayIcon() { btnIcon.className = "icon-play"; btnIcon.innerHTML = ""; }
 function setPauseIcon() { btnIcon.className = "icon-pause"; btnIcon.innerHTML = "<span></span><span></span>"; }
 
 function resizeCanvas() {
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width * (window.devicePixelRatio || 1);
-  canvas.height = rect.height * (window.devicePixelRatio || 1);
+  const r = canvas.parentElement.getBoundingClientRect();
+  canvas.width = r.width * (devicePixelRatio || 1);
+  canvas.height = r.height * (devicePixelRatio || 1);
 }
 
 function drawWaveform() {
   if (!analyser) return;
   animFrame = requestAnimationFrame(drawWaveform);
-  const bufLen = analyser.frequencyBinCount;
-  const data = new Uint8Array(bufLen);
+  const buf = analyser.frequencyBinCount, data = new Uint8Array(buf);
   analyser.getByteFrequencyData(data);
   const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  const barCount = Math.min(bufLen, 64);
-  const step = Math.floor(bufLen / barCount);
-  const barWidth = w / barCount;
-  const gap = Math.max(1, barWidth * 0.3);
-  for (let i = 0; i < barCount; i++) {
-    const val = data[i * step] / 255;
-    const barH = val * h * 0.85;
-    const x = i * barWidth + gap / 2;
-    const bw = barWidth - gap;
-    const y = (h - barH) / 2;
-    ctx.fillStyle = "rgba(" + CANVAS_FG + "," + (0.15 + val * 0.6).toFixed(2) + ")";
-    ctx.beginPath(); ctx.roundRect(x, y, bw, barH, 2); ctx.fill();
+  ctx.clearRect(0,0,w,h);
+  const n = Math.min(buf, 48), step = Math.floor(buf/n), bw = w/n, gap = Math.max(1, bw*.3);
+  for (let i = 0; i < n; i++) {
+    const v = data[i*step]/255, bh = v*h*.85, x = i*bw+gap/2;
+    ctx.fillStyle = "rgba("+CANVAS_FG+","+(0.12+v*0.55).toFixed(2)+")";
+    ctx.beginPath(); ctx.roundRect(x,(h-bh)/2,bw-gap,bh,2); ctx.fill();
   }
 }
 
 function drawIdle() {
   const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  const barCount = 64, barWidth = w / barCount;
-  const gap = Math.max(1, barWidth * 0.3);
-  for (let i = 0; i < barCount; i++) {
-    const x = i * barWidth + gap / 2;
-    ctx.fillStyle = "rgba(" + CANVAS_FG + ",0.1)";
-    ctx.beginPath(); ctx.roundRect(x, (h-2)/2, barWidth-gap, 2, 1); ctx.fill();
+  ctx.clearRect(0,0,w,h);
+  const n = 48, bw = w/n, gap = Math.max(1, bw*.3);
+  for (let i = 0; i < n; i++) {
+    ctx.fillStyle = "rgba("+CANVAS_FG+",0.08)";
+    ctx.beginPath(); ctx.roundRect(i*bw+gap/2,(h-2)/2,bw-gap,2,1); ctx.fill();
   }
-}
-
-async function initCsound() {
-  setStatus("Loading Csound..."); playBtn.disabled = true;
-  log("[DrC] Loading Csound engine...");
-  const { Csound } = await import(CSOUND_URL);
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === "suspended") await audioCtx.resume();
-  csound = await Csound({ audioContext: audioCtx });
-  await csound.setOption("-odac");
-  await csound.on("message", log);
-  await csound.compileCSD(CSD);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.8;
-  if (csound.getNode) {
-    const node = await csound.getNode();
-    if (node) { node.connect(analyser); analyser.connect(audioCtx.destination); }
-  }
-  isLoaded = true; playBtn.disabled = false;
-  log("[DrC] Csound engine ready");
 }
 
 async function toggle() {
   if (playBtn.disabled) return;
   try {
-    if (!isLoaded) await initCsound();
-    if (audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
-    if (!isPlaying) {
-      // Set slider values as channel defaults
-      for (const p of PARAMS) {
-        const sl = document.querySelector('input[data-channel="' + p.channel + '"]');
-        if (sl && csound) csound.setControlChannel(p.channel, parseFloat(sl.value));
+    if (!isLoaded) {
+      setStatus("Loading Csound..."); playBtn.disabled = true;
+      log("[DrC] Loading Csound engine...");
+      const { Csound } = await import(CSOUND_URL);
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+      csound = await Csound({ audioContext: audioCtx });
+      await csound.setOption("-odac");
+      await csound.on("message", log);
+      await csound.compileCSD(CSD);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.8;
+      if (csound.getNode) {
+        const node = await csound.getNode();
+        if (node) { node.connect(analyser); analyser.connect(audioCtx.destination); }
       }
+      isLoaded = true; playBtn.disabled = false;
+      log("[DrC] Ready");
+    }
+    if (audioCtx?.state === "suspended") await audioCtx.resume();
+    if (!isPlaying) {
       await csound.start();
-      isPlaying = true; setStatus("Playing"); setPauseIcon();
-      playWrap.classList.add("playing"); drawWaveform();
-      log("[DrC] Playback started");
+      isPlaying = true;
+      // Set channel values AFTER start — channels don't exist until engine runs
+      for (const k of knobEls) csound.setControlChannel(k.param.channel, k.value);
+      setStatus("Playing"); setPauseIcon();
+      drawWaveform(); log("[DrC] Playing");
     } else {
       if (animFrame) cancelAnimationFrame(animFrame);
+      for (const midi of activeNotes.keys()) activeNotes.delete(midi);
       await csound.stop(); csound = null; isLoaded = false; isPlaying = false;
       if (analyser) { analyser.disconnect(); analyser = null; }
       if (audioCtx) { await audioCtx.close(); audioCtx = null; }
-      setStatus("Paused"); setPlayIcon();
-      playWrap.classList.remove("playing"); drawIdle();
-      log("[DrC] Playback stopped");
+      setStatus("Stopped"); setPlayIcon(); drawIdle(); log("[DrC] Stopped");
     }
   } catch (err) {
     setStatus("Error: " + err.message, true);
     log("[Error] " + err.message);
-    playBtn.disabled = false; setPlayIcon(); playWrap.classList.remove("playing");
+    playBtn.disabled = false; setPlayIcon();
   }
 }
 
 playBtn.addEventListener("click", toggle);
-window.addEventListener("resize", () => { resizeCanvas(); if (!isPlaying) drawIdle(); });
+addEventListener("resize", () => { resizeCanvas(); if (!isPlaying) drawIdle(); });
 resizeCanvas(); drawIdle();
 </script>
 </body>
 </html>`
 }
 
-// ─── Parameter extraction ───
+// ─── CSD analysis helpers ───
 
 interface ExportParam {
   channel: string
@@ -546,270 +464,183 @@ interface ExportParam {
   step: number
 }
 
-/**
- * Extract controllable parameters from CSD content.
- * Detects chnget channels AND k-rate constant assignments (kVar = VALUE).
- */
 function extractParams(csd: string): ExportParam[] {
   const params: ExportParam[] = []
   const seen = new Set<string>()
   const lines = csd.split("\n")
 
-  // 1. chnget-based channels
-  const chngetRe = /\b(k\w+)\s+chnget\s+"([^"]+)"/g
-  const chngetFuncRe = /\b(k\w+)\s*=\s*chnget:k\(\s*"([^"]+)"\s*\)/g
-
-  for (const re of [chngetRe, chngetFuncRe]) {
+  // 1. chnget channels
+  for (const re of [/\b(k\w+)\s+chnget\s+"([^"]+)"/g, /\b(k\w+)\s*=\s*chnget:k\(\s*"([^"]+)"\s*\)/g]) {
     for (const m of csd.matchAll(re)) {
-      const varName = m[1]
-      const channel = m[2]
-      if (seen.has(channel)) continue
-      seen.add(channel)
-      const { value, min, max } = inferRange(channel, varName, lines)
-      const label = humanLabel(channel)
-      const step = computeStep(min, max)
-      params.push({ channel, label, value, min, max, step })
+      if (seen.has(m[2])) continue
+      seen.add(m[2])
+      const r = inferRange(m[2], m[1], lines)
+      params.push({ channel: m[2], label: humanLabel(m[2]), ...r, step: computeStep(r.min, r.max) })
     }
   }
 
-  // 2. k-rate constant assignments: kVar = NUMBER (standalone, not expressions)
-  // These are the typical DrC pattern for tunable parameters
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].replace(/;.*$/, "").trim()
-    const comment = lines[i].includes(";") ? lines[i].slice(lines[i].indexOf(";")) : ""
-
-    // Match kVarName = 1234 (but NOT kVar = expression with other vars)
-    const m = trimmed.match(/^(k\w+)\s*=\s*([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\s*$/)
+  // 2. k-rate constant assignments: kVar = NUMBER
+  for (const line of lines) {
+    const clean = line.replace(/;.*$/, "").trim()
+    const m = clean.match(/^(k\w+)\s*=\s*([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\s*$/)
     if (!m) continue
-
-    const varName = m[1]
-    const rawValue = parseFloat(m[2])
-    if (isNaN(rawValue)) continue
-    if (seen.has(varName)) continue
-
-    // Skip loop counters, indices, internal state
+    const varName = m[1], rawVal = parseFloat(m[2])
+    if (isNaN(rawVal) || seen.has(varName)) continue
     const lower = varName.toLowerCase()
     if (lower.includes("ndx") || lower.includes("count") || lower.includes("flag") || lower === "ksmps") continue
-
     seen.add(varName)
-
-    // Use the variable name as channel name (will be rewritten to chnget)
-    const channel = `_drc_${varName}`
-    const { min, max } = inferRange(varName, varName, lines)
-    const label = humanLabel(varName)
-    const step = computeStep(min, max)
-
-    params.push({ channel, label, value: rawValue, min, max, step })
+    const r = inferRange(varName, varName, lines)
+    r.value = rawVal
+    params.push({ channel: `_drc_${varName}`, label: humanLabel(varName), ...r, step: computeStep(r.min, r.max) })
   }
 
   return params
 }
 
-/**
- * Rewrite CSD to replace k-rate constant assignments with chnget for slider control.
- * Only rewrites params with _drc_ prefix channels (the ones we extracted from assignments).
- */
 function rewriteCsdForChannels(csd: string, params: ExportParam[]): string {
-  const assignmentParams = params.filter(p => p.channel.startsWith("_drc_"))
-  if (assignmentParams.length === 0) return csd
+  const toRewrite = params.filter(p => p.channel.startsWith("_drc_"))
+  if (toRewrite.length === 0) return csd
 
   const lines = csd.split("\n")
-
-  // Build chn_k declarations to inject after 0dbfs line
-  const declarations = assignmentParams.map(p => {
-    const varName = p.channel.replace("_drc_", "")
-    return `chn_k "${p.channel}", 1  ; DrC slider: ${varName}`
-  })
-
+  const decls = toRewrite.map(p => `chn_k "${p.channel}", 1`)
   let injected = false
 
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].replace(/;.*$/, "").trim()
-
-    // Inject chn_k declarations after 0dbfs or seed line
-    if (!injected && (/^0dbfs\b/.test(trimmed) || /^seed\b/.test(trimmed))) {
-      lines[i] = lines[i] + "\n" + declarations.join("\n")
+    const clean = lines[i].replace(/;.*$/, "").trim()
+    if (!injected && (/^0dbfs\b/.test(clean) || /^seed\b/.test(clean))) {
+      lines[i] += "\n" + decls.join("\n")
       injected = true
     }
-
-    // Replace kVar = VALUE with kVar chnget "_drc_kVar"
-    for (const p of assignmentParams) {
-      const varName = p.channel.replace("_drc_", "")
-      const re = new RegExp(`^(${escapeRegExp(varName)})\\s*=\\s*[0-9]*\\.?[0-9]+(?:[eE][+-]?[0-9]+)?\\s*$`)
-      if (re.test(trimmed)) {
+    for (const p of toRewrite) {
+      const v = p.channel.replace("_drc_", "")
+      if (new RegExp(`^${escapeRegExp(v)}\\s*=\\s*[0-9]`).test(clean)) {
         const indent = lines[i].match(/^\s*/)?.[0] || ""
-        const comment = lines[i].includes(";") ? "  " + lines[i].slice(lines[i].indexOf(";")) : ""
-        lines[i] = `${indent}${varName} chnget "${p.channel}"${comment}`
+        lines[i] = `${indent}${v} chnget "${p.channel}"`
       }
     }
   }
-
-  // Fallback: inject at start of CsInstruments if we couldn't find 0dbfs
   if (!injected) {
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim() === "<CsInstruments>") {
-        lines[i] = lines[i] + "\n" + declarations.join("\n")
-        break
-      }
-    }
+    const idx = lines.findIndex(l => l.trim() === "<CsInstruments>")
+    if (idx >= 0) lines[idx] += "\n" + decls.join("\n")
   }
-
   return lines.join("\n")
 }
 
-// ─── Signal flow diagram ───
-
-const OPCODE_CATEGORIES: Record<string, string> = {}
-for (const opc of ["oscili","oscils","poscil","poscil3","vco2","vco","buzz","gbuzz","noise","rand","randi","randh","pinkish","pluck","wgbow","wgflute","foscili","foscil","diskin2","diskin","tablei","table","chnget"])
-  OPCODE_CATEGORIES[opc] = "source"
-for (const opc of ["moogladder","moogvcf","lpf18","butterlp","butterhp","butterbp","statevar","svfilter","zdf_2pole","resonz","reson","bqrez","pareq","tone","atone","comb","alpass"])
-  OPCODE_CATEGORIES[opc] = "filter"
-for (const opc of ["reverbsc","freeverb","nreverb","delay","vdelay","vdelay3","flanger","chorus","distort","distort1","clip","powershape","fold","decimator","compress2","pan2"])
-  OPCODE_CATEGORIES[opc] = "effect"
-for (const opc of ["out","outs","outch","outq","chnset"])
-  OPCODE_CATEGORIES[opc] = "output"
-for (const opc of ["madsr","adsr","linseg","linsegr","expseg","expsegr","transeg","linenr","linen","jspline","rspline"])
-  OPCODE_CATEGORIES[opc] = "envelope"
-for (const opc of ["lfo","metro","dust","dust2","port","portk","limit","scale","phasor"])
-  OPCODE_CATEGORIES[opc] = "modulator"
-
-function buildSignalFlow(csd: string): string {
-  // Extract instrument body
-  const instrMatch = csd.match(/\binstr\b.*?\n([\s\S]*?)\bendin\b/)
-  if (!instrMatch) return ""
-
-  const body = instrMatch[1]
-  const nodes: Array<{ opcode: string; category: string; label: string }> = []
-  const seen = new Set<string>()
-
-  for (const line of body.split("\n")) {
-    const clean = line.replace(/;.*$/, "").trim()
-    if (!clean) continue
-
-    let opcode: string | null = null
-
-    // kVar/aVar = opcode(...) or kVar/aVar opcode args
-    const funcMatch = clean.match(/^[akiSg]\w+\s*=\s*(\w+)\s*[\(:]/)
-    const tradMatch = clean.match(/^[akiSg]\w+\s+(\w+)\s+/)
-    const outMatch = clean.match(/^(outs?|outch)\s+/)
-
-    if (funcMatch) opcode = funcMatch[1]
-    else if (tradMatch) opcode = tradMatch[1]
-    else if (outMatch) opcode = outMatch[1]
-
-    if (!opcode) continue
-    const lower = opcode.toLowerCase()
-    const cat = OPCODE_CATEGORIES[lower]
-    if (!cat) continue
-    if (seen.has(lower)) continue
-    seen.add(lower)
-
-    nodes.push({ opcode, category: cat, label: opcode })
-  }
-
-  if (nodes.length === 0) return ""
-
-  // Build HTML — linear flow with arrows
-  const nodeHTML = nodes.map(n => {
-    const color = `\${FLOW_COLORS['${n.category}'] || FLOW_COLORS.other}`
-    // Use inline style since we have the colors at build time
-    const catColors: Record<string, string> = {
-      source: "#16a34a", filter: "#2563eb", effect: "#9333ea",
-      output: "#dc2626", envelope: "#ca8a04", modulator: "#0891b2", other: "#64748b",
-    }
-    const c = catColors[n.category] || catColors.other
-    return `<span class="flow-node" style="border-color: ${c}; color: ${c}">${escapeHTML(n.opcode)}</span>`
-  }).join('<span class="flow-arrow">→</span>')
-
-  return `<div class="flow-level">${nodeHTML}</div>`
+function detectInstrName(csd: string): string {
+  const m = csd.match(/\binstr\s+(\S+)/)
+  if (!m) return "1"
+  // Named instruments get renamed to 100 in keyboard mode, numbered ones stay as-is
+  return /^[A-Za-z]/.test(m[1]) ? "100" : m[1]
 }
 
-// ─── Helpers ───
+/**
+ * Rewrite CSD for keyboard mode:
+ * - Replace score with "f 0 3600" so Csound stays alive waiting for live input
+ * - Rename named instruments to number 100 so fractional instance IDs work for polyphonic note-off
+ * - Ensure -odac is in CsOptions
+ */
+function rewriteCsdForKeyboard(csd: string): string {
+  // Replace score section — remove all "i" events, keep "f" tables, add infinite wait
+  const scoreMatch = csd.match(/<CsScore>([\s\S]*?)<\/CsScore>/)
+  if (scoreMatch) {
+    const scoreContent = scoreMatch[1]
+    // Keep ftgen/table lines (start with "f"), drop instrument events (start with "i")
+    const keptLines = scoreContent.split("\n").filter(line => {
+      const t = line.trim()
+      return t.startsWith("f ") || t.startsWith(";") || t === ""
+    })
+    keptLines.push("f 0 3600  ; keep engine alive for keyboard")
+    csd = csd.replace(/<CsScore>[\s\S]*?<\/CsScore>/, `<CsScore>\n${keptLines.join("\n")}\n</CsScore>`)
+  }
+
+  // Rename named instrument to number 100 for fractional instance control
+  const instrMatch = csd.match(/\binstr\s+([A-Za-z]\w*)/)
+  if (instrMatch) {
+    const name = instrMatch[1]
+    // Replace "instr Name" → "instr 100"
+    csd = csd.replace(new RegExp(`\\binstr\\s+${escapeRegExp(name)}\\b`), "instr 100")
+  }
+
+  // Ensure -odac is present
+  if (!/-odac/.test(csd)) {
+    csd = csd.replace(/<CsOptions>/, "<CsOptions>\n-odac")
+  }
+
+  return csd
+}
+
+// Signal flow as inline HTML
+const OPCODE_CATS: Record<string, [string, string]> = {}
+for (const [ops, cat, col] of [
+  [["oscili","poscil","vco2","vco","buzz","gbuzz","noise","rand","randi","pluck","wgbow","wgflute","foscili","diskin2","tablei","chnget"], "source", "#16a34a"],
+  [["moogladder","moogvcf","lpf18","butterlp","butterhp","butterbp","statevar","svfilter","zdf_2pole","resonz","reson","bqrez","pareq","tone","atone","comb"], "filter", "#2563eb"],
+  [["reverbsc","freeverb","nreverb","delay","vdelay3","flanger","chorus","distort1","clip","powershape","fold","decimator","compress2","pan2"], "effect", "#9333ea"],
+  [["out","outs","outch"], "output", "#dc2626"],
+  [["madsr","adsr","linseg","linsegr","expseg","expsegr","transeg","linenr","linen","jspline"], "envelope", "#ca8a04"],
+  [["lfo","metro","dust","dust2","port","portk","limit","scale","phasor"], "modulator", "#0891b2"],
+] as const) {
+  for (const op of ops) OPCODE_CATS[op] = [cat as string, col as string]
+}
+
+function buildSignalFlow(csd: string): string {
+  const instrMatch = csd.match(/\binstr\b.*?\n([\s\S]*?)\bendin\b/)
+  if (!instrMatch) return ""
+  const nodes: Array<{ opcode: string; color: string }> = []
+  const seen = new Set<string>()
+  for (const line of instrMatch[1].split("\n")) {
+    const clean = line.replace(/;.*$/, "").trim()
+    if (!clean) continue
+    let opcode: string | null = null
+    const f = clean.match(/^[akiSg]\w+\s*=\s*(\w+)\s*[\(:]/) || clean.match(/^[akiSg]\w+\s+(\w+)\s+/) || clean.match(/^(outs?|outch)\s+/)
+    if (f) opcode = f[1]
+    if (!opcode) continue
+    const lower = opcode.toLowerCase()
+    const info = OPCODE_CATS[lower]
+    if (!info || seen.has(lower)) continue
+    seen.add(lower)
+    nodes.push({ opcode, color: info[1] })
+  }
+  if (nodes.length === 0) return ""
+  return nodes.map(n =>
+    `<span class="flow-node" style="border-color:${n.color};color:${n.color}">${escapeHTML(n.opcode)}</span>`
+  ).join('<span class="flow-arrow">\u2192</span>')
+}
 
 function humanLabel(name: string): string {
-  return name
-    .replace(/^k/, "")
-    .replace(/([A-Z])/g, " $1")
-    .replace(/[_-]/g, " ")
-    .trim()
-    .replace(/^\w/, (c) => c.toUpperCase()) || name
+  return name.replace(/^k/, "").replace(/([A-Z])/g, " $1").replace(/[_-]/g, " ").trim().replace(/^\w/, c => c.toUpperCase()) || name
 }
 
 function computeStep(min: number, max: number): number {
-  const range = max - min
-  if (range > 1000) return 1
-  if (range > 100) return 0.1
-  if (range > 10) return 0.01
-  return 0.001
+  const r = max - min
+  return r > 1000 ? 1 : r > 100 ? 0.1 : r > 10 ? 0.01 : 0.001
 }
 
-function inferRange(
-  name: string,
-  varName: string,
-  lines: string[],
-): { value: number; min: number; max: number } {
-  let value = 0.5
-  let min = 0
-  let max = 1
-
-  // Look for init/assignment values
+function inferRange(name: string, varName: string, lines: string[]): { value: number; min: number; max: number } {
+  let value = 0.5, min = 0, max = 1
   for (const line of lines) {
-    const trimmed = line.replace(/;.*$/, "").trim()
-    const initMatch = trimmed.match(new RegExp(`\\b${escapeRegExp(varName)}\\s+init\\s+([\\d.eE+-]+)`))
-    if (initMatch) value = parseFloat(initMatch[1])
-    const assignMatch = trimmed.match(new RegExp(`\\b${escapeRegExp(varName)}\\s*=\\s*([\\d.eE+-]+)\\s*$`))
-    if (assignMatch) value = parseFloat(assignMatch[1])
+    const t = line.replace(/;.*$/, "").trim()
+    const im = t.match(new RegExp(`\\b${escapeRegExp(varName)}\\s+init\\s+([\\d.eE+-]+)`))
+    if (im) value = parseFloat(im[1])
+    const am = t.match(new RegExp(`\\b${escapeRegExp(varName)}\\s*=\\s*([\\d.eE+-]+)\\s*$`))
+    if (am) value = parseFloat(am[1])
   }
-
-  const lower = name.toLowerCase()
-  if (lower.includes("freq") || lower.includes("pitch") || lower.includes("hz")) {
-    min = 20; max = 8000; value = value || 440
-  } else if (lower.includes("cutoff") || lower.includes("filt")) {
-    min = 20; max = 12000; value = value || 2000
-  } else if (lower.includes("amp") || lower.includes("vol") || lower.includes("gain") || lower.includes("level")) {
-    min = 0; max = 1; value = value || 0.5
-  } else if (lower.includes("res") || lower.includes("q")) {
-    min = 0; max = 1; value = value || 0.3
-  } else if (lower.includes("pan")) {
-    min = 0; max = 1; value = value || 0.5
-  } else if (lower.includes("rate") || lower.includes("speed")) {
-    min = 0.1; max = 20; value = value || 1
-  } else if (lower.includes("mix") || lower.includes("wet") || lower.includes("dry") || lower.includes("depth")) {
-    min = 0; max = 1; value = value || 0.5
-  } else if (lower.includes("attack") || lower.includes("decay") || lower.includes("release")) {
-    min = 0.001; max = 5; value = value || 0.1
-  } else if (lower.includes("sustain")) {
-    min = 0; max = 1; value = value || 0.7
-  } else if (lower.includes("detune")) {
-    min = -100; max = 100; value = value || 0
-  } else if (lower.includes("feedback") || lower.includes("fb")) {
-    min = 0; max = 0.99; value = value || 0.3
-  } else if (lower.includes("delay") || lower.includes("time")) {
-    min = 0; max = 2; value = value || 0.25
-  } else if (lower.includes("base")) {
-    // kCutoffBase, kFreqBase etc — use value context
-    if (value > 100) { min = 20; max = value * 3 }
-    else { min = 0; max = value * 3 || 1 }
-  } else if (lower.includes("env") && lower.includes("depth")) {
-    min = 0; max = value * 2 || 5000
-  } else {
-    if (value > 1000) { min = 0; max = value * 3 }
-    else if (value > 100) { min = 0; max = value * 2 }
-    else if (value > 1) { min = 0; max = value * 3 }
-    else { min = 0; max = 1 }
-  }
-
+  const l = name.toLowerCase()
+  if (l.includes("freq") || l.includes("pitch") || l.includes("hz")) { min=20; max=8000; value=value||440 }
+  else if (l.includes("cutoff") || l.includes("filt")) { min=20; max=12000; value=value||2000 }
+  else if (l.includes("amp") || l.includes("vol") || l.includes("gain") || l.includes("level")) { min=0; max=1; value=value||0.5 }
+  else if (l.includes("res") || l.includes("q")) { min=0; max=1; value=value||0.3 }
+  else if (l.includes("pan")) { min=0; max=1; value=value||0.5 }
+  else if (l.includes("rate") || l.includes("speed")) { min=0.1; max=20; value=value||1 }
+  else if (l.includes("mix") || l.includes("wet") || l.includes("dry") || l.includes("depth")) { min=0; max=1; value=value||0.5 }
+  else if (l.includes("attack") || l.includes("decay") || l.includes("release")) { min=0.001; max=5; value=value||0.1 }
+  else if (l.includes("sustain")) { min=0; max=1; value=value||0.7 }
+  else if (l.includes("feedback") || l.includes("fb")) { min=0; max=0.99; value=value||0.3 }
+  else if (l.includes("delay") || l.includes("time")) { min=0; max=2; value=value||0.25 }
+  else if (l.includes("base")) { min = value > 100 ? 20 : 0; max = value * 3 || 1 }
+  else if (l.includes("env") && l.includes("depth")) { min=0; max=value*2||5000 }
+  else { if(value>1000){min=0;max=value*3}else if(value>100){min=0;max=value*2}else if(value>1){min=0;max=value*3}else{min=0;max=1} }
   return { value, min, max }
 }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
-function escapeHTML(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-}
+function escapeRegExp(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") }
+function escapeHTML(str: string): string { return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;") }

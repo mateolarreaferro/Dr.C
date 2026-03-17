@@ -805,29 +805,85 @@ export function Session() {
       },
     },
     {
-      title: "Export CSD to HTML",
-      value: "session.export_html",
+      title: "Build / Export",
+      value: "session.build",
       category: "Csound",
       enabled: designMode() && !!csdFilePath(),
+      slash: {
+        name: "build",
+      },
       onSelect: async (dialog) => {
         const fp = csdFilePath()
         if (!fp) { dialog.clear(); return }
-        try {
-          const resolved = SessionWorkspace.resolve(route.sessionID, fp)
-          const content = await Bun.file(resolved).text()
-          const { generateCsoundHTML } = await import("@/tool/csound_export_html_template")
-          const basename = path.basename(resolved, ".csd")
-          const html = generateCsoundHTML(content, basename)
-          const htmlPath = path.join(path.dirname(resolved), `${basename}.html`)
-          await Bun.write(htmlPath, html)
-          toast.show({
-            message: `Exported to ${basename}.html`,
-            variant: "success",
-          })
-        } catch (err) {
-          toast.show({ message: `Export failed: ${String(err)}`, variant: "error" })
-        }
-        dialog.clear()
+
+        const { DialogBuildTarget } = await import("@tui/component/dialog-build-target")
+        dialog.replace(() => (
+          <DialogBuildTarget onSelect={async (target) => {
+            try {
+              const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+              const content = await Bun.file(resolved).text()
+              const basename = path.basename(resolved, ".csd")
+
+              switch (target) {
+                case "web-minimal": {
+                  const { generateCsoundHTML } = await import("@/tool/csound_export_html_template")
+                  const html = generateCsoundHTML(content, basename)
+                  const htmlPath = path.join(path.dirname(resolved), `${basename}.html`)
+                  await Bun.write(htmlPath, html)
+                  toast.show({ message: `Exported minimal player → ${basename}.html`, variant: "success" })
+                  break
+                }
+                case "web-full": {
+                  const { generateCsoundHTML } = await import("@/tool/csound_export_html_template")
+                  const html = generateCsoundHTML(content, basename)
+                  // Full mode: auto-open controls by injecting a script
+                  const fullHtml = html.replace(
+                    'toggleBtn.textContent = "Controls"',
+                    'toggleBtn.textContent = "Controls"; toggleBtn.click()',
+                  )
+                  const htmlPath = path.join(path.dirname(resolved), `${basename}.html`)
+                  await Bun.write(htmlPath, fullHtml)
+                  toast.show({ message: `Exported full synth UI → ${basename}.html`, variant: "success" })
+                  break
+                }
+                case "web-scaffold": {
+                  const { generateWebScaffold } = await import("@/tool/csound_export_scaffold")
+                  const outDir = path.join(path.dirname(resolved), `${basename}-web`)
+                  const files = await generateWebScaffold(content, basename, outDir)
+                  toast.show({ message: `Scaffold created → ${basename}-web/ (${files.length} files)`, variant: "success" })
+                  break
+                }
+                case "cabbage-vst":
+                case "cabbage-standalone": {
+                  const { generateCabbageCsd } = await import("@/tool/csound_export_cabbage")
+                  const mode = target === "cabbage-vst" ? "vst" : "standalone"
+                  const cabCsd = generateCabbageCsd(content, mode)
+                  const cabPath = path.join(path.dirname(resolved), `${basename}_cabbage.csd`)
+                  await Bun.write(cabPath, cabCsd)
+
+                  // Try to open in Cabbage
+                  const appPath = await ExternalApps.findCabbage()
+                  if (appPath) {
+                    ExternalApps.openInApp(appPath, cabPath)
+                    toast.show({ message: `Cabbage CSD exported and opened → ${basename}_cabbage.csd`, variant: "success" })
+                  } else {
+                    toast.show({ message: `Cabbage CSD exported → ${basename}_cabbage.csd (install Cabbage to compile to ${mode === "vst" ? "VST/AU" : "standalone"})`, variant: "success", duration: 6000 })
+                  }
+                  break
+                }
+                case "tauri-standalone": {
+                  const { generateTauriScaffold } = await import("@/tool/csound_export_scaffold")
+                  const outDir = path.join(path.dirname(resolved), `${basename}-app`)
+                  const files = await generateTauriScaffold(content, basename, outDir)
+                  toast.show({ message: `Tauri project created → ${basename}-app/ (${files.length} files). Run: cd ${basename}-app && cargo tauri dev`, variant: "success", duration: 8000 })
+                  break
+                }
+              }
+            } catch (err) {
+              toast.show({ message: `Build failed: ${String(err)}`, variant: "error" })
+            }
+          }} />
+        ))
       },
     },
     {
@@ -1513,14 +1569,28 @@ export function Session() {
                     {" \u00B7 "}{sessionCost()}
                   </text>
                 </Show>
-                <text fg={theme.textMuted} wrapMode="none">
-                  <span style={{ fg: theme.textMuted }}>{directory().split("/").slice(0, -1).join("/")}/</span>
-                  <span style={{ fg: theme.text }}>{directory().split("/").at(-1)}</span>
-                  {" \u00B7 "}
-                  <span style={{ fg: theme.success }}>{"\u2022"}</span>{" "}
-                  <b>dr</b><span style={{ fg: theme.text }}><b>C</b></span>{" "}
-                  {Installation.VERSION}
-                </text>
+                <box flexDirection="row" gap={2}>
+                  <text fg={theme.textMuted} wrapMode="none">
+                    <span style={{ fg: theme.textMuted }}>{directory().split("/").slice(0, -1).join("/")}/</span>
+                    <span style={{ fg: theme.text }}>{directory().split("/").at(-1)}</span>
+                    {" \u00B7 "}
+                    <span style={{ fg: theme.success }}>{"\u2022"}</span>{" "}
+                    <b>dr</b><span style={{ fg: theme.text }}><b>C</b></span>{" "}
+                    {Installation.VERSION}
+                  </text>
+                  <box flexGrow={1} />
+                  <Show when={csdFilePath()}>
+                    <box
+                      onMouseUp={() => command.trigger("session.build")}
+                      paddingLeft={1}
+                      paddingRight={1}
+                    >
+                      <text fg={theme.accent} attributes={TextAttributes.BOLD}>
+                        Build {"\u25BE"}
+                      </text>
+                    </box>
+                  </Show>
+                </box>
               </box>
             </Show>
             <Toast />
