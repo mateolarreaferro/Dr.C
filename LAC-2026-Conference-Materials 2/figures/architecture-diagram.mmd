@@ -1,0 +1,82 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#2E86AB','primaryTextColor':'#fff','primaryBorderColor':'#1a4d6b','lineColor':'#6C757D','secondaryColor':'#A23B72','tertiaryColor':'#ADB5BD','clusterBkg':'transparent','clusterBorder':'#6C757D'}}}%%
+
+graph TB
+    subgraph UI["User Interface Layer"]
+        CLI["CLI / TUI"]
+        HTTP["HTTP Server"]
+        ACP["ACP Protocol"]
+    end
+
+    subgraph Router["Agent Router"]
+        PM["Permission Manager"]
+        SM["Session Manager"]
+        AS["Agent Selector"]
+    end
+
+    subgraph Agents["Primary Agents"]
+        CSOUND["csound<br/>(Sonnet 4.5)"]
+        SINE["csound-sine<br/>(Haiku 4.5)"]
+        BUILD["build"]
+    end
+
+    subgraph SubAgents["Specialized Sub-Agents (Haiku 4.5)"]
+        SYNTH["synthesis"]
+        FX["effects"]
+        MOD["modulation"]
+    end
+
+    subgraph Tools["Csound-Specific Tools"]
+        COMPILE["csound_compile"]
+        RENDER["csound_render"]
+        ALT["csound_propose_alternatives"]
+        PATCH["apply_csd_patch"]
+        EXPORT["csound_export_html"]
+        PARALLEL["task_parallel"]
+    end
+
+    subgraph Support["Support Systems"]
+        RAG["Retrieval Engine<br/>4-Tier RAG"]
+        VALID["Validation Framework<br/>Syntax + Contracts"]
+        WORK["Session Workspace<br/>Isolation"]
+        TREE["Design Tree<br/>Non-Linear History"]
+    end
+
+    subgraph External["External Dependencies"]
+        CSBIN["Csound Binary"]
+        MODELS["LLM Providers<br/>Anthropic/OpenAI/Local"]
+    end
+
+    CLI --> Router
+    HTTP --> Router
+    ACP --> Router
+
+    Router --> PM
+    Router --> SM
+    Router --> AS
+
+    AS --> CSOUND
+    AS --> SINE
+    AS --> BUILD
+
+    CSOUND --> SubAgents
+    CSOUND --> Tools
+
+    PARALLEL --> SYNTH
+    PARALLEL --> FX
+    PARALLEL --> MOD
+
+    Tools --> Support
+    Support --> CSBIN
+    Agents --> MODELS
+
+    classDef primary fill:none,stroke:#2E86AB,stroke-width:2px,color:#2E86AB
+    classDef secondary fill:none,stroke:#A23B72,stroke-width:2px,color:#A23B72
+    classDef accent fill:none,stroke:#6C757D,stroke-width:2px,color:#495057
+    classDef support fill:none,stroke:#06A77D,stroke-width:2px,color:#06A77D
+    classDef external fill:none,stroke:#6C757D,stroke-width:2px,color:#495057
+
+    class CSOUND,SINE,BUILD primary
+    class SYNTH,FX,MOD secondary
+    class COMPILE,RENDER,ALT,PATCH,EXPORT,PARALLEL accent
+    class RAG,VALID,WORK,TREE support
+    class CSBIN,MODELS external

@@ -201,6 +201,15 @@ export namespace MessageV2 {
   })
   export type CompactionPart = z.infer<typeof CompactionPart>
 
+  export const NarrationPart = PartBase.extend({
+    type: z.literal("narration"),
+    text: z.string(),
+    time: z.object({ start: z.number(), end: z.number().optional() }),
+  }).meta({
+    ref: "NarrationPart",
+  })
+  export type NarrationPart = z.infer<typeof NarrationPart>
+
   export const SubtaskPart = PartBase.extend({
     type: z.literal("subtask"),
     prompt: z.string(),
@@ -382,6 +391,7 @@ export namespace MessageV2 {
       AgentPart,
       RetryPart,
       CompactionPart,
+      NarrationPart,
     ])
     .meta({
       ref: "Part",

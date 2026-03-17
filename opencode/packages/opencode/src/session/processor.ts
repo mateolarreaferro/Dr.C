@@ -15,6 +15,8 @@ import { Config } from "@/config/config"
 import { SessionCompaction } from "./compaction"
 import { PermissionNext } from "@/permission/next"
 import { Question } from "@/question"
+import { NarrationManager } from "./narration"
+import { Hook } from "@/hook"
 
 export namespace SessionProcessor {
   const DOOM_LOOP_THRESHOLD = 3
@@ -44,6 +46,7 @@ export namespace SessionProcessor {
       },
       async process(streamInput: LLM.StreamInput) {
         log.info("process")
+        await Hook.init()
         needsCompaction = false
         const shouldBreak = (await Config.get()).experimental?.continue_loop_on_deny !== true
         while (true) {
@@ -148,6 +151,27 @@ export namespace SessionProcessor {
                     })
                     toolcalls[value.toolCallId] = part as MessageV2.ToolPart
 
+                    // Fire narration once per session cooldown (non-blocking)
+                    const NARRATION_TOOLS = new Set(["csound_render", "csound_compile", "apply_csd_patch"])
+                    if (!NarrationManager.hasFiredRecently(input.sessionID) && NARRATION_TOOLS.has(value.toolName)) {
+                      NarrationManager.markFired(input.sessionID)
+                      const recentParts = await MessageV2.parts(input.assistantMessage.parentID)
+                      const userQuery = recentParts.find((p) => p.type === "text")?.text ?? ""
+
+                      NarrationManager.trigger(input.sessionID, userQuery).then(async (text) => {
+                        if (text) {
+                          await Session.updatePart({
+                            id: Identifier.ascending("part"),
+                            messageID: input.assistantMessage.id,
+                            sessionID: input.sessionID,
+                            type: "narration",
+                            text,
+                            time: { start: Date.now(), end: Date.now() },
+                          })
+                        }
+                      }).catch(() => {})
+                    }
+
                     const parts = await MessageV2.parts(input.assistantMessage.id)
                     const lastThree = parts.slice(-DOOM_LOOP_THRESHOLD)
 
@@ -196,6 +220,20 @@ export namespace SessionProcessor {
                       },
                     })
 
+                    // Trigger lifecycle hooks based on tool name (fire-and-forget)
+                    const lifecycle = Hook.lifecycleForTool(match.tool)
+                    if (lifecycle) {
+                      Hook.trigger(lifecycle, {
+                        sessionID: input.sessionID,
+                        toolName: match.tool,
+                        filePath: (value.input as any)?.filePath ?? (value.output?.metadata as any)?.filePath,
+                        metadata: {
+                          ...value.output?.metadata,
+                          success: true,
+                        },
+                      }).catch(() => {})
+                    }
+
                     delete toolcalls[value.toolCallId]
                   }
                   break
@@ -216,6 +254,17 @@ export namespace SessionProcessor {
                         },
                       },
                     })
+
+                    // Trigger hooks even on error (for tracking)
+                    const lifecycle = Hook.lifecycleForTool(match.tool)
+                    if (lifecycle) {
+                      Hook.trigger(lifecycle, {
+                        sessionID: input.sessionID,
+                        toolName: match.tool,
+                        filePath: (value.input as any)?.filePath,
+                        metadata: { success: false },
+                      }).catch(() => {})
+                    }
 
                     if (
                       value.error instanceof PermissionNext.RejectedError ||

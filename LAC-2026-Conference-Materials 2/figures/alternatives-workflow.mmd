@@ -1,0 +1,43 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#2E86AB','secondaryColor':'#A23B72','tertiaryColor':'#ADB5BD','noteBkgColor':'#FFF3CD','noteTextColor':'#856404','clusterBkg':'transparent','clusterBorder':'#6C757D'}}}%%
+
+graph LR
+    subgraph Traditional["Traditional AI Workflow (Generate-and-Refine)"]
+        T1["User Prompt"] --> T2["AI Generates Code<br/>(First Solution)"]
+        T2 --> T3["User Tests"]
+        T3 --> T4{"Satisfactory?"}
+        T4 -->|No| T5["Request Changes"]
+        T5 --> T2
+        T4 -->|Yes| T6["Done"]
+        
+        style T2 fill:none,stroke:#D84315,stroke-width:2px,color:#D84315
+        style T4 fill:none,stroke:#6C757D,stroke-width:2px,color:#495057
+    end
+
+    subgraph DrC["DrC Workflow (Alternatives-First)"]
+        D1["User Prompt"] --> D2["AI Proposes<br/>2-4 Alternatives"]
+        D2 --> D3["User Reads &<br/>Compares Options"]
+        D3 --> D4["User Selects<br/>Preferred Alternative"]
+        D4 --> D5["AI Executes<br/>Selected Approach"]
+        D5 --> D6["Render Audio"]
+        D6 --> D7{"Satisfactory?"}
+        D7 -->|No| D8["Describe Change"]
+        D8 --> D2
+        D7 -->|Yes| D9["Save to<br/>Design Tree"]
+        
+        style D2 fill:none,stroke:#06A77D,stroke-width:2px,color:#06A77D
+        style D4 fill:none,stroke:#2E86AB,stroke-width:2px,color:#2E86AB
+        style D6 fill:none,stroke:#6C757D,stroke-width:2px,color:#495057
+    end
+
+    note1["❌ User reacts to AI choice<br/>⚠️ No exploration of alternatives<br/>⚠️ Limited learning opportunity"]
+    note2["✅ User makes informed choice<br/>✅ Sees design space options<br/>✅ Learns by comparison"]
+
+    T6 -.-> note1
+    D9 -.-> note2
+
+    style note1 fill:#FFE5E5,stroke:#D84315,stroke-dasharray: 5 5
+    style note2 fill:#E5F5F0,stroke:#06A77D,stroke-dasharray: 5 5
+
+    classDef primary fill:#2E86AB,stroke:#1a4d6b,stroke-width:2px,color:#fff
+    classDef accent fill:#ADB5BD,stroke:#6C757D,stroke-width:2px,color:#212529
+    classDef success fill:#06A77D,stroke:#055f5a,stroke-width:2px,color:#fff

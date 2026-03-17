@@ -284,4 +284,76 @@ export namespace SignalFlow {
 
     return levels
   }
+
+  /**
+   * Find a node by opcode name.
+   */
+  export function nodeByOpcode(
+    graph: FlowGraph,
+    opcode: string,
+  ): FlowNode | undefined {
+    return graph.nodes.find(
+      (n) => n.opcode.toLowerCase() === opcode.toLowerCase(),
+    )
+  }
+
+  /**
+   * Suggest possible connections based on rate compatibility and category.
+   */
+  export function suggestConnections(
+    graph: FlowGraph,
+    nodeId: string,
+  ): Array<{ targetId: string; reason: string }> {
+    const node = graph.nodes.find((n) => n.id === nodeId)
+    if (!node) return []
+
+    const existingTargets = new Set(
+      graph.edges.filter((e) => e.from === nodeId).map((e) => e.to),
+    )
+
+    return graph.nodes
+      .filter((n) => n.id !== nodeId && !existingTargets.has(n.id))
+      .filter((n) => {
+        // Rate compatibility: a-rate can feed a-rate or output, k-rate can feed k-rate
+        if (
+          node.rate === "a" &&
+          (n.rate === "a" || n.category === "output")
+        )
+          return true
+        if (node.rate === "k" && n.rate === "k") return true
+        if (
+          node.rate === "k" &&
+          n.inputVars.some((v) => v.startsWith("k"))
+        )
+          return true
+        return false
+      })
+      .map((n) => ({
+        targetId: n.id,
+        reason: `${node.rate}-rate ${node.category} → ${n.rate}-rate ${n.category}`,
+      }))
+  }
+
+  /**
+   * Format a graph for inclusion in an agent prompt.
+   */
+  export function formatForPrompt(graph: FlowGraph): string {
+    const levels = topologicalLevels(graph)
+    const lines: string[] = [`Signal flow for instr ${graph.instrumentId}:`]
+
+    for (let i = 0; i < levels.length; i++) {
+      lines.push(`  Level ${i}:`)
+      for (const node of levels[i]) {
+        const inputs = graph.edges
+          .filter((e) => e.to === node.id)
+          .map((e) => e.variable)
+          .join(", ")
+        lines.push(
+          `    ${node.label}${inputs ? ` ← [${inputs}]` : ""}`,
+        )
+      }
+    }
+
+    return lines.join("\n")
+  }
 }

@@ -791,7 +791,7 @@ function ErrorComponent(props: {
   }
 
   if (props.error.message) {
-    issueURL.searchParams.set("title", `opentui: fatal: ${props.error.message}`)
+    issueURL.searchParams.set("title", `DrC: fatal: ${props.error.message}`)
   }
 
   if (props.error.stack) {

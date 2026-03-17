@@ -1,0 +1,66 @@
+digraph Alternatives_Workflow {
+    rankdir=LR;
+    bgcolor="transparent";
+    node [shape=box, style=filled, fontname="Helvetica", fontsize=11];
+    edge [color="#6C757D"];
+    
+    // Traditional workflow
+    subgraph cluster_traditional {
+        label="Traditional AI Workflow (Generate-and-Refine)";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        T1 [label="User Prompt", fillcolor="#2E86AB", fontcolor="white"];
+        T2 [label="AI Generates Code\n(First Solution)", fillcolor="#D84315", fontcolor="white"];
+        T3 [label="User Tests", fillcolor="#2E86AB", fontcolor="white"];
+        T4 [label="Satisfactory?", shape=diamond, fillcolor="#6C757D", fontcolor="white"];
+        T5 [label="Request Changes", fillcolor="#2E86AB", fontcolor="white"];
+        T6 [label="Done", fillcolor="#06A77D", fontcolor="white"];
+        
+        T1 -> T2;
+        T2 -> T3;
+        T3 -> T4;
+        T4 -> T5 [label="No"];
+        T5 -> T2;
+        T4 -> T6 [label="Yes"];
+    }
+    
+    // DrC workflow
+    subgraph cluster_drc {
+        label="DrC Workflow (Alternatives-First)";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        D1 [label="User Prompt", fillcolor="#2E86AB", fontcolor="white"];
+        D2 [label="AI Proposes\n2-4 Alternatives", fillcolor="#06A77D", fontcolor="white"];
+        D3 [label="User Reads &\nCompares Options", fillcolor="#2E86AB", fontcolor="white"];
+        D4 [label="User Selects\nPreferred Alternative", fillcolor="#2E86AB", fontcolor="white"];
+        D5 [label="AI Executes\nSelected Approach", fillcolor="#2E86AB", fontcolor="white"];
+        D6 [label="Render Audio", fillcolor="#6C757D", fontcolor="white"];
+        D7 [label="Satisfactory?", shape=diamond, fillcolor="#6C757D", fontcolor="white"];
+        D8 [label="Describe Change", fillcolor="#2E86AB", fontcolor="white"];
+        D9 [label="Save to\nDesign Tree", fillcolor="#06A77D", fontcolor="white"];
+        
+        D1 -> D2;
+        D2 -> D3;
+        D3 -> D4;
+        D4 -> D5;
+        D5 -> D6;
+        D6 -> D7;
+        D7 -> D8 [label="No"];
+        D8 -> D2;
+        D7 -> D9 [label="Yes"];
+    }
+    
+    // Notes
+    NOTE1 [label="❌ User reacts to AI choice\n⚠️ No exploration of alternatives\n⚠️ Limited learning opportunity", 
+           shape=note, style="filled,dashed", fillcolor="#FFE5E5", fontcolor="#D84315", color="#D84315"];
+    
+    NOTE2 [label="✅ User makes informed choice\n✅ Sees design space options\n✅ Learns by comparison", 
+           shape=note, style="filled,dashed", fillcolor="#E5F5F0", fontcolor="#06A77D", color="#06A77D"];
+    
+    T6 -> NOTE1 [style=dashed, color="#D84315"];
+    D9 -> NOTE2 [style=dashed, color="#06A77D"];
+}

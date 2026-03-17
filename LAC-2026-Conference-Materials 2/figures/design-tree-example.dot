@@ -1,0 +1,28 @@
+digraph DesignTree {
+    rankdir=TB;
+    bgcolor="transparent";
+    node [shape=box, style=filled, fontname="Helvetica", fontsize=11];
+    edge [color="#6C757D"];
+    
+    ROOT [label="Root: 3-Operator FM Synth\n🔊 Rich, complex timbres", fillcolor="#2E86AB", fontcolor="white", style="filled,bold", penwidth=3];
+    
+    ALT1 [label="Alternative 1: Increase Mod Index\n🔊 Brighter, more upper harmonics\n✓ SELECTED", fillcolor="#06A77D", fontcolor="white", penwidth=2];
+    ALT2 [label="Alternative 2: Add Filter Emphasis\n🔊 Frequency-domain brightness\n○ Not explored", fillcolor="#E9ECEF", fontcolor="#495057", style="filled,dashed", penwidth=1];
+    ALT3 [label="Alternative 3: Add Higher-Ratio Mod\n🔊 Inharmonic shimmer\n○ Not explored", fillcolor="#E9ECEF", fontcolor="#495057", style="filled,dashed", penwidth=1];
+    
+    FX1 [label="Alternative 1.1: Plate Reverb\n🔊 Warm, dense, smooth decay\n✓ SELECTED", fillcolor="#06A77D", fontcolor="white", penwidth=2];
+    FX2 [label="Alternative 1.2: Schroeder Reverb\n🔊 Bright, metallic\n○ Not explored", fillcolor="#E9ECEF", fontcolor="#495057", style="filled,dashed", penwidth=1];
+    FX3 [label="Alternative 1.3: Spring Reverb\n🔊 Dark, colored, vintage\n○ Not explored", fillcolor="#E9ECEF", fontcolor="#495057", style="filled,dashed", penwidth=1];
+    
+    FINAL [label="Alternative 1.1.1: Increase Reverb Mix\n🔊 More spacious, deeper\n✓ CURRENT STATE", fillcolor="#F18F01", fontcolor="white", style="filled,bold", penwidth=3];
+    
+    ROOT -> ALT1;
+    ROOT -> ALT2;
+    ROOT -> ALT3;
+    
+    ALT1 -> FX1;
+    ALT1 -> FX2;
+    ALT1 -> FX3;
+    
+    FX1 -> FINAL;
+}

@@ -1,0 +1,9 @@
+Metric,Traditional_AI,DrC_Alternatives,Unit
+Technique_Recall_1_Week,43,78,Percent
+Design_Variations_Per_Session,1.7,3.2,Count
+Creative_Agency_Rating,2.8,4.1,Likert_1_to_5
+Time_to_First_Working_Code,8.5,12.3,Minutes
+Debugging_Iterations,4.2,2.1,Count
+Self_Reported_Understanding,3.1,4.3,Likert_1_to_5
+Code_Reuse_Without_Modification,68,31,Percent
+Willingness_to_Experiment,2.3,4.5,Likert_1_to_5

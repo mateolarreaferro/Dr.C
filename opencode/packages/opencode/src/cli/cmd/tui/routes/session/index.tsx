@@ -87,6 +87,7 @@ import { QuestionPrompt } from "./question"
 import { DialogExportOptions } from "../../ui/dialog-export-options"
 import { formatTranscript } from "../../util/transcript"
 import { UI } from "@/cli/ui.ts"
+import { NarrationManager } from "@/session/narration"
 
 addDefaultParsers(parsers.parsers)
 
@@ -781,6 +782,9 @@ export function Session() {
       value: "session.signal_flow",
       category: "Csound",
       enabled: designMode() && !!csdFilePath(),
+      slash: {
+        name: "flow",
+      },
       onSelect: async (dialog) => {
         const fp = csdFilePath()
         if (!fp) { dialog.clear(); return }
@@ -843,6 +847,40 @@ export function Session() {
         const resolved = SessionWorkspace.resolve(route.sessionID, fp)
         ExternalApps.openInApp(appPath, resolved)
         toast.show({ message: "Opened in CsoundQt (editing temp workspace copy)", variant: "success" })
+        dialog.clear()
+      },
+    },
+    {
+      title: NarrationManager.isEnabled(route.sessionID) ? "Disable narration" : "Enable narration",
+      value: "session.narration.toggle",
+      category: "Csound",
+      slash: {
+        name: "narrate",
+      },
+      onSelect: (dialog) => {
+        const current = NarrationManager.isEnabled(route.sessionID)
+        NarrationManager.setEnabled(route.sessionID, !current)
+        toast.show({
+          message: current ? "Narration disabled" : "Narration enabled — educational context will appear during tool execution",
+          variant: "info",
+        })
+        dialog.clear()
+      },
+    },
+    {
+      title: NarrationManager.isTTSEnabled() ? "Disable narration TTS" : "Enable narration TTS",
+      value: "session.narration.tts",
+      category: "Csound",
+      slash: {
+        name: "tts",
+      },
+      onSelect: (dialog) => {
+        const current = NarrationManager.isTTSEnabled()
+        NarrationManager.setTTSEnabled(!current)
+        toast.show({
+          message: current ? "TTS disabled" : "TTS enabled — narrations will be spoken aloud",
+          variant: "info",
+        })
         dialog.clear()
       },
     },
@@ -1690,10 +1728,24 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   )
 }
 
+function NarrationPartView(props: { last: boolean; part: any; message: AssistantMessage }) {
+  const { theme } = useTheme()
+  return (
+    <Show when={props.part.text?.trim()}>
+      <box paddingLeft={3} marginTop={1} flexShrink={0}>
+        <text fg={theme.textMuted} attributes={TextAttributes.ITALIC}>
+          {"~ "}{props.part.text.trim()}
+        </text>
+      </box>
+    </Show>
+  )
+}
+
 const PART_MAPPING = {
   text: TextPart,
   tool: ToolPart,
   reasoning: ReasoningPart,
+  narration: NarrationPartView,
 }
 
 function ReasoningPart(props: { last: boolean; part: ReasoningPart; message: AssistantMessage }) {

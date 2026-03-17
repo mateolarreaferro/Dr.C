@@ -48,6 +48,8 @@ import { Truncate } from "@/tool/truncation"
 import { RetrievalEngine } from "@/retrieval/engine"
 import { RetrievalFormat } from "@/retrieval/format"
 import { RetrievalFeedback } from "@/retrieval/feedback"
+import { UserProfile } from "@/retrieval/user-profile"
+import { ExpertiseTracker } from "@/retrieval/expertise-tracker"
 import { QueryRewriter } from "@/retrieval/query-rewriter"
 import { CsdParser } from "@/csound/parser"
 import { SessionWorkspace } from "@/session/workspace"
@@ -757,6 +759,12 @@ export namespace SessionPrompt {
         if (lockedConstraints) {
           system.push(lockedConstraints)
         }
+
+        // Inject user profile context for personalized responses
+        const profileContext = await UserProfile.promptContext()
+        if (profileContext) {
+          system.push(profileContext)
+        }
       }
 
       const result = await processor.process({
@@ -797,6 +805,12 @@ export namespace SessionPrompt {
         } catch {
           // Feedback recording is best-effort
         }
+      }
+
+      // Track user expertise from message content and tool results
+      if (!isSineMode) {
+        const userText = lastUser.parts?.find(p => p.type === "text")?.text ?? ""
+        ExpertiseTracker.analyzeMessage(userText).catch(() => {})
       }
 
       // If structured output was captured, save it and exit immediately

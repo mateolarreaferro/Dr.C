@@ -15,6 +15,7 @@ import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
 import PROMPT_CSOUND from "../session/prompt/csound.txt"
 import PROMPT_CSOUND_SINE from "../session/prompt/csound-sine.txt"
+import PROMPT_NARRATOR from "../session/prompt/narrator.txt"
 import { PermissionNext } from "@/permission/next"
 import { mergeDeep, pipe, sortBy, values } from "remeda"
 import { Global } from "@/global"
@@ -248,6 +249,23 @@ export namespace Agent {
           user,
         ),
         prompt: PROMPT_SUMMARY,
+      },
+      narrator: {
+        name: "narrator",
+        mode: "primary",
+        options: {},
+        native: true,
+        hidden: true,
+        temperature: 0.7,
+        model: { providerID: "anthropic", modelID: "claude-haiku-4-5-20251001" },
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({
+            "*": "deny",
+          }),
+          user,
+        ),
+        prompt: PROMPT_NARRATOR,
       },
       "csound-synthesis": {
         name: "csound-synthesis",

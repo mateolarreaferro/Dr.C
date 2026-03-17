@@ -1,0 +1,192 @@
+Block Diagram: 3-Operator FM Synthesis
+========================================
+
+DrC-Generated Signal Flow Visualization
+Example: Complex FM with Modulation Routing
+
+
+OPERATOR STRUCTURE
+==================
+
+┌─────────────────────────────────────────────────────────────┐
+│                      MIDI INPUT                             │
+│                 (Note + Velocity)                           │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ├──────────┬──────────┬───────────┐
+                        │          │          │           │
+                        ▼          ▼          ▼           ▼
+                   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
+                   │ ADSR 1  │ │ ADSR 2  │ │ ADSR 3  │ │ Freq    │
+                   │ (Mod 1) │ │ (Mod 2) │ │ (Carr)  │ │ Convert │
+                   └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘
+                        │          │          │           │
+                        │          │          │           ▼
+                        │          │          │      kBaseFreq
+                        │          │          │      (e.g., 440 Hz)
+                        │          │          │
+                        │          │          │
+┌───────────────────────┼──────────┼──────────┼─────────────────────┐
+│                       ▼          ▼          ▼                     │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              MODULATOR 2 (Top of Stack)                  │   │
+│  │  ┌────────────────────────────────────────────────────┐  │   │
+│  │  │  oscili                                            │  │   │
+│  │  │  Frequency: kBaseFreq * 3.5 (ratio)               │  │   │
+│  │  │  Amplitude: kEnv2 * kModIndex2 * kBaseFreq        │  │   │
+│  │  │  Output: aMod2 (modulation signal)                │  │   │
+│  │  └───────────────────────┬────────────────────────────┘  │   │
+│  └──────────────────────────┼───────────────────────────────┘   │
+│                             │                                   │
+│                             ▼ aMod2                             │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              MODULATOR 1 (Middle)                       │   │
+│  │  ┌────────────────────────────────────────────────────┐ │   │
+│  │  │  oscili                                            │ │   │
+│  │  │  Frequency: kBaseFreq * 2.0 (ratio) + aMod2       │ │   │
+│  │  │            ↑ FM from Modulator 2                  │ │   │
+│  │  │  Amplitude: kEnv1 * kModIndex1 * kBaseFreq        │ │   │
+│  │  │  Output: aMod1 (modulation signal)                │ │   │
+│  │  └───────────────────────┬────────────────────────────┘ │   │
+│  └──────────────────────────┼───────────────────────────────┘   │
+│                             │                                   │
+│                             ▼ aMod1                             │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │              CARRIER (Audible Output)                   │   │
+│  │  ┌────────────────────────────────────────────────────┐ │   │
+│  │  │  oscili                                            │ │   │
+│  │  │  Frequency: kBaseFreq * 1.0 (ratio) + aMod1       │ │   │
+│  │  │            ↑ FM from Modulator 1                  │ │   │
+│  │  │  Amplitude: kEnvCarr * 0.5                        │ │   │
+│  │  │  Output: aCarrier (audio signal)                  │ │   │
+│  │  └───────────────────────┬────────────────────────────┘ │   │
+│  └──────────────────────────┼───────────────────────────────┘   │
+└───────────────────────────────┼───────────────────────────────────┘
+                                │
+                                ▼ aCarrier
+                        ┌───────────────┐
+                        │   out         │
+                        │   (Stereo)    │
+                        └───────────────┘
+
+
+FM ROUTING DIAGRAM (Simplified)
+================================
+
+    Mod2 (3.5x)
+         │
+         ├──► FM ──► Mod1 (2.0x)
+                          │
+                          ├──► FM ──► Carrier (1.0x) ──► Audio Out
+                                            
+This is "stacked" FM: each modulator affects the next in series.
+
+
+PARAMETER BREAKDOWN
+===================
+
+Modulator 2 (Highest Frequency):
+  Ratio: 3.5 (3.5 × base frequency)
+  Envelope: Fast attack (0.01s), short decay (0.1s)
+  Mod Index: 2.0 (moderate FM depth)
+  Purpose: Adds high-frequency "sparkle" / inharmonic content
+
+Modulator 1 (Middle Frequency):
+  Ratio: 2.0 (2.0 × base frequency = 1 octave higher)
+  Envelope: Medium attack (0.05s), medium decay (0.3s)
+  Mod Index: 4.5 (deep FM depth)
+  Purpose: Primary timbre shaper, rich harmonic content
+  Receives FM from: Modulator 2 (complex interaction)
+
+Carrier (Fundamental):
+  Ratio: 1.0 (base frequency, fundamental pitch)
+  Envelope: Slow attack (0.1s), sustained (S=0.6), slow release (0.5s)
+  Amplitude: Envelope-controlled
+  Purpose: Audible output, carries modulated frequency
+  Receives FM from: Modulator 1
+
+FM Depth Control:
+  Modulation Index = (Modulator Amplitude) / (Carrier Frequency)
+  Higher index → more sidebands → brighter, more complex timbre
+
+
+CSOUND BUILDING BLOCKS
+=======================
+• cpsmidinn: MIDI → Frequency conversion
+• madsr: 3 separate envelope generators (one per operator)
+• oscili: 3 oscillators (Mod2, Mod1, Carrier)
+• Arithmetic: Frequency ratios (× 3.5, × 2.0, × 1.0)
+• Arithmetic: Modulation index (kEnv * kModIndex * kFreq)
+• out: Stereo output
+
+
+SIGNAL FLOW EXPLANATION
+========================
+1. MIDI note determines base frequency (e.g., A4 = 440 Hz)
+2. Three envelopes shape each operator independently
+3. Modulator 2 oscillates at 3.5 × base (1540 Hz for A4)
+4. Mod2 output modulates Mod1's frequency (FM depth = index × freq)
+5. Modulator 1 oscillates at 2.0 × base + FM from Mod2
+6. Mod1 output modulates Carrier's frequency
+7. Carrier oscillates at 1.0 × base + FM from Mod1
+8. Carrier output is the audible audio signal
+9. Output to stereo speakers
+
+
+PEDAGOGICAL INSIGHTS
+=====================
+
+Why 3 operators?
+  - More operators = more complex timbres
+  - Stacked routing creates harmonic + inharmonic content
+  - Each operator adds spectral richness
+
+Why these ratios (3.5, 2.0, 1.0)?
+  - Integer ratios (2.0) create harmonic spectra (musical)
+  - Non-integer ratios (3.5) create inharmonic spectra (bell-like, metallic)
+  - Mixing both creates complex, evolving timbres
+
+Why stacked vs. parallel?
+  - Stacked (series): Complex interactions, unpredictable spectra
+  - Parallel (would be): Additive combination, more predictable
+  - Stacked chosen for "organic" evolving character
+
+What happens if we change the routing?
+  - Parallel: All modulators → Carrier independently
+  - Feedback: Carrier → modulates itself (chaotic timbres)
+  - DrC can generate alternatives with different topologies
+
+
+VARIATIONS TO EXPLORE
+======================
+
+Q: What if Mod1 ratio was 1.5 instead of 2.0?
+A: Less harmonic (1.5 not integer), more dissonant "clangorous" sound
+
+Q: What if modulation index was 8.0 instead of 4.5?
+A: Much brighter, more aggressive, dense spectrum, "harsh" character
+
+Q: What if Mod2 envelope was slower (attack 0.5s)?
+A: Gradual brightness increase over time, "evolving" timbre
+
+Q: What if we added a 4th operator?
+A: Even more complex spectra, potential CPU cost, diminishing returns
+
+DrC proposes these as alternatives to compare sonically.
+
+
+HOW DrC DEMYSTIFIES FM
+=======================
+
+Traditional FM pedagogy:
+  "C:M ratio determines harmonic series, index controls sidebands"
+  Students: "What does that SOUND like?"
+
+DrC pedagogy:
+  1. Shows block diagram (visual routing)
+  2. Explains each operator's role (Mod2 = sparkle, Mod1 = body, Carrier = fundamental)
+  3. Proposes 3 alternatives with different ratios/routing
+  4. Students HEAR differences, connect to diagram
+  5. "Ah, non-integer ratio = metallic sound!"
+
+Result: Understanding through visual + sonic + explanatory scaffolding.

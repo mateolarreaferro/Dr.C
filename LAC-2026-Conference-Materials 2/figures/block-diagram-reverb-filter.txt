@@ -1,0 +1,146 @@
+Block Diagram: Reverb + Filter Instrument
+==========================================
+
+DrC-Generated Signal Flow Visualization
+Example from Spring 2026 Student Project
+
+
+┌─────────────────────────────────────────────────────────────┐
+│                   MIDI INPUT                                │
+│              (Note Number + Velocity)                       │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ├─────────────────────┐
+                        │                     │
+                        ▼                     ▼
+              ┌──────────────────┐  ┌──────────────────┐
+              │  cpsmidinn       │  │  ADSR Envelope   │
+              │  Note → Freq     │  │  A: 0.1s         │
+              │  (e.g., 60→262Hz)│  │  D: 0.3s         │
+              └────────┬─────────┘  │  S: 0.6          │
+                       │            │  R: 0.5s         │
+                       │            └────────┬─────────┘
+                       │                     │
+                       ▼                     ▼
+              ┌─────────────────────────────────┐
+              │      oscili (Oscillator)        │
+              │      Waveform: Sine             │
+              │      Amplitude: kEnv * 0.5      │
+              │      Frequency: kFreq           │
+              └──────────────┬──────────────────┘
+                             │
+                             ▼ aSig (audio signal)
+              ┌──────────────────────────────────┐
+              │      moogladder (Filter)         │
+              │      Type: 4-pole lowpass        │
+              │      Cutoff: 1200 Hz             │
+              │      Resonance: 0.7 (moderate)   │
+              │      Distortion: 0.1 (subtle)    │
+              └──────────────┬───────────────────┘
+                             │
+                             ▼ aFiltered
+                    ┌────────┴────────┐
+                    │                 │
+              Dry Signal (30%)  Wet Signal (70%)
+                    │                 │
+                    │                 ▼
+                    │        ┌─────────────────┐
+                    │        │   reverbsc      │
+                    │        │   (Reverb)      │
+                    │        │                 │
+                    │        │ Feedback: 0.85  │
+                    │        │ Cutoff: 10kHz   │
+                    │        │ (Schroeder)     │
+                    │        └────────┬────────┘
+                    │                 │
+                    ▼                 ▼
+              ┌─────────────────────────────┐
+              │   Dry/Wet Mixer             │
+              │   aDry*0.3 + aWet*0.7       │
+              └──────────────┬──────────────┘
+                             │
+                             ▼ aMix
+              ┌──────────────────────────────┐
+              │   Limiter (Safety)           │
+              │   Prevents clipping          │
+              │   Threshold: -0.1 dB         │
+              └──────────────┬───────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────┐
+              │   out (Stereo Output)        │
+              │   Left + Right channels      │
+              └──────────────────────────────┘
+
+
+PARAMETER SUMMARY
+=================
+Oscillator:
+  - Frequency: MIDI note number → Hz conversion
+  - Amplitude: Envelope-controlled (0 to 0.5)
+  - Waveform: Sine (pure tone)
+
+Filter (moogladder):
+  - Cutoff: 1200 Hz (removes frequencies above)
+  - Resonance: 0.7 (moderate boost at cutoff)
+  - Roll-off: -24 dB/octave (4-pole = steep)
+
+Reverb (reverbsc):
+  - Algorithm: Schroeder (8 comb + 4 allpass)
+  - Feedback: 0.85 (long decay time ~3 seconds)
+  - Damping: 10 kHz (bright reverb character)
+
+Mix:
+  - Dry: 30% (original signal)
+  - Wet: 70% (reverb signal)
+
+
+SIGNAL FLOW EXPLANATION
+========================
+1. MIDI note triggers instrument
+2. Note number converted to frequency (cpsmidinn)
+3. ADSR envelope shapes amplitude over time
+4. Oscillator generates sine wave (carrier)
+5. Filter removes high frequencies (warm character)
+6. Signal splits: 30% dry, 70% to reverb
+7. Reverb adds spatial depth (Schroeder algorithm)
+8. Dry + Wet signals mixed together
+9. Limiter prevents clipping (safety)
+10. Output to stereo speakers
+
+
+CSOUND BUILDING BLOCKS USED
+============================
+• cpsmidinn: MIDI → Frequency converter
+• madsr: Envelope generator (attack, decay, sustain, release)
+• oscili: Oscillator (sine wave)
+• moogladder: 4-pole lowpass filter (Moog emulation)
+• reverbsc: Schroeder reverb (algorithmic)
+• Arithmetic: Dry/wet mixing (aSig * 0.3, etc.)
+• out: Stereo output
+
+Each is an "ingredient"—DrC shows how they combine.
+
+
+PEDAGOGICAL VALUE
+==================
+Students learn:
+1. Signal path: Input → Process → Mix → Output
+2. Order matters: Filter before reverb ≠ reverb before filter
+3. Parameter relationships: Cutoff affects brightness, resonance affects focus
+4. Design patterns: Dry/wet mixing is reusable technique
+5. Building blocks: Each opcode is a tool in synthesis toolkit
+
+
+VARIATIONS TO EXPLORE
+======================
+Q: What if cutoff was 500 Hz instead of 1200 Hz?
+A: Darker, more muffled sound (removes more highs)
+
+Q: What if reverb was 100% wet (no dry signal)?
+A: Very spacious, distant, "swimming in reverb" effect
+
+Q: What if filter came AFTER reverb?
+A: Reverb tail would be filtered, creating different texture
+
+DrC can generate alternatives to explore these variations.

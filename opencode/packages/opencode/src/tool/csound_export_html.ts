@@ -4,6 +4,7 @@ import { Tool } from "./tool"
 import DESCRIPTION from "./csound_export_html.txt"
 import { generateCsoundHTML } from "./csound_export_html_template"
 import { SessionWorkspace } from "../session/workspace"
+import { Hook } from "@/hook"
 
 export const CsoundExportHtmlTool = Tool.define(
   "csound_export_html",
@@ -30,6 +31,13 @@ export const CsoundExportHtmlTool = Tool.define(
           status: "exporting",
           filePath,
         },
+      })
+
+      // Trigger pre-export hook for validation
+      await Hook.trigger("pre-export", {
+        sessionID: ctx.sessionID,
+        filePath: params.filePath,
+        metadata: { title: params.title },
       })
 
       const csdContent = await file.text()

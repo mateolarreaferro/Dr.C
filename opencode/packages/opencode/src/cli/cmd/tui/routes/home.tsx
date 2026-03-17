@@ -1,9 +1,8 @@
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import { createMemo, Match, onMount, Show, Switch } from "solid-js"
+import { createMemo, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import { useKeybind } from "@tui/context/keybind"
 import { Logo } from "../component/logo"
-import { Tips } from "../component/tips"
 import { Locale } from "@/util/locale"
 import { useSync } from "../context/sync"
 import { Toast } from "../ui/toast"
@@ -14,6 +13,13 @@ import { usePromptRef } from "../context/prompt"
 import { Installation } from "@/installation"
 import { useKV } from "../context/kv"
 import { useCommandDialog } from "../component/dialog-command"
+
+const TEMPLATES = [
+  { name: "Subtractive Pad", prompt: "Create a rich subtractive synthesis pad with a moogladder filter, ADSR envelope, and gentle LFO modulation on the cutoff. Warm and evolving." },
+  { name: "FM Bell", prompt: "Create an FM synthesis bell sound using foscili. Classic Chowning bell with a high modulation index that decays over time." },
+  { name: "Granular Texture", prompt: "Create a granular synthesis texture using partikkel or grain3. An evolving cloud of micro-sounds with randomized parameters." },
+  { name: "Additive Drone", prompt: "Create an additive synthesis drone using 8 harmonically-related oscillators. Slowly evolving amplitudes and slight detuning for richness." },
+]
 
 // TODO: what is the best way to do this?
 let once = false
@@ -34,26 +40,9 @@ export function Home() {
     return Object.values(sync.data.mcp).filter((x) => x.status === "connected").length
   })
 
-  const isFirstTimeUser = createMemo(() => sync.data.session.length === 0)
-  const tipsHidden = createMemo(() => kv.get("tips_hidden", false))
-  const showTips = createMemo(() => {
-    // Don't show tips for first-time users
-    if (isFirstTimeUser()) return false
-    return !tipsHidden()
-  })
+  const [selectedTemplate, setSelectedTemplate] = createSignal(-1)
 
-  command.register(() => [
-    {
-      title: tipsHidden() ? "Show tips" : "Hide tips",
-      value: "tips.toggle",
-      keybind: "tips_toggle",
-      category: "System",
-      onSelect: (dialog) => {
-        kv.set("tips_hidden", !tipsHidden())
-        dialog.clear()
-      },
-    },
-  ])
+  command.register(() => [])
 
   const Hint = (
     <Show when={connectedMcpCount() > 0}>
@@ -109,10 +98,25 @@ export function Home() {
             hint={Hint}
           />
         </box>
-        <box height={4} minHeight={0} width="100%" maxWidth={75} alignItems="center" paddingTop={3} flexShrink={1}>
-          <Show when={showTips()}>
-            <Tips />
-          </Show>
+        <box minHeight={0} width="100%" maxWidth={75} paddingTop={2} flexShrink={1}>
+          <box flexDirection="column" gap={0}>
+            <text fg={theme.textMuted}>Quick Start:</text>
+            <For each={TEMPLATES}>
+              {(tpl, i) => (
+                <box
+                  flexDirection="row"
+                  onMouseUp={() => {
+                    prompt.set({ input: tpl.prompt, parts: [] })
+                    setSelectedTemplate(i())
+                  }}
+                >
+                  <text fg={selectedTemplate() === i() ? theme.text : theme.textMuted}>
+                    {"  "}{selectedTemplate() === i() ? ">" : "\u25B8"} {tpl.name}
+                  </text>
+                </box>
+              )}
+            </For>
+          </box>
         </box>
         <box flexGrow={1} minHeight={0} />
         <Toast />

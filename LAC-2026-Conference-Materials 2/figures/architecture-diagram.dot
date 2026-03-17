@@ -1,0 +1,128 @@
+digraph DrC_Architecture {
+    rankdir=TB;
+    bgcolor="transparent";
+    node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
+    edge [color="#6C757D"];
+    
+    // UI Layer
+    subgraph cluster_ui {
+        label="User Interface Layer";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        CLI [label="CLI / TUI", fillcolor="#2E86AB", fontcolor="white"];
+        HTTP [label="HTTP Server", fillcolor="#2E86AB", fontcolor="white"];
+        ACP [label="ACP Protocol", fillcolor="#2E86AB", fontcolor="white"];
+    }
+    
+    // Router
+    subgraph cluster_router {
+        label="Agent Router";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        PM [label="Permission Manager", fillcolor="#2E86AB", fontcolor="white"];
+        SM [label="Session Manager", fillcolor="#2E86AB", fontcolor="white"];
+        AS [label="Agent Selector", fillcolor="#2E86AB", fontcolor="white"];
+    }
+    
+    // Primary Agents
+    subgraph cluster_agents {
+        label="Primary Agents";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        CSOUND [label="csound\n(Sonnet 4.5)", fillcolor="#2E86AB", fontcolor="white"];
+        SINE [label="csound-sine\n(Haiku 4.5)", fillcolor="#2E86AB", fontcolor="white"];
+        BUILD [label="build", fillcolor="#2E86AB", fontcolor="white"];
+    }
+    
+    // Sub-Agents
+    subgraph cluster_subagents {
+        label="Specialized Sub-Agents (Haiku 4.5)";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        SYNTH [label="synthesis", fillcolor="#A23B72", fontcolor="white"];
+        FX [label="effects", fillcolor="#A23B72", fontcolor="white"];
+        MOD [label="modulation", fillcolor="#A23B72", fontcolor="white"];
+    }
+    
+    // Tools
+    subgraph cluster_tools {
+        label="Csound-Specific Tools";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        COMPILE [label="csound_compile", fillcolor="#6C757D", fontcolor="white"];
+        RENDER [label="csound_render", fillcolor="#6C757D", fontcolor="white"];
+        ALT [label="csound_propose_alternatives", fillcolor="#6C757D", fontcolor="white"];
+        PATCH [label="apply_csd_patch", fillcolor="#6C757D", fontcolor="white"];
+        EXPORT [label="csound_export_html", fillcolor="#6C757D", fontcolor="white"];
+        PARALLEL [label="task_parallel", fillcolor="#6C757D", fontcolor="white"];
+    }
+    
+    // Support Systems
+    subgraph cluster_support {
+        label="Support Systems";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        RAG [label="Retrieval Engine\n4-Tier RAG", fillcolor="#06A77D", fontcolor="white"];
+        VALID [label="Validation Framework\nSyntax + Contracts", fillcolor="#06A77D", fontcolor="white"];
+        WORK [label="Session Workspace\nIsolation", fillcolor="#06A77D", fontcolor="white"];
+        TREE [label="Design Tree\nNon-Linear History", fillcolor="#06A77D", fontcolor="white"];
+    }
+    
+    // External Dependencies
+    subgraph cluster_external {
+        label="External Dependencies";
+        style=solid;
+        color="#6C757D";
+        fillcolor="transparent";
+        
+        CSBIN [label="Csound Binary", fillcolor="#6C757D", fontcolor="white"];
+        MODELS [label="LLM Providers\nAnthropic/OpenAI/Local", fillcolor="#6C757D", fontcolor="white"];
+    }
+    
+    // Connections
+    CLI -> PM;
+    HTTP -> PM;
+    ACP -> PM;
+    
+    PM -> SM;
+    SM -> AS;
+    
+    AS -> CSOUND;
+    AS -> SINE;
+    AS -> BUILD;
+    
+    CSOUND -> SYNTH;
+    CSOUND -> FX;
+    CSOUND -> MOD;
+    
+    CSOUND -> COMPILE;
+    CSOUND -> RENDER;
+    CSOUND -> ALT;
+    CSOUND -> PATCH;
+    CSOUND -> EXPORT;
+    CSOUND -> PARALLEL;
+    
+    PARALLEL -> SYNTH;
+    PARALLEL -> FX;
+    PARALLEL -> MOD;
+    
+    COMPILE -> RAG;
+    COMPILE -> VALID;
+    COMPILE -> WORK;
+    COMPILE -> TREE;
+    
+    RAG -> CSBIN;
+    CSOUND -> MODELS;
+}

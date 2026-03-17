@@ -1,0 +1,24 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#2E86AB','secondaryColor':'#A23B72','tertiaryColor':'#F18F01'}}}%%
+
+graph TD
+    ROOT["Root: 3-Operator FM Synth<br/>🔊 Rich, complex timbres"]
+    
+    ROOT --> ALT1["Alternative 1: Increase Mod Index<br/>🔊 Brighter, more upper harmonics<br/>✓ SELECTED"]
+    ROOT --> ALT2["Alternative 2: Add Filter Emphasis<br/>🔊 Frequency-domain brightness<br/>○ Not explored"]
+    ROOT --> ALT3["Alternative 3: Add Higher-Ratio Mod<br/>🔊 Inharmonic shimmer<br/>○ Not explored"]
+    
+    ALT1 --> FX1["Alternative 1.1: Plate Reverb<br/>🔊 Warm, dense, smooth decay<br/>✓ SELECTED"]
+    ALT1 --> FX2["Alternative 1.2: Schroeder Reverb<br/>🔊 Bright, metallic<br/>○ Not explored"]
+    ALT1 --> FX3["Alternative 1.3: Spring Reverb<br/>🔊 Dark, colored, vintage<br/>○ Not explored"]
+    
+    FX1 --> FINAL["Alternative 1.1.1: Increase Reverb Mix<br/>🔊 More spacious, deeper<br/>✓ CURRENT STATE"]
+    
+    style ROOT fill:#2E86AB,stroke:#1a4d6b,stroke-width:3px,color:#fff
+    style ALT1 fill:#06A77D,stroke:#055f5a,stroke-width:2px,color:#fff
+    style FX1 fill:#06A77D,stroke:#055f5a,stroke-width:2px,color:#fff
+    style FINAL fill:#F18F01,stroke:#c47201,stroke-width:3px,color:#fff
+    
+    style ALT2 fill:#E9ECEF,stroke:#6C757D,stroke-width:1px,stroke-dasharray: 5 5,color:#495057
+    style ALT3 fill:#E9ECEF,stroke:#6C757D,stroke-width:1px,stroke-dasharray: 5 5,color:#495057
+    style FX2 fill:#E9ECEF,stroke:#6C757D,stroke-width:1px,stroke-dasharray: 5 5,color:#495057
+    style FX3 fill:#E9ECEF,stroke:#6C757D,stroke-width:1px,stroke-dasharray: 5 5,color:#495057

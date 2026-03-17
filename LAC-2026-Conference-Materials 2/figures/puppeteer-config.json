@@ -1,0 +1,3 @@
+{
+  "args": ["--font-render-hinting=none", "--force-device-scale-factor=3"]
+}

@@ -18,6 +18,9 @@ export namespace RetrievalFeedback {
     | "user_thumbs_up"
     | "user_thumbs_down"
     | "example_used"
+    | "user_skip_narration"
+    | "user_read_narration"
+    | "technique_reuse"
 
   const SIGNAL_VALUES: Record<Signal, number> = {
     compile_success: 1.0,
@@ -31,6 +34,9 @@ export namespace RetrievalFeedback {
     user_thumbs_up: 1.5,
     user_thumbs_down: -1.5,
     example_used: 0.7,
+    user_skip_narration: 0.0,
+    user_read_narration: 0.0,
+    technique_reuse: 0.3,
   }
 
   const ALPHA = 0.1 // EMA smoothing factor
