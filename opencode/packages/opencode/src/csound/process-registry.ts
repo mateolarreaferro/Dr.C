@@ -10,7 +10,7 @@ import type { ChildProcess } from "child_process"
 export namespace CsoundProcessRegistry {
   interface TrackedProcess {
     proc: ChildProcess
-    type: "render" | "playback"
+    type: "render" | "playback" | "live"
     startedAt: number
   }
 

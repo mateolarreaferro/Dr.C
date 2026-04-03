@@ -2,10 +2,15 @@ import { Hook } from "./index"
 import { Log } from "@/util/log"
 import { SessionWorkspace } from "@/session/workspace"
 import { UserProfile } from "@/retrieval/user-profile"
+import { LiveEngine } from "@/csound/live-engine"
+import { MemoryManager } from "@/memory/manager"
 import { spawn } from "child_process"
 
 export namespace BuiltinHooks {
   const log = Log.create({ service: "hook.builtin" })
+
+  // Track render count per session for memory recording
+  const sessionRenderCounts = new Map<string, number>()
 
   /**
    * Register all built-in hooks.
@@ -15,6 +20,8 @@ export namespace BuiltinHooks {
     Hook.register("post-render", postRenderHook)
     Hook.register("session-start", sessionStartHook)
     Hook.register("pre-export", preExportHook)
+    Hook.register("session-end", sessionEndHook)
+    Hook.register("post-export", postExportHook)
   }
 
   /**
@@ -56,6 +63,7 @@ export namespace BuiltinHooks {
 
   /**
    * PostRender: Record RLHF signal and user profile update after audio render.
+   * Also checks if live engine is running and logs hot-reload availability.
    */
   async function postRenderHook(ctx: Hook.HookContext): Promise<void> {
     const success = ctx.metadata?.success !== false
@@ -63,6 +71,27 @@ export namespace BuiltinHooks {
 
     // Record to user profile
     await UserProfile.record(success ? "render_success" : "render_failure").catch(() => {})
+
+    // If live engine is running, log that hot-reload is available
+    if (success && LiveEngine.isRunning(ctx.sessionID)) {
+      const filePath = ctx.filePath ?? ctx.metadata?.filePath
+      log.info("post-render: live engine active — CSD updated, hot-reload available", {
+        sessionID: ctx.sessionID,
+        filePath,
+      })
+    }
+
+    // Track render count for memory recording
+    const count = (sessionRenderCounts.get(ctx.sessionID) || 0) + 1
+    sessionRenderCounts.set(ctx.sessionID, count)
+
+    // After 3+ renders, record techniques from the current CSD (fire-and-forget)
+    if (count >= 3 && ctx.metadata?.csdContent) {
+      const outcome = success ? "success" : "failed"
+      MemoryManager.recordTechniquesFromCsd(ctx.sessionID, ctx.metadata.csdContent, outcome).catch((e) =>
+        log.error("memory technique recording failed", { error: e }),
+      )
+    }
 
     // Narration trigger happens in processor, not here
     log.info("post-render hook", { success, audioSignal })
@@ -120,5 +149,36 @@ export namespace BuiltinHooks {
     } catch (e) {
       log.error("pre-export validation error", { error: e })
     }
+  }
+
+  /**
+   * SessionEnd: Generate session summary and update sonic identity (fire-and-forget).
+   */
+  async function sessionEndHook(ctx: Hook.HookContext): Promise<void> {
+    // Fire-and-forget: generate summary and update identity in parallel
+    Promise.all([
+      MemoryManager.generateSessionSummary(ctx.sessionID),
+      MemoryManager.updateIdentityFromSession(ctx.sessionID),
+    ]).catch((e) => log.error("session-end memory hooks failed", { error: e }))
+
+    // Clean up render counter
+    sessionRenderCounts.delete(ctx.sessionID)
+
+    log.info("session-end hook", { sessionID: ctx.sessionID })
+  }
+
+  /**
+   * PostExport: Record technique as successful in journal when user exports.
+   */
+  async function postExportHook(ctx: Hook.HookContext): Promise<void> {
+    const csdContent = ctx.metadata?.csdContent
+    if (!csdContent || typeof csdContent !== "string") return
+
+    // Record techniques with "success" outcome since user exported
+    MemoryManager.recordTechniquesFromCsd(ctx.sessionID, csdContent, "success").catch((e) =>
+      log.error("post-export memory recording failed", { error: e }),
+    )
+
+    log.info("post-export hook", { sessionID: ctx.sessionID })
   }
 }

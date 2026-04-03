@@ -1,0 +1,9 @@
+Analyze current CSD parameters and suggest interesting variations to move the sound in a specific direction.
+
+Use this to help the user explore parameter space without requiring them to specify exact values. Detects k-rate parameters, infers their semantic roles, and suggests new values based on an optional focus direction.
+
+Parameters:
+- focus: Optional direction for suggestions (e.g., "darker", "brighter", "more movement", "experimental", "soft")
+
+Returns:
+- List of parameter suggestions with current value, suggested value, and reasoning

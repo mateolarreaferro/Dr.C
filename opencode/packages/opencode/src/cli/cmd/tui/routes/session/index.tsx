@@ -79,6 +79,7 @@ import { SessionWorkspace } from "@/session/workspace"
 import { SystemPrompt } from "@/session/system"
 import { RetrievalEngine } from "@/retrieval/engine"
 import { ExternalApps } from "@/util/external-apps"
+import open from "open"
 import { RetrievalFeedback } from "@/retrieval/feedback"
 import { CsdParser } from "@/csound/parser"
 import { DialogLockParams } from "./dialog-lock-params"
@@ -511,6 +512,21 @@ export function Session() {
           modelID: selectedModel.modelID,
           providerID: selectedModel.providerID,
         })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Open Web Companion",
+      value: "session.companion",
+      category: "Session",
+      slash: {
+        name: "companion",
+        aliases: ["web", "browser"],
+      },
+      onSelect: async (dialog) => {
+        const url = `${sdk.url}/companion?sessionID=${route.sessionID}`
+        open(url).catch(() => {})
+        toast.show({ message: "Opened companion in browser", variant: "success" })
         dialog.clear()
       },
     },

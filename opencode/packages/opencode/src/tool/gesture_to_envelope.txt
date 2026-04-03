@@ -1,0 +1,11 @@
+Convert a series of time/value points (drawn gesture) into Csound envelope code.
+
+Use this when the user draws an envelope shape in the web companion UI or describes an envelope contour. Converts the points into the appropriate Csound opcode.
+
+Parameters:
+- points: Array of {time, value} objects representing the envelope shape
+- targetParam: The k-rate variable name to assign the envelope to (e.g., "kAmp", "kCutoff")
+- opcodePreference: Optional — "linseg", "expseg", "linsegr", or "gen07" (defaults to "linseg")
+
+Returns:
+- Generated Csound code for the envelope

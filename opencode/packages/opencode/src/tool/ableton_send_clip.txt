@@ -1,0 +1,13 @@
+Send a rendered WAV file to an Ableton Live clip slot via AbletonOSC.
+
+Requires an active connection to Ableton Live with AbletonOSC installed. Use this after rendering a .csd to .wav to send the audio directly into an Ableton session for further arrangement or processing.
+
+Parameters:
+- wavPath: Absolute path to the .wav file to send (resolved through session workspace)
+- trackIndex: Target track index in Ableton (optional — defaults to 0)
+- clipSlot: Target clip slot index (optional — defaults to 0)
+- fireAfterSend: If true, immediately fire/launch the clip after sending (default false)
+
+Returns:
+- Success/failure status
+- Track and clip slot where the audio was placed

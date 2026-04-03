@@ -30,6 +30,9 @@ import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
 import { ProviderRoutes } from "./routes/provider"
 import { CsoundRoutes } from "./routes/csound"
+import { AbletonRoutes } from "./routes/ableton"
+import { CompanionRoutes } from "./routes/companion"
+import { CompanionSync } from "./companion-sync"
 import { lazy } from "../util/lazy"
 import { InstanceBootstrap } from "../project/bootstrap"
 import { NotFoundError } from "../storage/db"
@@ -224,6 +227,7 @@ export namespace Server {
             },
           }),
         )
+        .route("/companion", CompanionRoutes())
         .use(validator("query", z.object({ directory: z.string().optional() })))
         .route("/project", ProjectRoutes())
         .route("/pty", PtyRoutes())
@@ -237,6 +241,7 @@ export namespace Server {
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
         .route("/csound", CsoundRoutes())
+        .route("/ableton", AbletonRoutes())
         .post(
           "/instance/dispose",
           describeRoute({
@@ -599,6 +604,7 @@ export namespace Server {
     if (!server) throw new Error(`Failed to start server on port ${opts.port}`)
 
     _url = server.url
+    CompanionSync.init()
 
     const shouldPublishMDNS =
       opts.mdns &&
@@ -614,6 +620,7 @@ export namespace Server {
 
     const originalStop = server.stop.bind(server)
     server.stop = async (closeActiveConnections?: boolean) => {
+      CompanionSync.dispose()
       if (shouldPublishMDNS) MDNS.unpublish()
       return originalStop(closeActiveConnections)
     }

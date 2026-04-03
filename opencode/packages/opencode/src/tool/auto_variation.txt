@@ -1,0 +1,10 @@
+Generate subtle variations of the current CSD by perturbing k-rate parameters.
+
+Creates N copies of the current CSD with parameters randomly adjusted within a specified range. Each variation is saved to the workspace and added to the design tree. Does not render the variations — just creates the CSD files for later comparison.
+
+Parameters:
+- count: Number of variations to generate (default 3, max 6)
+- variationRange: How much to vary parameters — "subtle" (±10%), "moderate" (±30%), or "wild" (±60%)
+
+Returns:
+- List of created variation file paths with descriptions of what changed

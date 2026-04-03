@@ -3,7 +3,7 @@ import { Log } from "@/util/log"
 export namespace Hook {
   const log = Log.create({ service: "hook" })
 
-  export type Lifecycle = "post-edit" | "post-render" | "session-start" | "pre-export"
+  export type Lifecycle = "post-edit" | "post-render" | "session-start" | "pre-export" | "session-end" | "post-export"
 
   export interface HookContext {
     sessionID: string

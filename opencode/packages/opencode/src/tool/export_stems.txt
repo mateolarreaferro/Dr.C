@@ -1,0 +1,9 @@
+Export per-instrument stem WAV files from a multi-instrument CSD.
+
+Parses the CSD to identify all instruments, creates isolated CSD variants with only one instrument active, and renders each to a separate WAV file. Useful for mixing individual parts in a DAW.
+
+Parameters:
+- outputDir: Optional output directory (defaults to workspace stems/ subdir)
+
+Returns:
+- List of stem files with instrument name, WAV path, and duration

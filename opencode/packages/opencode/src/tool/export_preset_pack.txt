@@ -1,0 +1,10 @@
+Bundle design tree variations into a preset pack with manifest.
+
+Collects CSD snapshots from the design tree, extracts parameter values, and writes a preset pack directory with individual CSD files and a JSON manifest.
+
+Parameters:
+- name: Name of the preset pack
+- nodeIDs: Optional array of specific design tree node IDs to include (defaults to all non-pruned nodes)
+
+Returns:
+- Manifest path, preset count, and output directory location

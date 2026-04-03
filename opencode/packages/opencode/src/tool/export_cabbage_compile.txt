@@ -1,0 +1,10 @@
+Compile a CSD directly to VST/AU/standalone plugin via the Cabbage CLI.
+
+Checks for Cabbage installation, validates the CSD, and runs the Cabbage CLI to produce a compiled plugin. Falls back to generating a Cabbage-formatted CSD if the CLI is not found.
+
+Parameters:
+- target: Export format — "vst", "au", or "standalone"
+- outputDir: Optional output directory for the compiled plugin
+
+Returns:
+- Compiled plugin path, or Cabbage CSD path with installation instructions

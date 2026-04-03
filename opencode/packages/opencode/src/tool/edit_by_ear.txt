@@ -1,0 +1,12 @@
+Analyze a rendered WAV at a specific timestamp to identify what's happening sonically and propose targeted edits.
+
+Use this when the user clicks a point in a waveform or references a specific moment in the audio (e.g., "that harsh part at 2.3 seconds"). Identifies which instrument and score event is active at that timestamp, analyzes amplitude and spectral characteristics, and suggests targeted edits.
+
+Parameters:
+- timestampSeconds: The timestamp in seconds to analyze
+- editIntent: Optional description of desired change (e.g., "make it less harsh", "louder", "remove this")
+
+Returns:
+- Active instrument and score event at that timestamp
+- Amplitude (RMS) and brightness (spectral centroid) analysis
+- Suggested edit targets based on the optional intent

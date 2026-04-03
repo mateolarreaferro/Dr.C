@@ -1,0 +1,11 @@
+Create a new track in Ableton Live via AbletonOSC.
+
+Requires an active connection to Ableton Live with AbletonOSC installed. Use this to set up a new audio, MIDI, or return track in the Ableton session — for example, creating an audio track to receive rendered Csound output.
+
+Parameters:
+- type: Track type — "audio", "midi", or "return"
+- name: Display name for the new track
+
+Returns:
+- The new track index in Ableton
+- Track type and name confirmation

@@ -36,6 +36,28 @@ import { CsoundInstallTool } from "./csound_install"
 import { CsoundProposeAlternativesTool } from "./csound_propose_alternatives"
 import { TaskParallelTool } from "./task_parallel"
 import { CsoundExportHtmlTool } from "./csound_export_html"
+import { AbletonSendClipTool } from "./ableton_send_clip"
+import { AbletonSetParamTool } from "./ableton_set_param"
+import { AbletonCreateTrackTool } from "./ableton_create_track"
+import { SketchMoodPaletteTool } from "./sketch_mood_palette"
+import { SketchBranchCompareTool } from "./sketch_branch_compare"
+import { SketchSurpriseTool } from "./sketch_surprise"
+import { SketchReferenceTool } from "./sketch_reference"
+import { TechniqueLineageTool } from "./technique_lineage"
+import { CsdWalkthroughTool } from "./csd_walkthrough"
+import { CsoundChallengeTool } from "./csound_challenge"
+import { LiveCodingStartStopTool } from "./live_coding_start_stop"
+import { LiveCodingSetChannelTool } from "./live_coding_set_channel"
+import { LiveCodingHotReloadTool } from "./live_coding_hot_reload"
+import { EditByEarTool } from "./edit_by_ear"
+import { SuggestParamsTool } from "./suggest_params"
+import { AutoVariationTool } from "./auto_variation"
+import { GestureToEnvelopeTool } from "./gesture_to_envelope"
+import { ExportAbletonClipTool } from "./export_ableton_clip"
+import { ExportStemsTool } from "./export_stems"
+import { ExportPresetPackTool } from "./export_preset_pack"
+import { ExportCabbageCompileTool } from "./export_cabbage_compile"
+import { MemoryTool } from "./memory"
 import { SystemPrompt } from "../session/system"
 
 export namespace ToolRegistry {
@@ -145,6 +167,28 @@ export namespace ToolRegistry {
       ...(!isSineMode ? [CsoundProposeAlternativesTool] : []),
       ...(!isSineMode ? [TaskParallelTool] : []),
       ...(!isSineMode ? [CsoundExportHtmlTool] : []),
+      ...(!isSineMode ? [AbletonSendClipTool] : []),
+      ...(!isSineMode ? [AbletonSetParamTool] : []),
+      ...(!isSineMode ? [AbletonCreateTrackTool] : []),
+      ...(!isSineMode ? [SketchMoodPaletteTool] : []),
+      ...(!isSineMode ? [SketchBranchCompareTool] : []),
+      ...(!isSineMode ? [SketchSurpriseTool] : []),
+      ...(!isSineMode ? [SketchReferenceTool] : []),
+      ...(!isSineMode ? [TechniqueLineageTool] : []),
+      ...(!isSineMode ? [CsdWalkthroughTool] : []),
+      ...(!isSineMode ? [CsoundChallengeTool] : []),
+      ...(!isSineMode ? [LiveCodingStartStopTool] : []),
+      ...(!isSineMode ? [LiveCodingSetChannelTool] : []),
+      ...(!isSineMode ? [LiveCodingHotReloadTool] : []),
+      ...(!isSineMode ? [EditByEarTool] : []),
+      ...(!isSineMode ? [SuggestParamsTool] : []),
+      ...(!isSineMode ? [AutoVariationTool] : []),
+      ...(!isSineMode ? [GestureToEnvelopeTool] : []),
+      ...(!isSineMode ? [ExportAbletonClipTool] : []),
+      ...(!isSineMode ? [ExportStemsTool] : []),
+      ...(!isSineMode ? [ExportPresetPackTool] : []),
+      ...(!isSineMode ? [ExportCabbageCompileTool] : []),
+      ...(!isSineMode ? [MemoryTool] : []),
       ...custom,
     ]
 

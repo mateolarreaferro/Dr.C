@@ -11,7 +11,9 @@ export function generateCsoundHTML(
   let rewrittenCsd = params.length > 0 ? rewriteCsdForChannels(csdContent, params) : csdContent
   const flow = buildSignalFlow(csdContent)
   const instrName = detectInstrName(csdContent)
-  const hasP4Freq = /\bp4\b/.test(csdContent) && /freq|pitch|cpsmidi/i.test(csdContent)
+  // p4 in Csound instruments is conventionally frequency — detect it broadly
+  // Matches: p4, cpspch(p4), cpsmidinn(p4), freq = p4, etc.
+  const hasP4Freq = /\bp4\b/.test(csdContent) && /instr\b/.test(csdContent)
 
   // For keyboard mode: replace score with infinite duration so keyboard controls playback
   if (hasP4Freq) {
@@ -304,21 +306,21 @@ if (HAS_KEYBOARD) {
   // Named instruments get a high base number (100) to avoid conflicts.
   const INSTR_BASE = /^\\d+$/.test(INSTR) ? parseInt(INSTR) : 100;
 
-  function noteOn(midi) {
+  async function noteOn(midi) {
     if (!csound || !isPlaying || activeNotes.has(midi)) return;
     const freq = 440 * Math.pow(2, (midi - 69) / 12);
     const instrNum = INSTR_BASE + midi / 1000;
-    csound.inputMessage("i " + instrNum.toFixed(3) + " 0 -1 " + freq.toFixed(3) + " 0.5");
     activeNotes.set(midi, instrNum);
     const el = kb.querySelector('[data-midi="' + midi + '"]');
     if (el) el.classList.add("active");
+    try { await csound.inputMessage("i " + instrNum.toFixed(3) + " 0 -1 " + freq.toFixed(3) + " 0.5"); } catch(e) { log("[Keyboard] noteOn error: " + e.message); }
   }
 
-  function noteOff(midi) {
+  async function noteOff(midi) {
     if (!csound || !activeNotes.has(midi)) return;
     const instrNum = activeNotes.get(midi);
-    csound.inputMessage("i -" + instrNum.toFixed(3) + " 0 0");
     activeNotes.delete(midi);
+    try { await csound.inputMessage("i -" + instrNum.toFixed(3) + " 0 0"); } catch(e) { log("[Keyboard] noteOff error: " + e.message); }
     const el = kb.querySelector('[data-midi="' + midi + '"]');
     if (el) el.classList.remove("active");
   }
@@ -352,14 +354,14 @@ if (HAS_KEYBOARD) {
 
   const keyMap = {a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72};
   const heldKeys = new Set();
-  document.addEventListener("keydown", (e) => {
-    if (e.repeat || e.target.tagName === "INPUT") return;
+  document.addEventListener("keydown", async (e) => {
+    if (e.repeat || e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
     const midi = keyMap[e.key.toLowerCase()];
-    if (midi && !heldKeys.has(e.key)) { heldKeys.add(e.key); noteOn(midi); }
+    if (midi && !heldKeys.has(e.key)) { heldKeys.add(e.key); await noteOn(midi); }
   });
-  document.addEventListener("keyup", (e) => {
+  document.addEventListener("keyup", async (e) => {
     const midi = keyMap[e.key.toLowerCase()];
-    if (midi) { heldKeys.delete(e.key); noteOff(midi); }
+    if (midi) { heldKeys.delete(e.key); await noteOff(midi); }
   });
 }
 

@@ -47,6 +47,13 @@ export namespace DesignTree {
 
   // --- Types ---
 
+  export interface SketchMetadata {
+    moods?: string[]
+    references?: string[]
+    tags?: string[]
+    surpriseSource?: string
+  }
+
   export interface DesignNode {
     id: string
     sessionID?: string
@@ -61,6 +68,7 @@ export namespace DesignTree {
     metadata: Record<string, any>
     branchName?: string
     pruned?: boolean
+    sketchMetadata?: SketchMetadata
   }
 
   export interface DesignTreeState {
@@ -136,6 +144,7 @@ export namespace DesignTree {
       sonicCharacter?: string
       sessionID?: string
       metadata?: Record<string, any>
+      sketchMetadata?: SketchMetadata
     },
   ): { state: DesignTreeState; nodeID: string } {
     const parentID = input.parentNodeID ?? state.currentNodeID
@@ -153,6 +162,7 @@ export namespace DesignTree {
       selected: false,
       alternatives: [],
       metadata: input.metadata ?? {},
+      sketchMetadata: input.sketchMetadata,
     }
 
     // Add to parent's alternatives list

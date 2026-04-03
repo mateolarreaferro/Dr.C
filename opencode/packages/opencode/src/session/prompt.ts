@@ -49,6 +49,7 @@ import { RetrievalEngine } from "@/retrieval/engine"
 import { RetrievalFormat } from "@/retrieval/format"
 import { RetrievalFeedback } from "@/retrieval/feedback"
 import { UserProfile } from "@/retrieval/user-profile"
+import { MemoryManager } from "@/memory/manager"
 import { ExpertiseTracker } from "@/retrieval/expertise-tracker"
 import { QueryRewriter } from "@/retrieval/query-rewriter"
 import { CsdParser } from "@/csound/parser"
@@ -764,6 +765,16 @@ export namespace SessionPrompt {
         const profileContext = await UserProfile.promptContext()
         if (profileContext) {
           system.push(profileContext)
+        }
+
+        // Inject persistent memory context (recent sessions, sonic identity, techniques)
+        try {
+          const memoryContext = await MemoryManager.promptContext()
+          if (memoryContext) {
+            system.push(memoryContext)
+          }
+        } catch {
+          // Memory context is optional — never block prompt assembly
         }
       }
 

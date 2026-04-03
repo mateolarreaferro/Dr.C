@@ -1,0 +1,11 @@
+Export the most recent rendered WAV as an Ableton Live clip.
+
+If connected to Ableton via OSC bridge, sends the clip directly. Otherwise, copies to an accessible location with import instructions.
+
+Parameters:
+- trackIndex: Target track in Ableton (optional, defaults to 0)
+- clipSlot: Target clip slot (optional, defaults to 0)
+- fire: Whether to fire/launch the clip after sending (optional, defaults to true)
+
+Returns:
+- Success/failure status with clip placement details

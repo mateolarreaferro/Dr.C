@@ -1,7 +1,7 @@
 import { DialogSelect } from "@tui/ui/dialog-select"
 import { useDialog } from "@tui/ui/dialog"
 
-export type BuildTarget = "web-minimal" | "web-full" | "web-scaffold" | "cabbage-vst" | "cabbage-standalone" | "tauri-standalone"
+export type BuildTarget = "web-minimal" | "web-full" | "web-scaffold" | "cabbage-vst" | "cabbage-standalone" | "tauri-standalone" | "ableton-clip" | "stems-export" | "preset-pack"
 
 interface BuildTargetOption {
   target: BuildTarget
@@ -46,6 +46,24 @@ const BUILD_TARGETS: BuildTargetOption[] = [
     title: "Standalone App (Desktop)",
     description: "Tauri project wrapping the web player as a native app",
     category: "Standalone",
+  },
+  {
+    target: "ableton-clip",
+    title: "Ableton Live Clip",
+    description: "Send rendered audio directly to an Ableton Live clip slot via OSC",
+    category: "DAW",
+  },
+  {
+    target: "stems-export",
+    title: "Stems Export",
+    description: "Separate WAV per instrument for mixing in a DAW",
+    category: "Export",
+  },
+  {
+    target: "preset-pack",
+    title: "Preset Pack",
+    description: "Bundle design tree variations as a preset bank with manifest",
+    category: "Export",
   },
 ]
 

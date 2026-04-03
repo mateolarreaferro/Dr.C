@@ -18,6 +18,10 @@ export namespace UserProfile {
     totalRenders: number
     lastUpdated: number
     version: number
+    favoriteTextures?: string[] // persisted texture/mood descriptors across sessions
+    sonicReferences?: Record<string, string> // reference label → description, persists across sessions
+    challengeProgress?: Record<string, { started: boolean; completed: boolean; hintsUsed: number }>
+    autoVariationEnabled?: boolean
   }
 
   const DEFAULT_PROFILE: Profile = {
