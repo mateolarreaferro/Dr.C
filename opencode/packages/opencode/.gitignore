@@ -5,4 +5,6 @@ app.log
 src/provider/models-snapshot.ts
 .env
 .env.*
-resources/knowledge/*.json
+# Regenerated monolithic index bundles — rebuild with scripts/build-knowledge.ts
+resources/knowledge/bundle.json
+resources/knowledge/bundle-examples.json
