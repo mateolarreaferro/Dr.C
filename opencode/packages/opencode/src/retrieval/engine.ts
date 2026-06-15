@@ -10,6 +10,7 @@ import { OpcodeCards } from "./opcode-cards"
 import { CsdExamples } from "./csd-examples"
 import { KnowledgeGraph } from "./knowledge-graph"
 import { QueryRouter } from "./router"
+import { matchGoldenPatterns } from "./golden-patterns"
 import type { CoreBundle, ExamplesBundle, RouteResult, Domain } from "./schema"
 import { Log } from "../util/log"
 import { Instance } from "../project/instance"
@@ -324,6 +325,27 @@ export namespace RetrievalEngine {
     } catch (e) {
       log.info("no examples bundle found", { error: String(e) })
     }
+
+    // Supplemental foundational bundles (always ship with Dr.C — no full rebuild required)
+    const supplemental: { file: string; source: string }[] = [
+      { file: "bundle-csd.json", source: "CatalogCSD" },
+      { file: "bundle-granular-models.json", source: "GranularModels" },
+      { file: "bundle-physical-models.json", source: "PhysicalModels" },
+      { file: "bundle-drum-models.json", source: "DrumModels" },
+      { file: "bundle-generative-models.json", source: "GenerativeModels" },
+      { file: "bundle-selected-catalog-v25.json", source: "CsoundCatalogV25" },
+      { file: "bundle-mccurdy-haiku.json", source: "McCurdyHaiku" },
+      { file: "bundle-elected-models.json", source: "ElectedModels" },
+    ]
+    let supplementalCount = 0
+    for (const { file, source } of supplemental) {
+      const n = await CsdExamples.loadSupplementalBundle(path.join(bundleDir, file), source)
+      supplementalCount += n
+    }
+    if (supplementalCount > 0) {
+      state.examplesReady = true
+      log.info("loaded supplemental CSD bundles", { count: supplementalCount })
+    }
   }
 
   async function saveToDisk(): Promise<void> {
@@ -583,14 +605,29 @@ export namespace RetrievalEngine {
       }
     }
 
-    // Tier 1: CSD examples (CAG)
+    // Tier 1: CSD examples (CAG) — golden pattern first when query matches
     if (route.tiers.includes(1) && state.examplesReady) {
+      const golden = matchGoldenPatterns(query)
+      if (golden) {
+        const content = await CsdExamples.getContent(golden.id)
+        if (content) {
+          const ex = (await CsdExamples.searchExamples(golden.id, { limit: 1 }))[0]?.example
+          result.csdExamples.push(
+            `<golden-pattern source="${golden.source}: ${golden.label}">\n${content.slice(0, 2800)}\n</golden-pattern>`,
+          )
+          if (ex) {
+            result.csdExamples.push(CsdExamples.formatForPrompt(ex, content))
+          }
+        }
+      }
+
       const exResults = await CsdExamples.searchExamples(query, {
         domain: domain !== "general" ? domain : undefined,
         limit: 2,
       })
 
       for (const exResult of exResults) {
+        if (golden && exResult.example.id === golden.id) continue
         // Try to get CSD content for CAG injection
         const content = await CsdExamples.getContent(exResult.example.id)
         result.csdExamples.push(CsdExamples.formatForPrompt(exResult.example, content ?? undefined))

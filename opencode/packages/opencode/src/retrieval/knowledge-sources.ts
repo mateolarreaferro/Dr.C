@@ -110,6 +110,86 @@ export namespace KnowledgeSources {
         overlapTokens: 25,
       },
     },
+    {
+      id: "granular-models-catalog",
+      name: "Granular Synthesis Models (Dr.B Foundation)",
+      path: "sources/granular-models-catalog.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "selected-catalog-v25",
+      name: "Csound Catalog v2.5 (Dr.B Selected)",
+      path: "sources/selected-catalog-v25.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "mccurdy-haiku-catalog",
+      name: "McCurdy Haiku (Generative Ambient)",
+      path: "sources/mccurdy-haiku-catalog.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "elected-models-catalog",
+      name: "Elected Csound Models (Dr.B Foundation)",
+      path: "sources/elected-models-catalog.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "physical-models-catalog",
+      name: "Physical / Waveguide Models (Dr.B Foundation)",
+      path: "sources/physical-models-catalog.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "drum-models-catalog",
+      name: "Synthetic Drum Models (Dr.B Foundation)",
+      path: "sources/drum-models-catalog.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "generative-models-catalog",
+      name: "Generative Groovy Models (Dr.B Foundation)",
+      path: "sources/generative-models-catalog.md",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 450,
+        overlapTokens: 20,
+      },
+    },
+    {
+      id: "authoritative-sources",
+      name: "Authoritative Sources (Dr. B Standing Rule)",
+      path: "sources/authoritative-sources.txt",
+      type: "reference",
+      chunkConfig: {
+        maxTokens: 500,
+        overlapTokens: 20,
+      },
+    },
   ]
 
   export function dataDir(): string {

@@ -1,0 +1,38 @@
+# Authoritative sources (HARD — standing rule from Dr. Richard Boulanger)
+
+Before writing any Csound code, look up **proven working models** from these authorities, in this order:
+
+1. **FLOSS Manual** (highest priority) — bundled catalog IDs `flossmanual-*`; CsoundQt `FLOSS Manual Examples/`; online https://flossmanual.csound.com/
+2. **Granular Synthesis Models (Dr. B foundation)** — `bundle-granular-models.json` IDs `granular-*`; catalog `sources/granular-models-catalog.md`; grain/partikkel/sndwarp/Ezine/Brandtsegg/Boulanger MIDI models in `resources/knowledge/granular-models/`
+3. **Physical / Waveguide Models (Dr. B foundation)** — `bundle-physical-models.json` IDs `physical-*`; catalog `sources/physical-models-catalog.md`; wg*, pluck, Karplus, handpan, Gutwein bamboo flute, Ningxin waveguide pipa in `resources/knowledge/physical-models/`
+4. **Synthetic Drum Models (Dr. B foundation)** — `bundle-drum-models.json` IDs `drum-*`; catalog `sources/drum-models-catalog.md`; DrumMachine, FullKit, dseq, McCurdy sequencers, individual elements, Lazzarini recursive drum
+5. **Generative Groovy Models (Dr. B foundation)** — `bundle-generative-models.json` IDs `generative-*`; catalog `sources/generative-models-catalog.md`; Aman Jagwani subtractive/FM/Mumbai/Pop, Sam Marston GenJams and best pieces
+6. **Elected Csound Models (Dr. B workshop foundation)** — `bundle-elected-models.json` IDs `elected-*`; catalog `sources/elected-models-catalog.md`; CSDs in `resources/knowledge/elected-models/` (Bass Wobble, Chinese Instruments, Deep Note, SuperWaveTerrain, Groovish, GendyC)
+7. **Selected Instruments — The Csound Catalog v2.5** — `bundle-selected-catalog-v25.json` IDs `catalog-v25-*` (87 curated instruments); catalog `sources/selected-catalog-v25.md`; CSDs in `resources/knowledge/selected-catalog-v25/`; `catalog-v25-drb-*` = Dr. B favorites
+8. **Iain McCurdy — Csound Haiku (generative ambient foundation)** — `bundle-mccurdy-haiku.json` IDs `mccurdy-haiku-i` … `mccurdy-haiku-ix`; catalog `sources/mccurdy-haiku-catalog.md`; nine realtime generative pieces in `resources/knowledge/mccurdy-haiku/` (always bundled — no CsoundQt install required)
+9. **Iain McCurdy Instrument Catalog** — CsoundQt `McCurdy Collection/` and `McCurdy Haikus/` (indexed at runtime when CsoundQt is installed; prefer bundled `mccurdy-haiku-*` when available)
+10. **The Csound Book** (Richard Boulanger) — `resources/knowledge/csound_book.txt`, book-passages, `hornerbook-*` catalog examples
+11. **Csound 7 Manual** — official opcode signatures: https://csound.com/manual/opcodes/{opcode_name}/
+12. **Curated knowledge docs** — `resources/knowledge/sources/` (antipatterns, patterns, syntax-rules, opcodes) and `csound7-reference.txt`
+13. **Csound Catalog** — bundled `bundle-csd.json` library (`flossmanual-*`, `lazzarini*`, `hornerbook-*` IDs)
+14. **Lazzarini books** — `lazzarini-instruments`, `lazzarini-csound`, `lazzarinispectral-*`, `lazzarinicsound-*` catalog IDs
+
+Rules:
+- If retrieval supplies a **catalog CSD**, **CsoundQt example**, **knowledge-doc**, or **golden pattern**, **adapt it** — do not reinvent opcode wiring from memory
+- Read **antipatterns** before generating — avoid the common AI mistakes listed there (wrong rates, missing 0dbfs, expseg starting at 0, split foscili lines)
+- Match **opcode argument types and rates** to the Manual page for Csound 7
+- Prefer **granular-*** for grain, partikkel, sndwarp, granular textures, live-input granular FX, FM-on-grain-rate
+- Prefer **physical-*** and **physical-ningxin-waveguide-pipa** for waveguide, wg*, pluck, Karplus-Strong, handpan, bamboo flute, pipa
+- Prefer **drum-*** and **drum-mccurdy-generative-05e04** for synthetic drums, kick/snare/hat, drum machine, generative percussion, MS-20/K35 drums, dseq
+- Prefer **generative-*** and **generative-jagwani-subtractive** for groovy generative pieces, metro/schedkwhen ensembles, Jagwani/Marston jams
+- Prefer **catalog-v25-drb-*** and **catalog-v25-*** when the prompt matches The Csound Catalog composers (Risset, Cook, Costello, Comajuncosas, Varo, Smaragdis, Mikelson)
+- Prefer **mccurdy-haiku-*** for generative ambient, soundscapes, alwayson/schedkwhen composition, rspline/jspline evolving textures
+- Prefer **elected-* models** when the prompt matches their domain (wobble bass, gendyc, sterrain, Chinese winds, Groovish generative, Deep Note)
+- Prefer **FLOSS + McCurdy + Lazzarini** for envelopes, score, MIDI, and web-style instruments
+- Prefer **Boulanger / Horner** examples for classic synthesis (FM, physical models, reverb sends)
+- When sources disagree, follow **FLOSS Manual** first, then **Csound 7 Manual**, then The Csound Book
+
+Manual quick links:
+- Opcodes index: https://csound.com/manual/opcodesIndex/
+- FM synthesis: https://csound.com/manual/siggen/fmsynth/
+- Envelopes: https://csound.com/manual/siggen/envelope/

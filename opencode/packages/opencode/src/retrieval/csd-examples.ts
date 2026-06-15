@@ -36,6 +36,190 @@ export namespace CsdExamples {
   let domainIndex: Map<Domain, string[]> = new Map()
   let sourceIndex: Map<string, string[]> = new Map()
 
+  interface SupplementalEntry {
+    id: string
+    author?: string
+    collection?: string
+    filename?: string
+    opcodes?: string[]
+    techniques?: string[]
+    primaryTechnique?: string
+    domain?: Domain
+    drbFavorite?: boolean
+    title?: string
+    description?: string
+    qualityScore?: number
+  }
+
+  interface SupplementalBundle {
+    contents: Record<string, string>
+    entries?: SupplementalEntry[]
+    source?: string
+  }
+
+  const OPCODE_RE =
+    /\b(oscili?|vco2?|moogvcf|gbuzz|foscili?|reverbsc|freeverb|delay|vdelay3?|phaser2|wguid[12]|grain3?|fof2?|schedkwhen|metro|hsboscil|gendyc|sterrain|jspline|rspline|alwayson)\b/gi
+
+  function extractOpcodes(content: string): string[] {
+    const found = new Set<string>()
+    let m: RegExpExecArray | null
+    const re = new RegExp(OPCODE_RE.source, "gi")
+    while ((m = re.exec(content)) !== null) {
+      found.add(m[1].toLowerCase())
+    }
+    return [...found]
+  }
+
+  function inferComplexity(opcodes: string[]): "basic" | "intermediate" | "advanced" {
+    if (opcodes.length > 12) return "advanced"
+    if (opcodes.length > 6) return "intermediate"
+    return "basic"
+  }
+
+  function entryToExample(entry: SupplementalEntry, bundleSource: string): CsdExample {
+    const opcodes = entry.opcodes ?? []
+    const techniques = entry.techniques ?? ["synthesis"]
+    return {
+      id: entry.id,
+      source: bundleSource,
+      filename: entry.filename ?? `${entry.id}.csd`,
+      title: entry.title ?? entry.id,
+      techniques,
+      primaryTechnique: entry.primaryTechnique ?? techniques[0] ?? "synthesis",
+      opcodes,
+      domain: entry.domain ?? "synthesis",
+      complexity: inferComplexity(opcodes),
+      instruments: [],
+      description: entry.description ?? entry.title ?? entry.id,
+      pedagogicalValue: entry.author
+        ? `Foundational model by ${entry.author}`
+        : "Dr. B workshop foundational model",
+      signalFlow: "",
+      sonicTags: techniques,
+      qualityScore: entry.qualityScore ?? 0.88,
+    }
+  }
+
+  function inferSupplementalExample(id: string, content: string, bundleSource: string): CsdExample {
+    const opcodes = extractOpcodes(content)
+    const techniques = opcodes.length > 0 ? [opcodes[0]] : ["synthesis"]
+    let qualityScore = 0.85
+    if (id.startsWith("catalog-v25-drb")) qualityScore = 0.96
+    else if (id.startsWith("catalog-v25")) qualityScore = 0.88
+    else if (id.startsWith("mccurdy-haiku")) qualityScore = 0.94
+    else if (id.startsWith("generative-jagwani")) qualityScore = 0.95
+    else if (id.startsWith("generative-marston")) qualityScore = 0.92
+    else if (id.startsWith("physical-ningxin")) qualityScore = 0.97
+    else if (id.startsWith("physical-")) qualityScore = 0.9
+    else if (id.startsWith("drum-mccurdy")) qualityScore = 0.96
+    else if (id.startsWith("drum-joaquin")) qualityScore = 0.95
+    else if (id.startsWith("drum-")) qualityScore = 0.9
+    else if (id.startsWith("elected-")) qualityScore = 0.9
+    return {
+      id,
+      source: bundleSource,
+      filename: `${id}.csd`,
+      title: id.replace(/-/g, " "),
+      techniques,
+      primaryTechnique: techniques[0],
+      opcodes,
+      domain: "synthesis",
+      complexity: inferComplexity(opcodes),
+      instruments: [],
+      description: `Bundled foundational model (${bundleSource})`,
+      pedagogicalValue: "Adapt before inventing — Dr. B curated authority",
+      signalFlow: "",
+      sonicTags: techniques,
+      qualityScore,
+    }
+  }
+
+  async function ensureOramaDb(): Promise<void> {
+    if (db) return
+    db = await create({
+      schema: {
+        title: "string",
+        techniques: "string",
+        opcodes: "string",
+        domain: "string",
+        description: "string",
+        sonicTags: "string",
+        primaryTechnique: "string",
+      },
+      id: "csd-examples-supplemental",
+    })
+  }
+
+  /**
+   * Merge a supplemental knowledge bundle (catalog v2.5, Haiku, elected models).
+   * Works with or without bundle-examples.json loaded first.
+   */
+  export async function loadSupplementalBundle(
+    bundlePath: string,
+    sourceName: string,
+  ): Promise<number> {
+    try {
+      const file = Bun.file(bundlePath)
+      if (!(await file.exists())) return 0
+
+      const bundle = (await file.json()) as SupplementalBundle
+      if (!bundle.contents || Object.keys(bundle.contents).length === 0) return 0
+
+      if (!contentMap) contentMap = new Map()
+      await ensureOramaDb()
+
+      const entryById = new Map((bundle.entries ?? []).map((e) => [e.id, e]))
+      const docs: Record<string, any>[] = []
+
+      for (const [id, content] of Object.entries(bundle.contents)) {
+        contentMap.set(id, content)
+        const entry = entryById.get(id)
+        const ex = entry ? entryToExample(entry, sourceName) : inferSupplementalExample(id, content, sourceName)
+        examples.set(id, ex)
+        indexExample(ex)
+        docs.push({
+          id: ex.id,
+          title: ex.title,
+          techniques: ex.techniques.join(" "),
+          opcodes: ex.opcodes.join(" "),
+          domain: ex.domain,
+          description: ex.description,
+          sonicTags: ex.sonicTags.join(" "),
+          primaryTechnique: ex.primaryTechnique,
+        })
+      }
+
+      if (db && docs.length > 0) {
+        await insertMultiple(db, docs)
+      }
+
+      ready = true
+      log.info("supplemental CSD bundle loaded", { source: sourceName, count: docs.length, path: bundlePath })
+      return docs.length
+    } catch (e) {
+      log.warn("supplemental bundle load failed", { path: bundlePath, error: String(e) })
+      return 0
+    }
+  }
+
+  function scoreBoost(id: string, score: number): number {
+    if (id.startsWith("granular-brandtsegg-partikkel")) return score * 2.8
+    if (id.startsWith("granular-")) return score * 2.5
+    if (id.startsWith("generative-jagwani-")) return score * 2.8
+    if (id.startsWith("generative-marston-")) return score * 2.6
+    if (id.startsWith("generative-")) return score * 2.5
+    if (id.startsWith("physical-ningxin-")) return score * 2.8
+    if (id.startsWith("physical-")) return score * 2.5
+    if (id.startsWith("drum-mccurdy-")) return score * 2.7
+    if (id.startsWith("drum-joaquin-")) return score * 2.6
+    if (id.startsWith("drum-")) return score * 2.5
+    if (id.startsWith("catalog-v25-drb")) return score * 2.5
+    if (id.startsWith("catalog-v25")) return score * 2
+    if (id.startsWith("mccurdy-haiku")) return score * 2.2
+    if (id.startsWith("elected-")) return score * 2
+    return score
+  }
+
   /**
    * Load examples from a pre-computed bundle.
    */
@@ -271,10 +455,11 @@ export namespace CsdExamples {
           }
         }
 
-        searchResults.push({ example, score: hit.score })
+        searchResults.push({ example, score: scoreBoost(example.id, hit.score) })
         if (searchResults.length >= limit) break
       }
 
+      searchResults.sort((a, b) => b.score - a.score)
       return searchResults
     } catch (e) {
       log.error("CSD example search failed", { error: e, query })
