@@ -9,12 +9,15 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)))
-const DEMO = join(process.env.HOME ?? '', 'lac-workshop-demo')
-const STANDALONE = join(process.env.HOME ?? '', 'DRC-Standalone')
+const HOME = process.env.HOME ?? process.env.USERPROFILE ?? ''
+const DEMO = join(HOME, 'lac-workshop-demo')
+const STANDALONE = join(HOME, 'DRC-Standalone')
+const TMP = tmpdir()
 
 const lines = []
 let passed = 0
@@ -32,11 +35,49 @@ function section(name) {
   lines.push(`\n[${name}]`)
 }
 
+function pathDelimiter() {
+  return process.platform === 'win32' ? ';' : ':'
+}
+
 function withCsoundPath() {
-  const home = process.env.HOME ?? ''
-  const extra = [join(home, 'bin'), join(home, 'Applications/Csound')]
-  const path = [...extra, process.env.PATH ?? ''].filter(Boolean).join(':')
-  return { ...process.env, PATH: path }
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? ''
+  const delim = pathDelimiter()
+  const parts = (process.env.PATH ?? '').split(delim).filter(Boolean)
+  let extras = []
+  if (process.platform === 'win32') {
+    const pf = process.env.ProgramFiles ?? 'C:\\Program Files'
+    const pfx86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)'
+    const local = process.env.LOCALAPPDATA ?? join(home, 'AppData', 'Local')
+    extras = [
+      join(home, 'bin'),
+      join(local, 'Csound'),
+      join(pf, 'Csound'),
+      join(pfx86, 'Csound'),
+      join(pf, 'Csound-x64'),
+    ]
+  } else if (process.platform === 'linux') {
+    extras = [
+      join(home, 'bin'),
+      join(home, '.local/bin'),
+      join(home, 'Applications/Csound'),
+      '/usr/local/bin',
+      '/usr/bin',
+      '/opt/csound/bin',
+      '/snap/bin',
+    ]
+  } else {
+    extras = [
+      join(home, 'bin'),
+      join(home, 'Applications/Csound'),
+      join(home, '.local/bin'),
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+    ]
+  }
+  for (const p of extras) {
+    if (p && !parts.includes(p)) parts.unshift(p)
+  }
+  return { ...process.env, PATH: parts.join(delim) }
 }
 
 function csound(args, opts = {}) {
@@ -90,7 +131,7 @@ for (const file of ['pluck_bass.csd', 'pluck_bass_midi.csd']) {
     lines.push(`  SKIP  ${file} — not at ${DEMO}`)
     continue
   }
-  const r = csound(['-n', '-d', '-m0', '-o', '/tmp/drc-workshop.wav', path])
+  const r = csound(['-n', '-d', '-m0', '-o', join(TMP, 'drc-workshop.wav'), path])
   if (r.status === 0 && !/(\d+)\s+errors in performance/i.test(r.stderr || '')?.[1]) ok(`${file} compiles`)
   else if (r.status === 0) ok(`${file} compiles`)
   else bad(`${file} compile failed`, (r.stderr || '').slice(0, 100))
@@ -107,9 +148,9 @@ if (existsSync(STANDALONE)) {
     }
     let csd = readFileSync(path, 'utf-8')
     if (/player_fm_bell|f\s+0\s+\d{3,}|f0\s+z/i.test(csd)) csd = shortenHoldScore(csd)
-    const tmp = join('/tmp', `drc-cli-${file}`)
+    const tmp = join(TMP, `drc-cli-${file}`)
     writeFileSync(tmp, csd)
-    const r = csound(['-n', '-d', '-m0', '-o', '/tmp/drc-ws.wav', tmp])
+    const r = csound(['-n', '-d', '-m0', '-o', join(TMP, 'drc-ws.wav'), tmp])
     if (r.status === 0) ok(`${file} compiles (via DRC-Standalone)`)
     else bad(`${file} compile failed`, (r.stderr || '').slice(0, 100))
   }

@@ -14,6 +14,7 @@
     "random": "echo 'Random script'",
     "hello": "echo 'Hello World!'",
     "test:workshop": "node scripts/workshop-test.mjs",
+    "test:platform": "node scripts/test-platform-launchers.mjs",
     "test": "echo 'Run npm run test:workshop for LAC checks; full suite: bun test --cwd packages/opencode' && exit 1"
   },
   "workspaces": {

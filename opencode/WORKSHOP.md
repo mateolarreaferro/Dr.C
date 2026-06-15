@@ -17,30 +17,34 @@ Command-line / TUI build for experienced attendees. Pairs with **Dr.C Standalone
 
 ## Quick start
 
+**Participants:** **[GET-STARTED.md](./GET-STARTED.md)** (macOS, Linux, Windows).
+
 ```bash
 git clone https://github.com/mateolarreaferro/Dr.C.git ~/Dr.C
 cd ~/Dr.C/opencode
 bun install
-export PATH="$HOME/bin:$HOME/Applications/Csound:$PATH"
-bun run dev -- auth login          # first time only
-bun run dev -- ~/lac-workshop-demo # start TUI in demo folder
+chmod +x scripts/*.sh launchers/*.sh launchers/*.command   # macOS/Linux
+./scripts/launch-drc-terminal.sh
 ```
 
-Or double-click **`~/lac-workshop-demo/Dr.C-Terminal.command`**.
+Or double-click **`launchers/Dr.C-Terminal.command`** (macOS) or **`launchers/Dr.C-Terminal.bat`** (Windows).
 
 ---
 
 ## Workshop smoke test
 
+Run on **each OS** before LAC:
+
 ```bash
-export PATH="$HOME/bin:$HOME/Applications/Csound:$PATH"
+export PATH="$HOME/bin:$HOME/Applications/Csound:$HOME/.local/bin:$PATH"
 cd ~/Dr.C/opencode
+npm run test:platform
 npm run test:workshop
 ```
 
 Checks: Csound 7, `drc --help`, Csound tools, demo CSDs, shared Standalone starters, bash tool unit tests.
 
-**Expected:** `12 passed, 0 failed`.
+**Expected:** platform launcher checks + `12 passed, 0 failed`.
 
 > Full `bun test` (983 tests) includes upstream network fixtures — use workshop script for LAC gate.
 
@@ -89,6 +93,6 @@ Skill snippets in `skills/csound/snippets/` use Cabbage + `f0 z` — use smoke t
 
 ## Install docs
 
-Full platform steps: `~/dB-Studio/DRC-URLS.C/INSTALL-TERMINAL.md`
+**[GET-STARTED.md](./GET-STARTED.md)** — participant install/download/launch for macOS, Linux, Windows.
 
-Standalone + shared workshop notes: `~/DRC-Standalone/WORKSHOP.md`, `VERSIONS.md`, `TESTING.md`
+Standalone workshop notes: `~/DRC-Standalone/PARTICIPANTS.md`, `WORKSHOP.md`, `TESTING.md`
