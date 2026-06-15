@@ -562,6 +562,7 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
   const [saveHover, setSaveHover] = createSignal(false)
   const [webHover, setWebHover] = createSignal(false)
   const [cabbageHover, setCabbageHover] = createSignal(false)
+  const [csoundQtHover, setCsoundQtHover] = createSignal(false)
   const toast = useToast()
 
   // Extract first user message text as prompt
@@ -621,8 +622,48 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
       toast.show({ variant: "error", title: "Cabbage not found", message: "Install Cabbage to /Applications" })
       return
     }
+    try {
+      const content = await Bun.file(fp).text()
+      const { prepareCabbageForTesting, cabbageExportPath } = await import("@/tool/csound_export_cabbage")
+      const cabContent = prepareCabbageForTesting(content)
+      const cabPath = cabbageExportPath(fp)
+      await Bun.write(cabPath, cabContent)
+      ExternalApps.openInApp(appPath, cabPath)
+      const converted = !/<Cabbage>/i.test(content)
+      toast.show({
+        variant: "success",
+        title: "Cabbage",
+        message: converted
+          ? `Converted to MIDI Cabbage instrument → ${path.basename(cabPath)}`
+          : `Opened ${path.basename(cabPath)} for MIDI testing`,
+      })
+    } catch (err) {
+      toast.show({
+        variant: "error",
+        title: "Cabbage export failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+      })
+    }
+  }
+
+  const handleOpenCsoundQt = async () => {
+    const fp = resolvedFilePath()
+    if (!fp) return
+    const appPath = await ExternalApps.findCsoundQt()
+    if (!appPath) {
+      toast.show({
+        variant: "error",
+        title: "CsoundQt not found",
+        message: "Install CsoundQt 7 from github.com/CsoundQt/CsoundQt/releases",
+      })
+      return
+    }
     ExternalApps.openInApp(appPath, fp)
-    toast.show({ variant: "success", title: "Cabbage", message: `Opened in Cabbage` })
+    toast.show({
+      variant: "success",
+      title: "CsoundQt",
+      message: `Opened ${path.basename(fp)} — edit, compare, browse the manual`,
+    })
   }
 
   const statusIcon = createMemo(() => {
@@ -793,6 +834,15 @@ export function CsdPanel(props: { filePath: string | undefined; width: number; s
               flexShrink={0}
             >
               {"\u25A3 cabbage"}
+            </text>
+            <text
+              fg={csoundQtHover() ? theme.accent : theme.textMuted}
+              onMouseOver={() => setCsoundQtHover(true)}
+              onMouseOut={() => setCsoundQtHover(false)}
+              onMouseUp={handleOpenCsoundQt}
+              flexShrink={0}
+            >
+              {"\u2328 csoundqt"}
             </text>
             <Show when={renderState() === "rendering" || playing()} fallback={
               <text

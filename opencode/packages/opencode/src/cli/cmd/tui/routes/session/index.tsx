@@ -871,19 +871,17 @@ export function Session() {
                 }
                 case "cabbage-vst":
                 case "cabbage-standalone": {
-                  const { generateCabbageCsd } = await import("@/tool/csound_export_cabbage")
-                  const mode = target === "cabbage-vst" ? "vst" : "standalone"
-                  const cabCsd = generateCabbageCsd(content, mode)
-                  const cabPath = path.join(path.dirname(resolved), `${basename}_cabbage.csd`)
+                  const { prepareCabbageForTesting, cabbageExportPath } = await import("@/tool/csound_export_cabbage")
+                  const cabCsd = prepareCabbageForTesting(content)
+                  const cabPath = cabbageExportPath(resolved)
                   await Bun.write(cabPath, cabCsd)
 
-                  // Try to open in Cabbage
                   const appPath = await ExternalApps.findCabbage()
                   if (appPath) {
                     ExternalApps.openInApp(appPath, cabPath)
-                    toast.show({ message: `Cabbage CSD exported and opened → ${basename}_cabbage.csd`, variant: "success" })
+                    toast.show({ message: `MIDI Cabbage instrument exported and opened → ${path.basename(cabPath)}`, variant: "success" })
                   } else {
-                    toast.show({ message: `Cabbage CSD exported → ${basename}_cabbage.csd (install Cabbage to compile to ${mode === "vst" ? "VST/AU" : "standalone"})`, variant: "success", duration: 6000 })
+                    toast.show({ message: `MIDI Cabbage CSD exported → ${path.basename(cabPath)} (install Cabbage to test)`, variant: "success", duration: 6000 })
                   }
                   break
                 }
@@ -912,7 +910,7 @@ export function Session() {
         if (!fp) { dialog.clear(); return }
         const appPath = await ExternalApps.findCsoundQt()
         if (!appPath) {
-          toast.show({ message: "CsoundQt not found on this system", variant: "error" })
+          toast.show({ message: "CsoundQt not found — install v7 from github.com/CsoundQt/CsoundQt/releases", variant: "error" })
           dialog.clear()
           return
         }
@@ -970,9 +968,18 @@ export function Session() {
           dialog.clear()
           return
         }
-        const resolved = SessionWorkspace.resolve(route.sessionID, fp)
-        ExternalApps.openInApp(appPath, resolved)
-        toast.show({ message: "Opened in Cabbage (editing temp workspace copy)", variant: "success" })
+        try {
+          const resolved = SessionWorkspace.resolve(route.sessionID, fp)
+          const content = await Bun.file(resolved).text()
+          const { prepareCabbageForTesting, cabbageExportPath } = await import("@/tool/csound_export_cabbage")
+          const cabContent = prepareCabbageForTesting(content)
+          const cabPath = cabbageExportPath(resolved)
+          await Bun.write(cabPath, cabContent)
+          ExternalApps.openInApp(appPath, cabPath)
+          toast.show({ message: `Converted and opened in Cabbage → ${path.basename(cabPath)}`, variant: "success" })
+        } catch (err) {
+          toast.show({ message: `Cabbage export failed: ${String(err)}`, variant: "error" })
+        }
         dialog.clear()
       },
     },

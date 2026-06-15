@@ -3,6 +3,11 @@
  * with auto-generated widgets mapped to detected parameters.
  */
 
+import path from "path"
+
+const MIDI_OPTIONS = "-+rtmidi=NULL -M0 --midi-key-cps=4 --midi-velocity-amp=5"
+const KEYBOARD_HEIGHT = 100
+
 interface CabbageParam {
   varName: string
   channel: string
@@ -31,12 +36,32 @@ export function generateCabbageCsd(
   return `<Cabbage>\n${cabbageSection}\n</Cabbage>\n${rewrittenCsd}`
 }
 
+/** Convert a plain or partial CSD into a MIDI-playable Cabbage instrument for live testing. */
+export function prepareCabbageForTesting(csdContent: string): string {
+  let csd = /<Cabbage>/i.test(csdContent)
+    ? csdContent
+    : generateCabbageCsd(csdContent, "standalone")
+
+  csd = ensureKeyboardInCabbage(csd)
+  csd = ensureMidiOptions(csd)
+  csd = ensureMidiScore(csd)
+  csd = injectMidiSupport(csd)
+  return csd
+}
+
+export function cabbageExportPath(sourcePath: string): string {
+  const dir = path.dirname(sourcePath)
+  const basename = path.basename(sourcePath, path.extname(sourcePath))
+  return path.join(dir, `${basename}_cabbage.csd`)
+}
+
 function buildCabbageSection(params: CabbageParam[], mode: "vst" | "standalone"): string {
   const lines: string[] = []
 
-  // Form: main container
+  // Form: main container (reserve space for on-screen MIDI keyboard)
   const formWidth = Math.max(400, Math.min(800, params.length * 100 + 200))
-  const formHeight = Math.max(300, 100 + Math.ceil(params.length / 3) * 100)
+  const controlsHeight = Math.max(200, 100 + Math.ceil(params.length / 3) * 100)
+  const formHeight = controlsHeight + KEYBOARD_HEIGHT + 10
 
   if (mode === "standalone") {
     lines.push(`form caption("DrC Export") size(${formWidth}, ${formHeight}), pluginId("DrC1"), guiMode("queue")`)
@@ -48,7 +73,9 @@ function buildCabbageSection(params: CabbageParam[], mode: "vst" | "standalone")
   lines.push(`image bounds(0, 0, ${formWidth}, ${formHeight}), colour(20, 20, 30)`)
 
   // Title label
-  lines.push(`label bounds(10, 10, ${formWidth - 20}, 25), text("DrC Export"), fontColour(200, 200, 200), fontSize(16)`)
+  lines.push(
+    `label bounds(10, 10, ${formWidth - 20}, 25), text("DrC Export — play with MIDI keyboard below"), fontColour(200, 200, 200), fontSize(14)`,
+  )
 
   // Layout params in a grid — 3 columns
   const cols = 3
@@ -87,7 +114,129 @@ function buildCabbageSection(params: CabbageParam[], mode: "vst" | "standalone")
     }
   }
 
+  lines.push(`keyboard bounds(0, ${controlsHeight}, ${formWidth}, ${KEYBOARD_HEIGHT})`)
+
   return lines.join("\n")
+}
+
+function ensureKeyboardInCabbage(csd: string): string {
+  const cabMatch = csd.match(/<Cabbage>\s*([\s\S]*?)<\/Cabbage>/i)
+  if (!cabMatch || /\bkeyboard\b/i.test(cabMatch[1])) return csd
+
+  const section = cabMatch[1]
+  const formMatch = section.match(/size\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/)
+  const width = formMatch ? Number(formMatch[1]) : 600
+  const height = formMatch ? Number(formMatch[2]) : 400
+  const newHeight = height + KEYBOARD_HEIGHT + 10
+
+  let updated = section
+  if (formMatch) {
+    updated = updated.replace(/size\s*\(\s*\d+\s*,\s*\d+\s*\)/, `size(${width}, ${newHeight})`)
+  }
+  updated += `\nkeyboard bounds(0, ${height}, ${width}, ${KEYBOARD_HEIGHT})`
+  return csd.replace(/<Cabbage>\s*[\s\S]*?<\/Cabbage>/i, `<Cabbage>\n${updated.trim()}\n</Cabbage>`)
+}
+
+function ensureMidiOptions(csd: string): string {
+  const optsMatch = csd.match(/<CsOptions>\s*([\s\S]*?)<\/CsOptions>/i)
+  if (!optsMatch) {
+    if (/<CsoundSynthesizer>/i.test(csd)) {
+      return csd.replace(
+        /<CsoundSynthesizer>/i,
+        `<CsoundSynthesizer>\n<CsOptions>\n-n -d -m0 ${MIDI_OPTIONS}\n</CsOptions>`,
+      )
+    }
+    return `<CsOptions>\n-n -d -m0 ${MIDI_OPTIONS}\n</CsOptions>\n${csd}`
+  }
+
+  let opts = optsMatch[1].trim()
+  if (!/rtmidi/i.test(opts)) {
+    opts = opts ? `${opts} ${MIDI_OPTIONS}` : `-n -d -m0 ${MIDI_OPTIONS}`
+  } else if (!/-M\d/.test(opts)) {
+    opts = `${opts} -M0`
+  }
+  return csd.replace(/<CsOptions>\s*[\s\S]*?<\/CsOptions>/i, `<CsOptions>\n${opts}\n</CsOptions>`)
+}
+
+function ensureMidiScore(csd: string): string {
+  const scoreRe = /<CsScore>\s*([\s\S]*?)<\/CsScore>/i
+  const match = csd.match(scoreRe)
+  if (!match) {
+    if (/<\/CsInstruments>/i.test(csd)) {
+      return csd.replace(/<\/CsInstruments>/i, "</CsInstruments>\n<CsScore>\nf0 z\n</CsScore>")
+    }
+    return `${csd}\n<CsScore>\nf0 z\n</CsScore>\n`
+  }
+
+  const body = match[1].trim()
+  if (/\bf0\s+z\b/i.test(body)) return csd
+
+  const keepLines = body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("f ") || line.startsWith(";") || line === "")
+  const newScore = [...keepLines, "f0 z"].filter(Boolean).join("\n")
+  return csd.replace(scoreRe, `<CsScore>\n${newScore}\n</CsScore>`)
+}
+
+function injectMidiSupport(csd: string): string {
+  return csd.replace(/instr\s+[\d.]+[\s\S]*?endin/gi, (block) => {
+    if (/\bp4\b/.test(block) && /\bp5\b/.test(block)) {
+      return scaleMidiOutput(block)
+    }
+
+    const lines = block.split("\n")
+    const header = lines[0]
+    const indent = "  "
+    const midiHeader = [
+      `${indent}; DrC: MIDI note input (use Cabbage keyboard or a MIDI controller)`,
+      `${indent}iFreq = p4`,
+      `${indent}iAmp  = p5 / 127`,
+    ]
+
+    let body = wireOscillatorToMidi(lines.slice(1).join("\n")).split("\n")
+    body = injectMidiEnvelope(body, indent)
+    return [header, ...midiHeader, ...body].join("\n")
+  })
+}
+
+function wireOscillatorToMidi(block: string): string {
+  const freqVars = new Set<string>()
+  for (const match of block.matchAll(/\b(?:foscili|oscil|poscil|vco2)\s+\S+,\s*(k\w+)/gi)) {
+    const varName = match[1]
+    const lower = varName.toLowerCase()
+    if (/mod|idx|ratio|detune|spread|width|pw|pulse/i.test(lower)) continue
+    if (/freq|cps|pitch|carr|note|fund|tone|base/i.test(lower) || freqVars.size === 0) {
+      freqVars.add(varName)
+    }
+  }
+
+  let result = block
+  for (const varName of freqVars) {
+    result = result.replace(new RegExp(`\\b${escapeRegExp(varName)}\\b`, "g"), "iFreq")
+  }
+  return result
+}
+
+function injectMidiEnvelope(body: string[], indent: string): string[] {
+  const outsIdx = body.findIndex((line) => /^\s*outs\b/i.test(line))
+  if (outsIdx < 0) return body
+
+  const outsLine = body[outsIdx]
+  const match = outsLine.match(/outs\s+(\S+)\s*,\s*(\S+)/i)
+  if (!match) return body
+
+  const envLine = `${indent}aMidiEnv madsr 0.01, 0.05, 0.8, 0.25`
+  body.splice(outsIdx, 0, envLine)
+  body[outsIdx + 1] = `${indent}outs ${match[1]} * aMidiEnv * iAmp, ${match[2]} * aMidiEnv * iAmp`
+  return body
+}
+
+function scaleMidiOutput(block: string): string {
+  if (/\baMidiEnv\b/.test(block)) return block
+  const lines = block.split("\n")
+  const indent = lines.find((line) => /^\s*outs\b/i.test(line))?.match(/^\s*/)?.[0] ?? "  "
+  return injectMidiEnvelope(lines, indent).join("\n")
 }
 
 function extractCabbageParams(csd: string): CabbageParam[] {

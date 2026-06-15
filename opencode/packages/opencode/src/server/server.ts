@@ -30,6 +30,7 @@ import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
 import { ProviderRoutes } from "./routes/provider"
 import { CsoundRoutes } from "./routes/csound"
+import { WorkshopRoutes } from "./routes/workshop"
 import { AbletonRoutes } from "./routes/ableton"
 import { CompanionRoutes } from "./routes/companion"
 import { CompanionSync } from "./companion-sync"
@@ -241,6 +242,7 @@ export namespace Server {
         .route("/mcp", McpRoutes())
         .route("/tui", TuiRoutes())
         .route("/csound", CsoundRoutes())
+        .route("/workshop", WorkshopRoutes())
         .route("/ableton", AbletonRoutes())
         .post(
           "/instance/dispose",

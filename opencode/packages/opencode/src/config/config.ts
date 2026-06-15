@@ -951,6 +951,17 @@ export namespace Config {
   })
   export type Layout = z.infer<typeof Layout>
 
+  export const Workshop = z.object({
+      ollama_enabled: z.boolean().optional().describe("Use local Ollama for the Agent"),
+      ollama_prefer: z.boolean().optional().describe("Prefer Ollama over cloud API keys when both are available"),
+      ollama_model: z.string().optional().describe("Ollama model name, e.g. qwen2.5-coder:7b"),
+      ollama_base_url: z.string().optional().describe("Ollama API base (default http://127.0.0.1:11434)"),
+      csoundqt_path: z.string().optional().describe("Path to CsoundQt app or binary for Open in CsoundQt"),
+      cabbage_path: z.string().optional().describe("Path to Cabbage app or binary for Open in Cabbage"),
+    })
+    .meta({ ref: "WorkshopConfig" })
+  export type Workshop = z.infer<typeof Workshop>
+
   export const Provider = ModelsDev.Provider.partial()
     .extend({
       whitelist: z.array(z.string()).optional(),
@@ -1172,6 +1183,7 @@ export namespace Config {
             .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
         })
         .optional(),
+      workshop: Workshop.optional().describe("Dr.C workshop settings (API keys, Ollama, external tools)"),
       experimental: z
         .object({
           disable_paste_summary: z.boolean().optional(),
