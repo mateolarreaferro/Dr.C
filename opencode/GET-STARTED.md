@@ -29,14 +29,17 @@ Expect **version 7.x**.
 
 ### Linux (Ubuntu / Debian)
 
+> **Ubuntu 22.04 (Jammy):** `apt install csound` gives **6.17**, not 7. Build from source (Option B) or use Csound 7 from [releases](https://github.com/csound/csound/releases) before running `npm run test:workshop`.
+
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake git libjack-jackd2-dev
 
-# Option A — distro package (must be 7.x)
+# Option A — only if csound --version shows 7.x
 sudo apt install -y csound
+csound --version
 
-# Option B — build from source
+# Option B — build from source (recommended on 22.04)
 # https://github.com/csound/csound/blob/develop/BUILD.md
 ```
 
@@ -60,6 +63,15 @@ Dr.C Terminal runs on **Bun**, not Node.
 | Windows | `powershell -c "irm bun.sh/install.ps1 \| iex"` |
 
 Verify: `bun --version` → **1.3.9+**
+
+**Linux:** after install, add Bun to your shell profile so new terminals find it:
+
+```bash
+echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Workshop launchers prepend `~/.bun/bin` automatically; manual `bun` commands in a fresh shell need the line above.
 
 ---
 
@@ -139,10 +151,20 @@ Default project folder: `%USERPROFILE%\lac-workshop-demo` (created automatically
 ### macOS / Linux
 
 ```bash
+export PATH="$HOME/.bun/bin:$HOME/bin:$HOME/Applications/Csound:$HOME/.local/bin:$PATH"
 cd Dr.C/opencode
 npm run test:platform   # launcher files + PATH contract
 npm run test:workshop   # Csound 7, CLI, demo CSDs
 ```
+
+Before `test:workshop`, set git identity once (embedded bash unit tests need it on fresh VMs):
+
+```bash
+git config --global user.email "workshop@local"
+git config --global user.name "Workshop"
+```
+
+Optional demo folder (skips if missing): `mkdir -p ~/lac-workshop-demo`
 
 ### Windows (PowerShell)
 
@@ -174,7 +196,9 @@ Standalone participant guide: [DRC-Standalone PARTICIPANTS.md](https://github.co
 | Problem | Fix |
 |---------|-----|
 | `csound not found` | Re-run Csound install; use workshop launcher (sets PATH) |
-| `bun not found` | Install from [bun.sh](https://bun.sh); reopen terminal |
+| `bun not found` | Install from [bun.sh](https://bun.sh); add `export PATH="$HOME/.bun/bin:$PATH"` to `~/.bashrc` |
+| `test:workshop` bash tests fail | Run `git config --global user.name` and `user.email` once |
+| Linux apt `csound` is 6.x | Build Csound 7 — Jammy apt is 6.17 |
 | `bun install` fails | Bun 1.3.9+; check network for first install |
 | Windows script blocked | Use `.bat` in `launchers/` |
 | Full test suite slow | Use `npm run test:workshop` only (not full `bun test`) |

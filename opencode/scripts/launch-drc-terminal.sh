@@ -33,4 +33,9 @@ if [[ ! -d node_modules ]]; then
   bun install
 fi
 
+if [[ "${DRC_DRY_RUN:-}" == "1" ]]; then
+  echo "DRC_DRY_RUN=1 — preflight OK (skipping bun run dev)"
+  exit 0
+fi
+
 exec bun run dev -- "$WORK_DIR"
