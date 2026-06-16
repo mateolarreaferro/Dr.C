@@ -41,6 +41,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status"
 import { websocket } from "hono/bun"
 import { HTTPException } from "hono/http-exception"
 import { errors } from "./error"
+import { isProPlus } from "../util/tier"
 import { QuestionRoutes } from "./routes/question"
 import { PermissionRoutes } from "./routes/permission"
 import { GlobalRoutes } from "./routes/global"
@@ -163,6 +164,11 @@ export namespace Server {
           async (c) => {
             const providerID = c.req.valid("param").providerID
             const info = c.req.valid("json")
+            if (providerID === "google" && !isProPlus()) {
+              throw new HTTPException(400, {
+                message: "Free Gemini is disabled for workshops. Use Groq (console.groq.com/keys).",
+              })
+            }
             await Auth.set(providerID, info)
             return c.json(true)
           },

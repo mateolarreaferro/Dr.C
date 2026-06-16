@@ -50,6 +50,23 @@ Checks: Csound 7, `drc --help`, Csound tools, demo CSDs, shared Standalone start
 
 ---
 
+## API keys (workshops)
+
+**Groq is the default** for Agent when a Groq key is saved. Free Gemini is disabled for workshop Agent turns.
+
+- Get a free Groq key: [console.groq.com/keys](https://console.groq.com/keys)
+- In the TUI: `/settings` → **connect provider** → Groq
+- Or: `drc auth login` and pick Groq
+
+**Attendee launchers** (Groq-first, one LLM call per turn):
+
+| OS | Script |
+|----|--------|
+| macOS / Linux | `./scripts/launch-workshop-attendee.sh` |
+| Windows | `powershell -ExecutionPolicy Bypass -File scripts\launch-workshop-attendee.ps1` |
+
+---
+
 ## Suggested attendee prompt
 
 Same as Standalone (`WORKSHOP.md` in DRC-Standalone):

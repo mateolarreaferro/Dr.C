@@ -16,6 +16,7 @@ import { Flag } from "../flag/flag"
 import { iife } from "@/util/iife"
 import { Global } from "../global"
 import path from "path"
+import { isProPlus } from "../util/tier"
 
 // Direct imports for bundled providers
 import { createAmazonBedrock, type AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
@@ -1215,12 +1216,27 @@ export namespace Provider {
     const cfg = await Config.get()
     if (cfg.model) return parseModel(cfg.model)
 
+    const auth = await Auth.all()
+    const hasGroq = auth.groq?.type === "api" || Boolean(process.env.GROQ_API_KEY)
+    const workshop = (await Config.getGlobal()).workshop ?? {}
+    const ollamaPrefer = workshop.ollama_prefer === true && workshop.ollama_enabled === true
+
+    if (hasGroq && !ollamaPrefer) {
+      const providers = await list()
+      if (providers.groq?.models["llama-3.3-70b-versatile"]) {
+        return { providerID: "groq", modelID: "llama-3.3-70b-versatile" }
+      }
+      const groqModel = Object.keys(providers.groq?.models ?? {})[0]
+      if (groqModel) return { providerID: "groq", modelID: groqModel }
+    }
+
     const providers = await list()
     const recent = (await Bun.file(path.join(Global.Path.state, "model.json"))
       .json()
       .then((x) => (Array.isArray(x.recent) ? x.recent : []))
       .catch(() => [])) as { providerID: string; modelID: string }[]
     for (const entry of recent) {
+      if (entry.providerID === "google" && !isProPlus()) continue
       const provider = providers[entry.providerID]
       if (!provider) continue
       if (!provider.models[entry.modelID]) continue

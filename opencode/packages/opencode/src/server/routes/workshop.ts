@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
+import { Auth } from "../../auth"
 import { lazy } from "../../util/lazy"
 import { Config } from "../../config/config"
 import {
@@ -10,6 +11,8 @@ import {
   probeOllama,
   workshopStatus,
 } from "../../util/workshop"
+
+const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 const PatchSchema = z.object({
   workshop: Config.Workshop,
@@ -57,6 +60,11 @@ export const WorkshopRoutes = lazy(() =>
         const { workshop } = c.req.valid("json")
         const global = await Config.getGlobal()
         const merged = { ...global, workshop }
+        const auth = await Auth.all()
+        const hasGroq = auth.groq?.type === "api" || Boolean(process.env.GROQ_API_KEY)
+        if (hasGroq && !workshop.ollama_prefer) {
+          merged.model = `groq/${GROQ_DEFAULT_MODEL}`
+        }
         if (workshop.ollama_enabled) {
           const probe = await probeOllama(workshop.ollama_base_url)
           const base = ollamaBaseUrl(workshop.ollama_base_url)

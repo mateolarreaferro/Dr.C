@@ -19,8 +19,8 @@ type WorkshopSnapshot = {
 }
 
 const FREE_TIER_NOTE =
-  "Free Gemini and Groq keys work well for workshops, but both have rate limits (~20–30 requests/min). " +
-  "If Dr.C pauses with no output, wait and try again. Add both keys as backups. " +
+  "Groq is recommended for workshops (~30 requests/min on the free tier). " +
+  "If Dr.C pauses with no output, wait and try again. Free Gemini is disabled for Agent. " +
   "Web Apps need no key. Or enable Ollama below for a local model with no limits."
 
 async function workshopRequest<T>(sdk: OpencodeClient, path: string, init?: RequestInit): Promise<T> {
@@ -137,7 +137,7 @@ export function DialogSettings() {
         <Show when={snap()} fallback={<text fg={theme.textMuted}>Loading…</text>}>
           {(s) => (
             <>
-              <For each={["google", "groq", "anthropic", "openai", "ollama"]}>
+              <For each={["groq", "google", "anthropic", "openai", "ollama"]}>
                 {(id) => {
                   const on = s().connected.some((c) => c.startsWith(id))
                   return (
@@ -280,8 +280,8 @@ export function DialogSettings() {
 function providerLabel(id: string): string {
   return (
     {
-      google: "Google AI (Gemini) — free tier",
-      groq: "Groq — free tier",
+      groq: "Groq — recommended (free tier)",
+      google: "Google AI (Gemini) — Pro+ optional",
       anthropic: "Anthropic (Claude)",
       openai: "OpenAI",
       ollama: "Ollama (local)",

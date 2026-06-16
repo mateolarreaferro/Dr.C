@@ -158,6 +158,20 @@ if (existsSync(STANDALONE)) {
   lines.push(`  SKIP  DRC-Standalone not at ${STANDALONE}`)
 }
 
+section('provider defaults (Groq-first workshops)')
+const providerSrc = join(REPO, 'packages/opencode/src/provider/provider.ts')
+const dialogSrc = join(REPO, 'packages/opencode/src/cli/cmd/tui/component/dialog-provider.tsx')
+const workshopSrc = join(REPO, 'packages/opencode/src/util/workshop.ts')
+if (existsSync(providerSrc) && readFileSync(providerSrc, 'utf-8').includes('hasGroq && !ollamaPrefer')) {
+  ok('defaultModel prefers Groq when Groq key is configured')
+} else bad('provider.ts must prefer Groq before other providers')
+if (existsSync(dialogSrc) && readFileSync(dialogSrc, 'utf-8').includes('groq: 0')) {
+  ok('TUI provider dialog lists Groq first')
+} else bad('dialog-provider.tsx must prioritize Groq')
+if (existsSync(workshopSrc) && readFileSync(workshopSrc, 'utf-8').includes('migrateWorkshopAuth')) {
+  ok('workshop auth migration strips free Gemini keys')
+} else bad('workshop.ts missing migrateWorkshopAuth')
+
 section('targeted unit tests (tool/bash)')
 const bashTest = spawnSync('bun', ['test', 'test/tool/bash.test.ts'], {
   cwd: join(REPO, 'packages/opencode'),

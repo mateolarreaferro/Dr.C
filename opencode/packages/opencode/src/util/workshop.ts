@@ -2,6 +2,9 @@ import { Auth } from "../auth"
 import { Config } from "../config/config"
 import { Global } from "../global"
 import { Log } from "../util/log"
+import { isProPlus } from "./tier"
+
+const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 const DEFAULT_OLLAMA_BASE = "http://127.0.0.1:11434"
 const DEFAULT_OLLAMA_MODEL = "qwen2.5-coder:7b"
@@ -39,6 +42,34 @@ export function pickOllamaModel(models: OllamaModel[], configured?: string): str
   return DEFAULT_OLLAMA_MODEL
 }
 
+/** Drop saved free Gemini keys on workshop (non-Pro+) builds; prefer Groq over Ollama when both exist. */
+export async function migrateWorkshopAuth(): Promise<void> {
+  if (!isProPlus() && (await Auth.get("google"))) {
+    await Auth.remove("google")
+    Log.Default.info("Workshop: removed saved Gemini key (use Groq for Agent)")
+  }
+
+  const global = await Config.getGlobal()
+  const w = global.workshop ?? {}
+  const auth = await Auth.all()
+  const hasGroq = auth.groq?.type === "api" || Boolean(process.env.GROQ_API_KEY)
+
+  if (hasGroq && w.ollama_prefer) {
+    await Config.updateGlobal({
+      ...global,
+      workshop: { ...w, ollama_prefer: false },
+    })
+    Log.Default.info("Workshop: cleared ollama_prefer — Groq key takes priority")
+  }
+
+  if (hasGroq && !global.model && !(w.ollama_prefer && w.ollama_enabled)) {
+    await Config.updateGlobal({
+      ...global,
+      model: `groq/${GROQ_DEFAULT_MODEL}`,
+    })
+  }
+}
+
 /** Apply workshop side effects after config changes (Ollama auth + default model). */
 export async function applyWorkshopSideEffects(workshop: Config.Workshop | undefined): Promise<void> {
   const w = workshop ?? {}
@@ -58,8 +89,8 @@ export async function workshopStatus() {
   const probe = await probeOllama(w.ollama_base_url)
   const auth = await Auth.all()
   const connected: string[] = []
-  if (auth.google?.type === "api") connected.push("google")
   if (auth.groq?.type === "api") connected.push("groq")
+  if (isProPlus() && auth.google?.type === "api") connected.push("google")
   if (auth.anthropic?.type === "api") connected.push("anthropic")
   if (auth.openai?.type === "api") connected.push("openai")
   if (auth.ollama?.type === "api" || w.ollama_enabled) connected.push("ollama")
@@ -83,6 +114,7 @@ export async function workshopStatus() {
       error: probe.error,
     },
     connected,
+    proPlus: isProPlus(),
     paths: {
       config: Global.Path.config,
       auth: `${Global.Path.data}/auth.json`,

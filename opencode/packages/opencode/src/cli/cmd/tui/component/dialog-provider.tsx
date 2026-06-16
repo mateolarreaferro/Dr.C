@@ -15,8 +15,8 @@ import { Clipboard } from "@tui/util/clipboard"
 import { useToast } from "../ui/toast"
 
 const PROVIDER_PRIORITY: Record<string, number> = {
-  google: 0,
-  groq: 1,
+  groq: 0,
+  google: 1,
   anthropic: 2,
   "github-copilot": 3,
   openai: 4,
@@ -34,8 +34,8 @@ export function createDialogProviderOptions() {
         title: provider.name,
         value: provider.id,
         description: {
-          google: "(Free tier — recommended)",
-          groq: "(Free tier backup)",
+          groq: "(Free tier — recommended)",
+          google: "(Pro+ optional)",
           anthropic: "(Recommended)",
           openai: "(ChatGPT Plus/Pro or API key)",
         }[provider.id],
