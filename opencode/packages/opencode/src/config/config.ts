@@ -955,7 +955,10 @@ export namespace Config {
       ollama_enabled: z.boolean().optional().describe("Use local Ollama for the Agent"),
       ollama_prefer: z.boolean().optional().describe("Prefer Ollama over cloud API keys when both are available"),
       ollama_model: z.string().optional().describe("Ollama model name, e.g. qwen2.5-coder:7b"),
-      ollama_base_url: z.string().optional().describe("Ollama API base (default http://127.0.0.1:11434)"),
+      ollama_base_url: z
+        .string()
+        .optional()
+        .describe("Local LLM server URL — Ollama http://127.0.0.1:11434, LM Studio http://127.0.0.1:1234"),
       csoundqt_path: z.string().optional().describe("Path to CsoundQt app or binary for Open in CsoundQt"),
       cabbage_path: z.string().optional().describe("Path to Cabbage app or binary for Open in Cabbage"),
     })

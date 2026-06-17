@@ -15,11 +15,13 @@ import { Clipboard } from "@tui/util/clipboard"
 import { useToast } from "../ui/toast"
 
 const PROVIDER_PRIORITY: Record<string, number> = {
-  groq: 0,
-  google: 1,
+  openrouter: 0,
+  ollama: 1,
   anthropic: 2,
-  "github-copilot": 3,
-  openai: 4,
+  openai: 3,
+  groq: 4,
+  google: 5,
+  "github-copilot": 6,
 }
 
 export function createDialogProviderOptions() {
@@ -34,10 +36,12 @@ export function createDialogProviderOptions() {
         title: provider.name,
         value: provider.id,
         description: {
-          groq: "(Free tier — recommended)",
-          google: "(Pro+ optional)",
-          anthropic: "(Recommended)",
-          openai: "(ChatGPT Plus/Pro or API key)",
+          openrouter: "(One key — Claude, GPT, Gemini, …)",
+          ollama: "(Local — Ollama / LM Studio)",
+          anthropic: "(Paid — direct API)",
+          openai: "(Paid — direct API)",
+          groq: "(Free tier backup)",
+          google: "(Free tier backup)",
         }[provider.id],
         category: provider.id in PROVIDER_PRIORITY ? "Popular" : "Other",
         async onSelect() {

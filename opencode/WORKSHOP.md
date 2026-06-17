@@ -2,6 +2,8 @@
 
 Command-line / TUI build for experienced attendees. Pairs with **Dr.C Standalone** (GUI) and **CsoundLive Web**.
 
+> **LAC 2026:** macOS and Linux only.
+
 ---
 
 ## Version
@@ -17,23 +19,23 @@ Command-line / TUI build for experienced attendees. Pairs with **Dr.C Standalone
 
 ## Quick start
 
-**Participants:** **[GET-STARTED.md](./GET-STARTED.md)** (macOS, Linux, Windows).
+**Participants:** **[GET-STARTED.md](./GET-STARTED.md)** (macOS and Linux).
 
 ```bash
 git clone https://github.com/mateolarreaferro/Dr.C.git ~/Dr.C
 cd ~/Dr.C/opencode
 bun install
-chmod +x scripts/*.sh launchers/*.sh launchers/*.command   # macOS/Linux
+chmod +x scripts/*.sh launchers/*.sh launchers/*.command
 ./scripts/launch-drc-terminal.sh
 ```
 
-Or double-click **`launchers/Dr.C-Terminal.command`** (macOS) or **`launchers/Dr.C-Terminal.bat`** (Windows).
+Or double-click **`launchers/Dr.C-Terminal.command`** (macOS) or **`launchers/Dr.C-Terminal.sh`** (Linux).
 
 ---
 
 ## Workshop smoke test
 
-Run on **each OS** before LAC:
+Run on **macOS and Linux** before LAC:
 
 ```bash
 export PATH="$HOME/bin:$HOME/Applications/Csound:$HOME/.local/bin:$PATH"
@@ -50,26 +52,23 @@ Checks: Csound 7, `drc --help`, Csound tools, demo CSDs, shared Standalone start
 
 ---
 
-## API keys (workshops)
+## API keys & local models (workshops)
 
-**Groq is the default** for Agent when a Groq key is saved. Free Gemini is disabled for workshop Agent turns.
+| Path | Notes |
+|------|--------|
+| **Ollama (local)** | Best free option — [ollama.com/download](https://ollama.com/download) → `ollama pull qwen2.5-coder:7b` → `/settings` → use Ollama |
+| Your Anthropic/OpenAI key | Best quality — paste in `/settings` or `drc auth login` |
+| Groq / Gemini (free) | Optional backups — rate limits apply |
 
-- Get a free Groq key: [console.groq.com/keys](https://console.groq.com/keys)
-- In the TUI: `/settings` → **connect provider** → Groq
-- Or: `drc auth login` and pick Groq
+Full local-LLM handout (models, RAM, troubleshooting): **[Dr.C-Standalone/LOCAL-LLM.md](https://github.com/mateolarreaferro/Dr.C-Standalone/blob/lac-2026-csound7/LOCAL-LLM.md)** (same repo family as Standalone).
 
-**Attendee launchers** (Groq-first, one LLM call per turn):
-
-| OS | Script |
-|----|--------|
-| macOS / Linux | `./scripts/launch-workshop-attendee.sh` |
-| Windows | `powershell -ExecutionPolicy Bypass -File scripts\launch-workshop-attendee.ps1` |
+**Attendee launcher:** `./scripts/launch-workshop-attendee.sh` (macOS/Linux).
 
 ---
 
 ## Suggested attendee prompt
 
-Same as Standalone (`WORKSHOP.md` in DRC-Standalone):
+Same as Standalone (`WORKSHOP.md` in Dr.C-Standalone):
 
 ```
 make a plain Csound CSD only — no Cabbage. Simple 2-operator FM synth with foscili, warm and resonant. Score should demo the instrument: scale, arpeggios, ostinato, closing chord (~12 s).
@@ -110,6 +109,6 @@ Skill snippets in `skills/csound/snippets/` use Cabbage + `f0 z` — use smoke t
 
 ## Install docs
 
-**[GET-STARTED.md](./GET-STARTED.md)** — participant install/download/launch for macOS, Linux, Windows.
+**[GET-STARTED.md](./GET-STARTED.md)** — participant install/download/launch for macOS and Linux.
 
-Standalone workshop notes: `~/DRC-Standalone/PARTICIPANTS.md`, `WORKSHOP.md`, `TESTING.md`
+Standalone workshop notes: `~/Dr.C-Standalone/PARTICIPANTS.md`, `WORKSHOP.md`, `TESTING.md`

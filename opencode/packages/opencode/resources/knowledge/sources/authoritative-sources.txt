@@ -29,7 +29,7 @@ Rules:
 - Prefer **mccurdy-haiku-*** for generative ambient, soundscapes, alwayson/schedkwhen composition, rspline/jspline evolving textures
 - Prefer **elected-* models** when the prompt matches their domain (wobble bass, gendyc, sterrain, Chinese winds, Groovish generative, Deep Note)
 - Prefer **FLOSS + McCurdy + Lazzarini** for envelopes, score, MIDI, and web-style instruments
-- Prefer **Boulanger / Horner** examples for classic synthesis (FM, physical models, reverb sends)
+- Prefer **csoundmanual-fmbell** and **csoundmanual-fmpercfl** for bell and woodblock/percussion FM — adapt these catalog examples; standard kc1/kc2 ratios
 - When sources disagree, follow **FLOSS Manual** first, then **Csound 7 Manual**, then The Csound Book
 
 Manual quick links:

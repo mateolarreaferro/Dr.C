@@ -19,9 +19,9 @@ type WorkshopSnapshot = {
 }
 
 const FREE_TIER_NOTE =
-  "Groq is recommended for workshops (~30 requests/min on the free tier). " +
-  "If Dr.C pauses with no output, wait and try again. Free Gemini is disabled for Agent. " +
-  "Web Apps need no key. Or enable Ollama below for a local model with no limits."
+  "OpenRouter or direct Anthropic/OpenAI keys give the best Agent results. " +
+  "Free: local LLM below (Ollama recommended). Free cloud backups: Groq/Gemini (rate limits). " +
+  "No key: Web Apps and Player demos."
 
 async function workshopRequest<T>(sdk: OpencodeClient, path: string, init?: RequestInit): Promise<T> {
   const client = (sdk as unknown as { client: { request: (o: object) => Promise<{ data?: T; error?: unknown }> } }).client
@@ -91,7 +91,11 @@ export function DialogSettings() {
     }
   }
 
-  async function editPath(field: "csoundqt_path" | "cabbage_path", label: string) {
+  async function editPath(
+    field: "csoundqt_path" | "cabbage_path" | "ollama_base_url",
+    label: string,
+    placeholder = "",
+  ) {
     const value = await new Promise<string | null>((resolve) => {
       dialog.replace(
         () => (
@@ -99,10 +103,15 @@ export function DialogSettings() {
             title={label}
             description={() => (
               <text fg={theme.textMuted} wrapMode="word">
-                Leave blank to auto-detect on this machine.
+                {field === "ollama_base_url"
+                  ? "Ollama: http://127.0.0.1:11434 · LM Studio: http://127.0.0.1:1234 · Leave blank for Ollama default."
+                  : "Leave blank to auto-detect on this machine."}
               </text>
             )}
-            placeholder="/Applications/CsoundQt.app"
+            placeholder={
+              placeholder ||
+              (field === "ollama_base_url" ? "http://127.0.0.1:11434" : "/Applications/CsoundQt.app")
+            }
             onConfirm={(v) => resolve(v)}
             onCancel={() => resolve(null)}
           />
@@ -111,7 +120,11 @@ export function DialogSettings() {
       )
     })
     if (value == null) return
-    await patch({ [field]: value.trim() })
+    if (field === "ollama_base_url") {
+      await patch({ ollama_base_url: value.trim() })
+    } else {
+      await patch({ [field]: value.trim() })
+    }
     dialog.replace(() => <DialogSettings />)
   }
 
@@ -137,7 +150,7 @@ export function DialogSettings() {
         <Show when={snap()} fallback={<text fg={theme.textMuted}>Loading…</text>}>
           {(s) => (
             <>
-              <For each={["groq", "google", "anthropic", "openai", "ollama"]}>
+              <For each={["openrouter", "ollama", "anthropic", "openai", "groq", "google"]}>
                 {(id) => {
                   const on = s().connected.some((c) => c.startsWith(id))
                   return (
@@ -173,7 +186,7 @@ export function DialogSettings() {
 
       <box gap={0}>
         <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-          Free API tier
+          API keys &amp; models
         </text>
         <text fg={theme.textMuted} wrapMode="word">
           {FREE_TIER_NOTE}
@@ -182,18 +195,27 @@ export function DialogSettings() {
 
       <box gap={0}>
         <text fg={theme.accent} attributes={TextAttributes.BOLD}>
-          Local model (Ollama)
+          Local LLM server
         </text>
         <text fg={theme.textMuted} wrapMode="word">
-          ollama.com · ollama pull qwen2.5-coder:7b
+          Ollama (default :11434) · LM Studio (:1234) · llama.cpp server — OpenAI /v1 compatible
         </text>
         <Show when={snap()}>
           {(s) => (
             <>
+              <text fg={theme.textMuted} wrapMode="word">
+                URL: {w().ollama_base_url || "http://127.0.0.1:11434 (Ollama default)"}{" "}
+                <span
+                  style={{ fg: theme.accent }}
+                  onMouseUp={() => void editPath("ollama_base_url", "Local LLM server URL")}
+                >
+                  set
+                </span>
+              </text>
               <text fg={theme.text}>
                 Status:{" "}
                 <span style={{ fg: s().ollama.running ? theme.success : theme.warning }}>
-                  {s().ollama.running ? "running" : "not detected"}
+                  {s().ollama.running ? "reachable" : "not detected"}
                 </span>
                 {s().ollama.models.length ? ` · ${s().ollama.models.length} model(s)` : ""}
               </text>
@@ -202,7 +224,7 @@ export function DialogSettings() {
                   fg={w().ollama_enabled ? theme.success : theme.accent}
                   onMouseUp={() => !busy() && void patch({ ollama_enabled: !w().ollama_enabled })}
                 >
-                  [{w().ollama_enabled ? "x" : " "}] use Ollama
+                  [{w().ollama_enabled ? "x" : " "}] use local LLM
                 </text>
                 <text
                   fg={w().ollama_prefer ? theme.success : theme.accent}
@@ -280,11 +302,12 @@ export function DialogSettings() {
 function providerLabel(id: string): string {
   return (
     {
-      groq: "Groq — recommended (free tier)",
-      google: "Google AI (Gemini) — Pro+ optional",
-      anthropic: "Anthropic (Claude)",
-      openai: "OpenAI",
-      ollama: "Ollama (local)",
+      openrouter: "OpenRouter — one key, many models (recommended paid)",
+      groq: "Groq — free tier backup",
+      google: "Google AI (Gemini) — free tier backup",
+      anthropic: "Anthropic (Claude) — direct",
+      openai: "OpenAI — direct",
+      ollama: "Local LLM (Ollama / LM Studio) — recommended free",
     }[id] ?? id
   )
 }

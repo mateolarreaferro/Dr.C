@@ -17,7 +17,7 @@ From repo root:
 ./scripts/launch-drc-terminal.sh [work-folder]
 ```
 
-Default work folder: `~/lac-workshop-demo` (created if missing).
+Default work folder: `~/Dr.C-Workshop-Demo` (created if missing).
 
 Full install steps: **[GET-STARTED.md](../GET-STARTED.md)**
 

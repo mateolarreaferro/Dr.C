@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
 
-$WorkDir = if ($args.Count -gt 0) { $args[0] } else { Join-Path $env:USERPROFILE "lac-workshop-demo" }
+$WorkDir = if ($args.Count -gt 0) { $args[0] } else { Join-Path $env:USERPROFILE "Dr.C-Workshop-Demo" }
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
 if (-not (Get-Command csound -ErrorAction SilentlyContinue)) {

@@ -1217,17 +1217,15 @@ export namespace Provider {
     if (cfg.model) return parseModel(cfg.model)
 
     const auth = await Auth.all()
-    const hasGroq = auth.groq?.type === "api" || Boolean(process.env.GROQ_API_KEY)
     const workshop = (await Config.getGlobal()).workshop ?? {}
-    const ollamaPrefer = workshop.ollama_prefer === true && workshop.ollama_enabled === true
+    const ollamaReady = workshop.ollama_enabled === true && auth.ollama?.type === "api"
 
-    if (hasGroq && !ollamaPrefer) {
+    if (ollamaReady) {
       const providers = await list()
-      if (providers.groq?.models["llama-3.3-70b-versatile"]) {
-        return { providerID: "groq", modelID: "llama-3.3-70b-versatile" }
+      const model = workshop.ollama_model || Object.keys(providers.ollama?.models ?? {})[0]
+      if (model && providers.ollama?.models[model]) {
+        return { providerID: "ollama", modelID: model }
       }
-      const groqModel = Object.keys(providers.groq?.models ?? {})[0]
-      if (groqModel) return { providerID: "groq", modelID: groqModel }
     }
 
     const providers = await list()
@@ -1237,6 +1235,7 @@ export namespace Provider {
       .catch(() => [])) as { providerID: string; modelID: string }[]
     for (const entry of recent) {
       if (entry.providerID === "google" && !isProPlus()) continue
+      if (entry.providerID === "groq" && !isProPlus()) continue
       const provider = providers[entry.providerID]
       if (!provider) continue
       if (!provider.models[entry.modelID]) continue

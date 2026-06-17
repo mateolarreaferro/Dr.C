@@ -1,5 +1,5 @@
 /**
- * Keyword → foundational CSD ID mapping (parity with DRC-Standalone RAG).
+ * Keyword → foundational CSD ID mapping (parity with Dr.C-Standalone RAG).
  */
 
 export interface GoldenMatch {

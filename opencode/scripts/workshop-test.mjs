@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 //
 // Dr.C Terminal — LAC 2026 workshop smoke (CLI / TUI build)
+// **macOS and Linux only** — skipped on Windows.
 //
 //   node scripts/workshop-test.mjs
 //
@@ -13,10 +14,16 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+if (process.platform === 'win32') {
+  console.log('\n[workshop-test] SKIP — workshop smoke runs on macOS and Linux only.')
+  console.log('On Windows, run: npm run test:platform (launcher file checks)\n')
+  process.exit(0)
+}
+
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)))
 const HOME = process.env.HOME ?? process.env.USERPROFILE ?? ''
-const DEMO = join(HOME, 'lac-workshop-demo')
-const STANDALONE = join(HOME, 'DRC-Standalone')
+const DEMO = join(HOME, 'Dr.C-Workshop-Demo')
+const STANDALONE = join(HOME, 'Dr.C-Standalone')
 const TMP = tmpdir()
 
 const lines = []
@@ -124,7 +131,7 @@ else bad('csound_compile tool missing')
 if (existsSync(extApps) && /Cabbage-\d/.test(readFileSync(extApps, 'utf-8'))) ok('versioned Cabbage.app detection')
 else bad('external-apps.ts missing versioned Cabbage detection')
 
-section('lac-workshop-demo CSDs')
+section('Dr.C-Workshop-Demo CSDs')
 for (const file of ['pluck_bass.csd', 'pluck_bass_midi.csd']) {
   const path = join(DEMO, file)
   if (!existsSync(path)) {
@@ -143,7 +150,7 @@ if (existsSync(STANDALONE)) {
   for (const file of ['fm_starter.csd', 'fm_bell_starter.csd', 'player_fm_bell.csd']) {
     const path = join(starters, file)
     if (!existsSync(path)) {
-      bad(`${file} missing in DRC-Standalone`)
+      bad(`${file} missing in Dr.C-Standalone`)
       continue
     }
     let csd = readFileSync(path, 'utf-8')
@@ -151,25 +158,31 @@ if (existsSync(STANDALONE)) {
     const tmp = join(TMP, `drc-cli-${file}`)
     writeFileSync(tmp, csd)
     const r = csound(['-n', '-d', '-m0', '-o', join(TMP, 'drc-ws.wav'), tmp])
-    if (r.status === 0) ok(`${file} compiles (via DRC-Standalone)`)
+    if (r.status === 0) ok(`${file} compiles (via Dr.C-Standalone)`)
     else bad(`${file} compile failed`, (r.stderr || '').slice(0, 100))
   }
 } else {
-  lines.push(`  SKIP  DRC-Standalone not at ${STANDALONE}`)
+  lines.push(`  SKIP  Dr.C-Standalone not at ${STANDALONE}`)
 }
 
-section('provider defaults (Groq-first workshops)')
+section('provider defaults (workshop)')
 const providerSrc = join(REPO, 'packages/opencode/src/provider/provider.ts')
 const dialogSrc = join(REPO, 'packages/opencode/src/cli/cmd/tui/component/dialog-provider.tsx')
 const workshopSrc = join(REPO, 'packages/opencode/src/util/workshop.ts')
-if (existsSync(providerSrc) && readFileSync(providerSrc, 'utf-8').includes('hasGroq && !ollamaPrefer')) {
-  ok('defaultModel prefers Groq when Groq key is configured')
-} else bad('provider.ts must prefer Groq before other providers')
-if (existsSync(dialogSrc) && readFileSync(dialogSrc, 'utf-8').includes('groq: 0')) {
-  ok('TUI provider dialog lists Groq first')
-} else bad('dialog-provider.tsx must prioritize Groq')
+if (existsSync(providerSrc) && readFileSync(providerSrc, 'utf-8').includes('ollamaReady')) {
+  ok('defaultModel prefers local LLM when ollama_enabled')
+} else bad('provider.ts must prefer local LLM when configured')
+if (existsSync(dialogSrc)) {
+  const d = readFileSync(dialogSrc, 'utf-8')
+  if (d.includes('openrouter: 0') && d.includes('ollama: 1')) {
+    ok('TUI provider dialog: OpenRouter first, local LLM second')
+  } else bad('dialog-provider.tsx must list OpenRouter then local LLM')
+}
+if (existsSync(workshopSrc) && readFileSync(workshopSrc, 'utf-8').includes('probeLocalLlm')) {
+  ok('workshop.ts probes OpenAI-compatible local servers (/v1/models)')
+} else bad('workshop.ts missing probeLocalLlm')
 if (existsSync(workshopSrc) && readFileSync(workshopSrc, 'utf-8').includes('migrateWorkshopAuth')) {
-  ok('workshop auth migration strips free Gemini keys')
+  ok('workshop auth migration present')
 } else bad('workshop.ts missing migrateWorkshopAuth')
 
 section('targeted unit tests (tool/bash)')

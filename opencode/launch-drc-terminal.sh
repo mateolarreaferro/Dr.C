@@ -4,7 +4,7 @@ set -euo pipefail
 
 export PATH="${HOME}/bin:${HOME}/Applications/Csound:${HOME}/.bun/bin:/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:${PATH:-}"
 
-WORK_DIR="${DRC_WORK_DIR:-${HOME}/lac-workshop-demo}"
+WORK_DIR="${DRC_WORK_DIR:-${HOME}/Dr.C-Workshop-Demo}"
 DRC_ROOT="${DRC_TERMINAL_ROOT:-${HOME}/Dr.C/opencode}"
 
 mkdir -p "$WORK_DIR"

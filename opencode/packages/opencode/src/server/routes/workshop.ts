@@ -1,18 +1,15 @@
 import { Hono } from "hono"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
-import { Auth } from "../../auth"
 import { lazy } from "../../util/lazy"
 import { Config } from "../../config/config"
 import {
   applyWorkshopSideEffects,
-  ollamaBaseUrl,
+  localLlmOpenAiBase,
   pickOllamaModel,
-  probeOllama,
+  probeLocalLlm,
   workshopStatus,
 } from "../../util/workshop"
-
-const GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 const PatchSchema = z.object({
   workshop: Config.Workshop,
@@ -60,25 +57,20 @@ export const WorkshopRoutes = lazy(() =>
         const { workshop } = c.req.valid("json")
         const global = await Config.getGlobal()
         const merged = { ...global, workshop }
-        const auth = await Auth.all()
-        const hasGroq = auth.groq?.type === "api" || Boolean(process.env.GROQ_API_KEY)
-        if (hasGroq && !workshop.ollama_prefer) {
-          merged.model = `groq/${GROQ_DEFAULT_MODEL}`
-        }
-        if (workshop.ollama_enabled) {
-          const probe = await probeOllama(workshop.ollama_base_url)
-          const base = ollamaBaseUrl(workshop.ollama_base_url)
+        const probe = await probeLocalLlm(workshop.ollama_base_url)
+        if (workshop.ollama_enabled && probe.ok) {
+          const baseURL = localLlmOpenAiBase(workshop.ollama_base_url)
           const model = workshop.ollama_model || pickOllamaModel(probe.models, workshop.ollama_model)
           merged.provider = {
             ...(merged.provider ?? {}),
             ollama: {
-              name: "Ollama (local)",
+              name: "Local LLM (Ollama / LM Studio)",
               npm: "@ai-sdk/openai-compatible",
-              options: { baseURL: `${base}/v1`, apiKey: "ollama" },
+              options: { baseURL, apiKey: "local" },
               models: { [model]: { name: model, tool_call: true, temperature: true } },
             },
           }
-          if (workshop.ollama_prefer) merged.model = `ollama/${model}`
+          merged.model = `ollama/${model}`
         }
         await Config.updateGlobal(merged)
         await applyWorkshopSideEffects(workshop)
@@ -103,17 +95,19 @@ export const WorkshopRoutes = lazy(() =>
       }),
       async (c) => {
         const global = await Config.getGlobal()
-        const probe = await probeOllama(global.workshop?.ollama_base_url)
+        const probe = await probeLocalLlm(global.workshop?.ollama_base_url)
         if (!probe.ok) {
           return c.json({
             ok: false,
-            message: probe.error ?? "Ollama not running — install from ollama.com",
+            message:
+              probe.error ??
+              "Local LLM server not running — Ollama (11434), LM Studio (1234), or set workshop.ollama_base_url",
             models: [],
           })
         }
         return c.json({
           ok: true,
-          message: `Ollama running — ${probe.models.length} model(s) installed`,
+          message: `Local LLM server reachable — ${probe.models.length} model(s)`,
           models: probe.models.map((m) => m.name),
         })
       },

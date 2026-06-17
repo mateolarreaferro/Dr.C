@@ -185,7 +185,7 @@ export function Session() {
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
   const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [designMode, setDesignMode] = kv.signal("design_mode", true)
-  const [csdPanelVisible, setCsdPanelVisible] = kv.signal("csd_panel_visible", true)
+  const [csdPanelVisible, setCsdPanelVisible] = kv.signal("csd_panel_visible", false)
   // paramPanel signals removed — parameter editing now uses dialog overlay
   const [lockedParamsRaw, setLockedParamsRaw] = kv.signal<string>("locked_params", "")
   const lockedParams = createMemo(() => new Set(lockedParamsRaw().split(",").filter(Boolean)))

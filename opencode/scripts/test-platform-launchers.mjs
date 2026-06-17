@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Cross-platform launcher checks for Dr.C Terminal.
- * Run on Mac, Linux, and Windows before LAC.
+ * Run on each OS to verify launcher files exist.
+ *
+ * Full workshop smoke (`npm run test:workshop`) is **macOS + Linux only**.
  *
  *   node scripts/test-platform-launchers.mjs
  */
@@ -43,7 +45,7 @@ for (const rel of REQUIRED) {
 }
 
 const guide = readFileSync(join(REPO, 'GET-STARTED.md'), 'utf-8')
-for (const section of ['### macOS', '### Linux', '### Windows']) {
+for (const section of ['### macOS', '### Linux']) {
   if (guide.includes(section)) ok(`GET-STARTED.md has ${section}`)
   else bad(`GET-STARTED.md missing ${section}`)
 }

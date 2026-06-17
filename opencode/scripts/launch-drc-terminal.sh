@@ -9,7 +9,7 @@ source "${SCRIPT_DIR}/workshop-path.sh"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$ROOT"
 
-WORK_DIR="${1:-${HOME}/lac-workshop-demo}"
+WORK_DIR="${1:-${HOME}/Dr.C-Workshop-Demo}"
 mkdir -p "$WORK_DIR"
 
 if ! command -v csound >/dev/null 2>&1; then
