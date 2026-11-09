@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Scan FM · Enhanced v2</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d0f14; color: #e8e8e8; padding: 20px; font-size: 14px; }
+  .wrap { max-width: 1600px; margin: 0 auto; }
+  h1 { font-size: 1.5em; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #00ff88; color: #0d0f14; padding: 2px 8px; border-radius: 4px; font-size: 0.6em; font-weight: 700; }
+  .sub { opacity: .6; margin: 4px 0 16px; font-size: .9em; }
+  .top { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel { background: #161a22; border: 1px solid #252b38; border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: .78em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  #stage { position: relative; min-height: 340px; border: 2px dashed #2f3747; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #0a0c10; }
+  #stage.has-image { border-style: solid; cursor: default; }
+  #stage.drag { border-color: #00ff88; }
+  #photo { max-width: 100%; max-height: 480px; display: none; user-select: none; -webkit-user-drag: none; }
+  #overlay { position: absolute; pointer-events: none; touch-action: none; }
+  #prompt { text-align: center; opacity: .7; line-height: 1.6; }
+  .scanbar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; margin-top: 12px; align-items: center; }
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: .82em; }
+  .field span.v { color: #00ff88; font-variant-numeric: tabular-nums; }
+  .field .lab { display: flex; justify-content: space-between; opacity: .85; }
+  select, input[type=range] { width: 100%; }
+  select { background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 4px; padding: 3px 4px; font-size: .95em; }
+  input[type=range] { accent-color: #00ff88; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .9em; cursor: pointer; transition: all .15s; }
+  button:hover:not(:disabled) { border-color: #00ff88; }
+  button.on { background: #00ff88; color: #0d0f14; border-color: #00ff88; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.small { padding: 4px 10px; font-size: .85em; }
+  #status { margin-top: 10px; font-size: .85em; opacity: .8; min-height: 1.2em; }
+  .feat { display: grid; grid-template-columns: 90px 1fr 44px; gap: 8px; align-items: center; margin: 5px 0; font-size: .85em; }
+  .bar { height: 6px; background: #252b38; border-radius: 3px; overflow: hidden; }
+  .bar .fill { height: 100%; width: 0; background: #4fa3ff; transition: width .05s; }
+  .feat .v { text-align: right; font-variant-numeric: tabular-nums; opacity: .8; }
+  #swatch { width: 16px; height: 16px; border-radius: 50%; display: inline-block; border: 1px solid #fff4; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; font-size: .75em; text-transform: uppercase; letter-spacing: .06em; opacity: .55; padding: 4px 6px; }
+  td { padding: 5px 6px; border-top: 1px solid #222837; vertical-align: middle; font-size: .88em; }
+  td.lbl { white-space: nowrap; font-weight: 500; }
+  td .rv { display: inline-block; min-width: 62px; text-align: right; font-variant-numeric: tabular-nums; color: #00ff88; font-size: .9em; }
+  td.sl { white-space: nowrap; }
+  td.sl input { width: 110px; vertical-align: middle; }
+  .meter { position: relative; height: 12px; background: #252b38; border-radius: 6px; width: 180px; display: inline-block; vertical-align: middle; }
+  .meter .rng { position: absolute; top: 0; bottom: 0; background: #00ff8833; border-radius: 6px; }
+  .meter .needle { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: #00ff88; border-radius: 2px; box-shadow: 0 0 6px #00ff88; transition: left .05s; }
+  td.cur { font-variant-numeric: tabular-nums; color: #00ff88; min-width: 80px; text-align: right; white-space: nowrap; }
+  #console { background: #0a0c10; border: 1px solid #252b38; border-radius: 6px; padding: 10px; font-family: 'Monaco', 'Courier New', monospace; font-size: .75em; max-height: 150px; overflow-y: auto; line-height: 1.4; margin-top: 10px; }
+  #console div { opacity: .7; }
+  .preset-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .preset-bar select { flex: 1; min-width: 200px; }
+  .midi-status { font-size: .75em; opacity: .6; padding: 4px 8px; background: #0a0c10; border-radius: 4px; }
+  .midi-status.active { opacity: 1; color: #00ff88; }
+  #spectrogram { width: 100%; height: 80px; background: #0a0c10; border: 1px solid #252b38; border-radius: 6px; margin-top: 10px; display: none; }
+  .kbd-hint { font-size: .7em; opacity: .5; margin-left: auto; }
+  @media (max-width: 1000px) { .top { grid-template-columns: 1fr; } .scanbar { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Photo Scan → FM Synthesizer <span class="badge">v2 ENHANCED</span></h1>
+  <p class="sub">Real-time photo-to-synthesis with MIDI control, presets, and visual feedback. Press ? for keyboard shortcuts.</p>
+
+  <div class="top">
+    <div class="panel">
+      <h2><span>Photo &amp; scan line</span><button id="loadBtn" class="small">Load photo…</button></h2>
+      <div id="stage">
+        <div id="prompt">Drop a photo here or click to choose<br><small>JPG · PNG · WebP</small></div>
+        <img id="photo" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <div class="scanbar">
+        <div class="field"><div class="lab">Scan speed <span class="v" id="speedVal"></span></div><input type="range" id="speed" min="0" max="1000" value="327"></div>
+        <div class="field"><div class="lab">Range start <span class="v" id="rStartVal"></span></div><input type="range" id="rStart" min="0" max="1000" value="0"></div>
+        <div class="field"><div class="lab">Range end <span class="v" id="rEndVal"></span></div><input type="range" id="rEnd" min="0" max="1000" value="1000"></div>
+        <div class="field"><div class="lab">Line width <span class="v" id="thickVal"></span></div><input type="range" id="thick" min="0" max="15" value="1"></div>
+        <div class="field"><div class="lab">Direction</div>
+          <select id="axis"><option value="x">Left ↔ right (vertical line)</option><option value="y">Top ↕ bottom (horizontal line)</option></select></div>
+        <div class="field"><div class="lab">Motion</div>
+          <select id="mode"><option value="pingpong">Ping-pong</option><option value="loop">Loop</option><option value="manual">Manual (drag only)</option></select></div>
+        <div class="field"><div class="lab">Pitch scale</div>
+          <select id="scale"><option value="off">Continuous (glide)</option><option value="chromatic">Chromatic</option><option value="major">Major</option><option value="majpent">Major pentatonic</option><option value="minpent" selected>Minor pentatonic</option><option value="whole">Whole tone</option></select></div>
+        <div class="field"><div class="lab">Root</div>
+          <select id="root"></select></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span>Under the scan line now</span><span id="swatch"></span></h2>
+      <div id="feats"></div>
+      <canvas id="spectrogram"></canvas>
+      <div class="field" style="margin-top:10px"><div class="lab">Master gain <span class="v" id="gainVal"></span></div><input type="range" id="gain" min="0" max="1000" value="600"></div>
+      <div class="controls">
+        <button id="startBtn">Start audio</button>
+        <button id="droneBtn" disabled>Drone: off</button>
+        <button id="scanBtn">▶ Scan</button>
+        <button id="bounceBtn" disabled>💾 Bounce WAV</button>
+        <div class="midi-status" id="midiStatus">MIDI: off</div>
+      </div>
+      <div class="controls">
+        <button id="randBtn">🎲 Random</button>
+        <button id="resetBtn">↺ Reset</button>
+        <button id="helpBtn">? Help</button>
+      </div>
+      <div id="status">Click "Start audio", load a photo, press ▶ Scan (Space). Press ? for shortcuts.</div>
+      <div id="console"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span>Presets</span><span class="kbd-hint">1-9 to load, Shift+1-9 to save</span></h2>
+    <div class="preset-bar">
+      <select id="presetList"><option value="">-- Factory presets --</option></select>
+      <button id="loadPresetBtn" class="small">Load</button>
+      <button id="savePresetBtn" class="small">💾 Save as…</button>
+      <button id="exportPresetBtn" class="small">⬇ Export JSON</button>
+      <button id="importPresetBtn" class="small">⬆ Import JSON</button>
+      <input type="file" id="presetFile" accept=".json" hidden>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2><span>Mapping: image source → sound control</span></h2>
+    <table>
+      <thead><tr><th>Control</th><th>Image source</th><th>Invert</th><th>Min</th><th>Max</th><th>Speed (glide)</th><th>Live</th><th></th></tr></thead>
+      <tbody id="map"></tbody>
+    </table>
+  </div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+// ================= Csound 7 orchestra =================
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+gaRevL init 0
+gaRevR init 0
+gaDryL init 0
+gaDryR init 0
+
+opcode Ctl, k, S
+  SName xin
+  SGlide = strcat("gl_", SName)
+  iInit = chnget:i(SName)
+  kGlide = chnget:k(SGlide)
+  kRaw = chnget:k(SName)
+  kOut = portk(kRaw, kGlide, iInit)
+  xout kOut
+endop
+
+instr 1
+  kFreq  = Ctl("carFreq")
+  kRatio = Ctl("ratio")
+  kIndex = Ctl("index")
+  kCut   = Ctl("cutoff")
+  kRes   = Ctl("reso")
+  kDet   = Ctl("detune")
+  kWobR  = Ctl("wobbleRate")
+  kWobD  = Ctl("wobbleDepth")
+  kPulR  = Ctl("pulseRate")
+  kPulD  = Ctl("pulseDepth")
+  kPan   = Ctl("pan")
+  kSend  = Ctl("revSend")
+  kAmp   = Ctl("amp")
+  kGain  = port(chnget:k("masterGain"), 0.05)
+
+  kWob   = 1 + kWobD * oscili:k(1, kWobR)
+  kModF  = kFreq * kRatio
+  aMod   = oscili:a(kIndex * kWob * kModF, kModF)
+
+  kDetR  = cent(kDet)
+  aC1    = oscili:a(0.22, kFreq + aMod)
+  aC2    = oscili:a(0.22, (kFreq + aMod) * kDetR)
+  aC3    = oscili:a(0.22, (kFreq + aMod) / kDetR)
+
+  kCut   = limit(kCut, 30, 18000)
+  kRes   = limit(kRes, 0, 0.95)
+  aFilt  = moogladder:a(aC1 + aC2 + aC3, kCut, kRes)
+
+  kTrem  = 1 - kPulD * (0.5 + 0.5 * oscili:k(1, kPulR))
+  kEnv   = madsr:k(1, 0, 1, 2)
+  aSig   = aFilt * kEnv * kAmp * kGain * kTrem
+
+  aL, aR pan2 aSig, kPan
+  gaDryL += aL
+  gaDryR += aR
+  gaRevL += aL * kSend
+  gaRevR += aR * kSend
+endin
+
+instr 2
+  kSize  = Ctl("revSize")
+  kSize  = limit(kSize, 0.3, 0.98)
+  aRL, aRR reverbsc gaRevL, gaRevR, kSize, 10000
+  out(tanh(gaDryL + aRL), tanh(gaDryR + aRR))
+  clear gaRevL, gaRevR, gaDryL, gaDryR
+endin
+`;
+
+// ================= definitions =================
+const FEATURES = [
+  { key: 'hue',        label: 'Hue' },
+  { key: 'saturation', label: 'Saturation' },
+  { key: 'brightness', label: 'Brightness' },
+  { key: 'contrast',   label: 'Contrast' },
+  { key: 'edges',      label: 'Detail/edges' },
+  { key: 'red',        label: 'Red' },
+  { key: 'green',      label: 'Green' },
+  { key: 'blue',       label: 'Blue' },
+  { key: 'centroid',   label: 'Weight pos.' },
+  { key: 'change',     label: 'Change' },
+  { key: 'position',   label: 'Scan pos.' },
+];
+const SOURCES = [...FEATURES, { key: 'fixed', label: 'Fixed (= Min)' }];
+
+const DEFAULTS = [
+  { key: 'carFreq',     label: 'Pitch',        unit: 'Hz', lo: 30,   hi: 2000,  min: 110,  max: 880,  src: 'hue',        glide: 0.08, exp: true },
+  { key: 'ratio',       label: 'C:M ratio',    unit: '',   lo: 0.25, hi: 8,     min: 0.5,  max: 4,    src: 'contrast',   glide: 0.25 },
+  { key: 'index',       label: 'FM index',     unit: '',   lo: 0,    hi: 20,    min: 0.5,  max: 9,    src: 'saturation', glide: 0.1 },
+  { key: 'cutoff',      label: 'Filter cutoff',unit: 'Hz', lo: 50,   hi: 16000, min: 250,  max: 8000, src: 'brightness', glide: 0.05, exp: true },
+  { key: 'reso',        label: 'Resonance',    unit: '',   lo: 0,    hi: 0.95,  min: 0.1,  max: 0.6,  src: 'edges',      glide: 0.1 },
+  { key: 'detune',      label: 'Detune',       unit: '¢',  lo: 0,    hi: 50,    min: 0,    max: 14,   src: 'red',        glide: 0.3 },
+  { key: 'wobbleRate',  label: 'Wobble rate',  unit: 'Hz', lo: 0.05, hi: 20,    min: 0.2,  max: 7,    src: 'edges',      glide: 0.2, exp: true },
+  { key: 'wobbleDepth', label: 'Wobble depth', unit: '',   lo: 0,    hi: 1,     min: 0,    max: 0.6,  src: 'change',     glide: 0.15 },
+  { key: 'pulseRate',   label: 'Pulse rate',   unit: 'Hz', lo: 0.25, hi: 16,    min: 1,    max: 8,    src: 'blue',       glide: 0.3, exp: true },
+  { key: 'pulseDepth',  label: 'Pulse depth',  unit: '',   lo: 0,    hi: 1,     min: 0,    max: 0.5,  src: 'change',     glide: 0.2 },
+  { key: 'pan',         label: 'Pan',          unit: '',   lo: 0,    hi: 1,     min: 0.1,  max: 0.9,  src: 'position',   glide: 0.1 },
+  { key: 'revSend',     label: 'Reverb send',  unit: '',   lo: 0,    hi: 1,     min: 0.15, max: 0.6,  src: 'brightness', glide: 0.3, inv: true },
+  { key: 'revSize',     label: 'Reverb size',  unit: '',   lo: 0.5,  hi: 0.98,  min: 0.7,  max: 0.95, src: 'centroid',   glide: 0.5 },
+  { key: 'amp',         label: 'Level',        unit: '',   lo: 0,    hi: 1,     min: 0.35, max: 0.8,  src: 'saturation', glide: 0.1 },
+];
+
+const FACTORY_PRESETS = {
+  'Gentle Sweep': { speed: 500, scale: 'majpent', mapping: { carFreq: {min:220, max:660}, index: {min:1, max:5}, cutoff: {min:800, max:4000} } },
+  'Aggressive Scan': { speed: 150, scale: 'chromatic', mapping: { carFreq: {min:55, max:1760}, index: {min:5, max:15}, reso: {min:0.3, max:0.8} } },
+  'Ambient Wash': { speed: 800, scale: 'whole', mapping: { wobbleDepth: {min:0.4, max:0.8}, revSend: {min:0.5, max:0.9}, pulseDepth: {min:0.3, max:0.7} } },
+  'Rhythmic Pulse': { speed: 200, scale: 'minpent', mapping: { pulseRate: {min:4, max:16}, pulseDepth: {min:0.4, max:0.9}, detune: {min:10, max:30} } },
+};
+
+let CONTROLS = DEFAULTS.map(c => ({ ...c }));
+
+const SCALES = {
+  off: null, chromatic: [0,1,2,3,4,5,6,7,8,9,10,11], major: [0,2,4,5,7,9,11],
+  majpent: [0,2,4,7,9], minpent: [0,3,5,7,10], whole: [0,2,4,6,8,10],
+};
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// ================= helpers =================
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const status = msg => $('status').textContent = msg;
+const log = msg => { const d = document.createElement('div'); d.textContent = msg; $('console').appendChild(d); $('console').scrollTop = $('console').scrollHeight; };
+const posToVal = (c, p) => c.exp ? c.lo * Math.pow(c.hi / c.lo, p) : c.lo + (c.hi - c.lo) * p;
+const valToPos = (c, v) => c.exp ? Math.log(v / c.lo) / Math.log(c.hi / c.lo) : (v - c.lo) / (c.hi - c.lo);
+const glideFromPos = p => 0.005 * Math.pow(1000, p);
+const glideToPos = g => Math.log(g / 0.005) / Math.log(1000);
+const speedFromPos = p => 120 * Math.pow(0.5 / 120, p);
+function fmt(c, v) {
+  const a = Math.abs(v);
+  const s = a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2);
+  return c.unit ? `${s} ${c.unit}` : s;
+}
+function quantize(f) {
+  const sc = SCALES[$('scale').value];
+  if (!sc) return f;
+  const root = +$('root').value;
+  const rel = 69 + 12 * Math.log2(f / 440) - root;
+  const oct = Math.floor(rel / 12), deg = rel - oct * 12;
+  let best = sc[0], bd = 99;
+  for (const s of [...sc, sc[0] + 12]) { const d = Math.abs(deg - s); if (d < bd) { bd = d; best = s; } }
+  return 440 * Math.pow(2, (root + oct * 12 + best - 69) / 12);
+}
+function mapControl(c, f) {
+  let n = c.src === 'fixed' ? 0 : f[c.src];
+  if (!isFinite(n)) n = 0;
+  n = clamp(n, 0, 1);
+  if (c.inv) n = 1 - n;
+  let v = c.exp ? c.min * Math.pow(c.max / c.min, n) : c.min + (c.max - c.min) * n;
+  if (c.key === 'carFreq') v = quantize(v);
+  return v;
+}
+
+// ================= MIDI support =================
+let midiAccess = null;
+let midiLearnMode = false;
+let midiBindings = {}; // { cc: controlKey }
+
+async function initMIDI() {
+  try {
+    midiAccess = await navigator.requestMIDIAccess();
+    for (const input of midiAccess.inputs.values()) {
+      input.onmidimessage = handleMIDI;
+    }
+    $('midiStatus').textContent = 'MIDI: ' + midiAccess.inputs.size + ' device(s)';
+    $('midiStatus').classList.add('active');
+    log('✅ MIDI initialized: ' + midiAccess.inputs.size + ' device(s)');
+  } catch (err) {
+    log('MIDI not available: ' + err.message);
+  }
+}
+
+function handleMIDI(e) {
+  const [status, cc, val] = e.data;
+  if (status === 176) { // CC
+    if (midiLearnMode) {
+      // TODO: implement MIDI learn
+      log(`MIDI learn: CC${cc} → (click a parameter)`);
+    } else if (midiBindings[cc]) {
+      const c = CONTROLS.find(x => x.key === midiBindings[cc]);
+      if (c) {
+        const norm = val / 127;
+        c.min = posToVal(c, norm * 0.3);
+        c.max = posToVal(c, 0.7 + norm * 0.3);
+        syncRow(c);
+      }
+    }
+  }
+}
+
+// ================= presets =================
+function captureState() {
+  return {
+    mapping: CONTROLS.map(c => ({ key: c.key, src: c.src, inv: c.inv, min: c.min, max: c.max, glide: c.glide })),
+    scan: {
+      speed: $('speed').value,
+      rStart: $('rStart').value,
+      rEnd: $('rEnd').value,
+      thick: $('thick').value,
+      axis: $('axis').value,
+      mode: $('mode').value,
+      scale: $('scale').value,
+      root: $('root').value,
+    },
+    gain: $('gain').value,
+  };
+}
+
+function restoreState(state) {
+  if (state.mapping) {
+    state.mapping.forEach(m => {
+      const c = CONTROLS.find(x => x.key === m.key);
+      if (c) {
+        Object.assign(c, m);
+        syncRow(c);
+        sendGlide(c);
+      }
+    });
+  }
+  if (state.scan) {
+    for (const k in state.scan) if ($(k)) $(k).value = state.scan[k];
+    updateLabels();
+  }
+  if (state.gain !== undefined) {
+    $('gain').value = state.gain;
+    updateLabels();
+    if (csound) csound.setControlChannel('masterGain', state.gain / 1000).catch(() => {});
+  }
+  status('Preset loaded');
+}
+
+function savePresetToStorage(name) {
+  const presets = JSON.parse(localStorage.getItem('photoFmPresets') || '{}');
+  presets[name] = captureState();
+  localStorage.setItem('photoFmPresets', JSON.stringify(presets));
+  buildPresetList();
+  log('💾 Saved preset: ' + name);
+  status('Saved: ' + name);
+}
+
+function loadPresetFromStorage(name) {
+  const presets = JSON.parse(localStorage.getItem('photoFmPresets') || '{}');
+  if (presets[name]) {
+    restoreState(presets[name]);
+  } else if (FACTORY_PRESETS[name]) {
+    restoreState(FACTORY_PRESETS[name]);
+  } else {
+    status('Preset not found: ' + name);
+  }
+}
+
+function buildPresetList() {
+  const sel = $('presetList');
+  sel.innerHTML = '<option value="">-- Select preset --</option>';
+  for (const name in FACTORY_PRESETS) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${name}">🏭 ${name}</option>`);
+  }
+  const user = JSON.parse(localStorage.getItem('photoFmPresets') || '{}');
+  for (const name in user) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${name}">💾 ${name}</option>`);
+  }
+}
+
+$('loadPresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (name) loadPresetFromStorage(name);
+});
+
+$('savePresetBtn').addEventListener('click', () => {
+  const name = prompt('Preset name:', 'My Preset ' + Date.now());
+  if (name) savePresetToStorage(name);
+});
+
+$('exportPresetBtn').addEventListener('click', () => {
+  const state = captureState();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'photo_fm_preset_' + Date.now() + '.json';
+  a.click();
+  log('⬇ Exported preset');
+});
+
+$('importPresetBtn').addEventListener('click', () => $('presetFile').click());
+$('presetFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const state = JSON.parse(r.result);
+      restoreState(state);
+      log('⬆ Imported preset');
+    } catch (err) {
+      log('❌ Import failed: ' + err.message);
+    }
+  };
+  r.readAsText(file);
+});
+
+// ================= keyboard shortcuts =================
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT', 'BUTTON'].includes(document.activeElement.tagName)) return;
+  
+  // Number keys 1-9: load preset slot
+  if (e.key >= '1' && e.key <= '9' && !e.shiftKey) {
+    const idx = +e.key - 1;
+    const opts = $('presetList').options;
+    if (opts[idx + 1]) {
+      $('presetList').value = opts[idx + 1].value;
+      loadPresetFromStorage(opts[idx + 1].value);
+    }
+  }
+  
+  // Shift+1-9: save to slot
+  if (e.key >= '1' && e.key <= '9' && e.shiftKey) {
+    const name = 'Quick ' + e.key;
+    savePresetToStorage(name);
+  }
+  
+  // Space: toggle scan
+  if (e.code === 'Space') {
+    e.preventDefault();
+    toggleScan();
+  }
+  
+  // R: randomize
+  if (e.key === 'r' || e.key === 'R') {
+    $('randBtn').click();
+  }
+  
+  // ?: help
+  if (e.key === '?') {
+    alert(`KEYBOARD SHORTCUTS
+
+Space     Toggle scan
+R         Randomize mapping
+1-9       Load preset slot
+Shift+1-9 Save to preset slot
+?         This help`);
+  }
+});
+
+// ================= build UI =================
+for (let i = 0; i < 12; i++) $('root').insertAdjacentHTML('beforeend', `<option value="${48 + i}" ${i === 9 ? 'selected' : ''}>${NOTE_NAMES[i]}</option>`);
+
+for (const f of FEATURES) {
+  $('feats').insertAdjacentHTML('beforeend',
+    `<div class="feat"><div>${f.label}</div><div class="bar"><div class="fill" id="ff_${f.key}"></div></div><div class="v" id="fv_${f.key}">–</div></div>`);
+}
+
+const srcOptions = SOURCES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+function buildTable() {
+  $('map').innerHTML = '';
+  for (const c of CONTROLS) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="lbl">${c.label}</td>
+      <td><select class="src">${srcOptions}</select></td>
+      <td><input type="checkbox" class="inv"></td>
+      <td class="sl"><input type="range" class="min" min="0" max="1000"><span class="rv minv"></span></td>
+      <td class="sl"><input type="range" class="max" min="0" max="1000"><span class="rv maxv"></span></td>
+      <td class="sl"><input type="range" class="gl" min="0" max="1000"><span class="rv glv"></span></td>
+      <td><div class="meter"><div class="rng"></div><div class="needle"></div></div></td>
+      <td class="cur">–</td>`;
+    $('map').appendChild(tr);
+    c.el = {
+      src: tr.querySelector('.src'), inv: tr.querySelector('.inv'),
+      min: tr.querySelector('.min'), max: tr.querySelector('.max'), gl: tr.querySelector('.gl'),
+      minv: tr.querySelector('.minv'), maxv: tr.querySelector('.maxv'), glv: tr.querySelector('.glv'),
+      rng: tr.querySelector('.rng'), needle: tr.querySelector('.needle'), cur: tr.querySelector('.cur'),
+    };
+    syncRow(c);
+    c.el.src.addEventListener('change', () => { c.src = c.el.src.value; });
+    c.el.inv.addEventListener('change', () => { c.inv = c.el.inv.checked; });
+    c.el.min.addEventListener('input', () => { c.min = posToVal(c, c.el.min.value / 1000); if (c.exp) c.min = Math.max(c.min, c.lo); syncRow(c); });
+    c.el.max.addEventListener('input', () => { c.max = posToVal(c, c.el.max.value / 1000); if (c.exp) c.max = Math.max(c.max, c.lo); syncRow(c); });
+    c.el.gl.addEventListener('input', () => { c.glide = glideFromPos(c.el.gl.value / 1000); syncRow(c); sendGlide(c); });
+  }
+}
+function syncRow(c) {
+  const e = c.el;
+  e.src.value = c.src; e.inv.checked = !!c.inv;
+  e.min.value = Math.round(valToPos(c, c.min) * 1000);
+  e.max.value = Math.round(valToPos(c, c.max) * 1000);
+  e.gl.value = Math.round(glideToPos(c.glide) * 1000);
+  e.minv.textContent = fmt(c, c.min);
+  e.maxv.textContent = fmt(c, c.max);
+  e.glv.textContent = c.glide < 1 ? `${Math.round(c.glide * 1000)} ms` : `${c.glide.toFixed(2)} s`;
+  const a = clamp(valToPos(c, Math.min(c.min, c.max)), 0, 1), b = clamp(valToPos(c, Math.max(c.min, c.max)), 0, 1);
+  e.rng.style.left = (a * 100) + '%'; e.rng.style.width = ((b - a) * 100) + '%';
+}
+buildTable();
+buildPresetList();
+
+// ================= state =================
+let csound = null, droneOn = false, playing = false, scrubbing = false;
+let pos = 0, dir = 1, lastT = 0;
+let pixels = null, W = 0, H = 0;
+let lastHue = 0.55, prevSig = null, changeS = 0;
+let feats = { hue: .55, saturation: .4, brightness: .5, contrast: .4, edges: .3, red: .4, green: .5, blue: .6, centroid: .5, change: 0, position: .5 };
+const lastSent = {};
+
+// ================= image =================
+function loadPixels(img) {
+  const c = document.createElement('canvas');
+  const s = Math.min(1, 480 / Math.max(img.naturalWidth, img.naturalHeight));
+  W = c.width = Math.max(2, Math.round(img.naturalWidth * s));
+  H = c.height = Math.max(2, Math.round(img.naturalHeight * s));
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  pixels = ctx.getImageData(0, 0, W, H).data;
+}
+
+function analyseLine(p) {
+  const axis = $('axis').value, th = +$('thick').value;
+  const along = axis === 'x' ? H : W, across = axis === 'x' ? W : H;
+  const c = Math.round(p * (across - 1));
+  const a0 = Math.max(0, c - th), a1 = Math.min(across - 1, c + th);
+  const prof = new Float32Array(along);
+  let sx = 0, sy = 0, sw = 0, sumL = 0, sumL2 = 0, sumS = 0, sr = 0, sg = 0, sb = 0, edges = 0, wc = 0, ws = 0, prevL = -1;
+  for (let i = 0; i < along; i++) {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let j = a0; j <= a1; j++) {
+      const x = axis === 'x' ? j : i, y = axis === 'x' ? i : j, k = (y * W + x) * 4;
+      r += pixels[k]; g += pixels[k + 1]; b += pixels[k + 2]; n++;
+    }
+    r /= n * 255; g /= n * 255; b /= n * 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+    const s = d === 0 ? 0 : Math.min(1, d / (1 - Math.abs(2 * l - 1) + 1e-6));
+    if (d) {
+      let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= Math.PI / 3;
+      sx += Math.cos(h) * s; sy += Math.sin(h) * s; sw += s;
+    }
+    sumL += l; sumL2 += l * l; sumS += s; sr += r; sg += g; sb += b;
+    if (prevL >= 0) edges += Math.abs(l - prevL);
+    prevL = l;
+    const w = l * 0.5 + s * 0.5; wc += w * (i / (along - 1)); ws += w;
+    prof[i] = l;
+  }
+  const n = along, meanL = sumL / n;
+  if (sw > n * 0.02) { let h = Math.atan2(sy, sx) / (2 * Math.PI); if (h < 0) h += 1; lastHue = h; }
+  const sig = [sr / n, sg / n, sb / n];
+  const raw = prevSig ? clamp(Math.hypot(sig[0] - prevSig[0], sig[1] - prevSig[1], sig[2] - prevSig[2]) * 12, 0, 1) : 0;
+  prevSig = sig;
+  changeS = Math.max(raw, changeS * 0.94);
+  return {
+    feats: {
+      hue: lastHue,
+      saturation: clamp(sumS / n, 0, 1),
+      brightness: meanL,
+      contrast: clamp(Math.sqrt(Math.max(0, sumL2 / n - meanL * meanL)) * 3.5, 0, 1),
+      edges: clamp(edges / n * 12, 0, 1),
+      red: sig[0], green: sig[1], blue: sig[2],
+      centroid: ws ? wc / ws : 0.5,
+      change: changeS,
+      position: p,
+    },
+    prof, a0, a1, axis, along, across,
+  };
+}
+
+// ================= overlay =================
+function drawOverlay(res, rs, re) {
+  const img = $('photo'), ov = $('overlay');
+  if (ov.width !== img.clientWidth || ov.height !== img.clientHeight) { ov.width = img.clientWidth; ov.height = img.clientHeight; }
+  ov.style.left = img.offsetLeft + 'px'; ov.style.top = img.offsetTop + 'px';
+  const ctx = ov.getContext('2d'), w = ov.width, h = ov.height;
+  ctx.clearRect(0, 0, w, h);
+  const X = res.axis === 'x';
+  const span = X ? w : h, len = X ? h : w;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  if (X) { ctx.fillRect(0, 0, rs * w, h); ctx.fillRect(re * w, 0, w - re * w, h); }
+  else   { ctx.fillRect(0, 0, w, rs * h); ctx.fillRect(0, re * h, w, h - re * h); }
+  const c0 = res.a0 / res.across * span, c1 = (res.a1 + 1) / res.across * span, cm = (c0 + c1) / 2;
+  ctx.fillStyle = 'rgba(0,255,136,0.18)';
+  if (X) ctx.fillRect(c0 - 3, 0, c1 - c0 + 6, h); else ctx.fillRect(0, c0 - 3, w, c1 - c0 + 6);
+  ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2; ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 10;
+  ctx.beginPath();
+  if (X) { ctx.moveTo(cm, 0); ctx.lineTo(cm, h); } else { ctx.moveTo(0, cm); ctx.lineTo(w, cm); }
+  ctx.stroke(); ctx.shadowBlur = 0;
+  const side = cm > span * 0.8 ? -1 : 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2; ctx.beginPath();
+  for (let i = 0; i < res.along; i++) {
+    const t = (i + 0.5) / res.along * len, o = cm + side * (8 + res.prof[i] * 50);
+    if (X) (i ? ctx.lineTo(o, t) : ctx.moveTo(o, t)); else (i ? ctx.lineTo(t, o) : ctx.moveTo(t, o));
+  }
+  ctx.stroke();
+  const cy = res.feats.centroid * len;
+  ctx.fillStyle = '#ffcc00'; ctx.beginPath();
+  if (X) ctx.arc(cm, cy, 5, 0, 2 * Math.PI); else ctx.arc(cy, cm, 5, 0, 2 * Math.PI);
+  ctx.fill();
+}
+
+// ================= Csound I/O =================
+function push(vals) {
+  if (!csound) return;
+  CONTROLS.forEach((c, i) => {
+    const v = vals[i], tol = (Math.abs(c.max - c.min) + 1e-6) * 0.0005;
+    if (lastSent[c.key] === undefined || Math.abs(v - lastSent[c.key]) > tol) {
+      lastSent[c.key] = v;
+      csound.setControlChannel(c.key, v).catch(() => {});
+    }
+  });
+}
+function sendGlide(c) { if (csound) csound.setControlChannel('gl_' + c.key, c.glide).catch(() => {}); }
+
+// ================= main loop =================
+function rangeBounds() {
+  let rs = $('rStart').value / 1000, re = $('rEnd').value / 1000;
+  if (re < rs) [rs, re] = [re, rs];
+  if (re - rs < 0.005) re = Math.min(1, rs + 0.005);
+  return [rs, re];
+}
+function tick(t) {
+  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
+  if (pixels) {
+    const mode = $('mode').value;
+    if (playing && !scrubbing && mode !== 'manual') {
+      pos += dir * dt / speedFromPos($('speed').value / 1000);
+      if (mode === 'pingpong') {
+        if (pos > 1) { pos = 2 - pos; dir = -1; }
+        if (pos < 0) { pos = -pos; dir = 1; }
+      } else { dir = 1; pos = ((pos % 1) + 1) % 1; }
+    }
+    const [rs, re] = rangeBounds();
+    const p = rs + clamp(pos, 0, 1) * (re - rs);
+    const res = analyseLine(p);
+    feats = res.feats;
+    drawOverlay(res, rs, re);
+  }
+  for (const f of FEATURES) {
+    $('ff_' + f.key).style.width = (feats[f.key] * 100) + '%';
+    $('fv_' + f.key).textContent = feats[f.key].toFixed(2);
+  }
+  $('swatch').style.background = `rgb(${feats.red * 255},${feats.green * 255},${feats.blue * 255})`;
+  const vals = CONTROLS.map(c => mapControl(c, feats));
+  CONTROLS.forEach((c, i) => {
+    c.el.needle.style.left = (clamp(valToPos(c, vals[i]), 0, 1) * 100) + '%';
+    c.el.cur.textContent = fmt(c, vals[i]);
+  });
+  push(vals);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ================= scrub =================
+const ov = $('overlay');
+function scrubTo(e) {
+  const r = ov.getBoundingClientRect();
+  const pn = $('axis').value === 'x' ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
+  const [rs, re] = rangeBounds();
+  pos = clamp((pn - rs) / (re - rs), 0, 1);
+}
+ov.addEventListener('pointerdown', e => { scrubbing = true; ov.setPointerCapture(e.pointerId); scrubTo(e); });
+ov.addEventListener('pointermove', e => { if (scrubbing) scrubTo(e); });
+ov.addEventListener('pointerup', () => { scrubbing = false; });
+ov.addEventListener('pointercancel', () => { scrubbing = false; });
+$('axis').addEventListener('change', () => { ov.style.cursor = $('axis').value === 'x' ? 'ew-resize' : 'ns-resize'; prevSig = null; });
+
+// ================= image input =================
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) { status('That file is not an image.'); return; }
+  const img = $('photo');
+  img.onload = () => {
+    $('prompt').style.display = 'none';
+    img.style.display = 'block';
+    $('stage').classList.add('has-image');
+    ov.style.pointerEvents = 'auto';
+    ov.style.cursor = $('axis').value === 'x' ? 'ew-resize' : 'ns-resize';
+    loadPixels(img);
+    pos = 0; dir = 1; prevSig = null; changeS = 0;
+    status(csound ? 'Photo loaded. Press ▶ Scan (Space) or drag.' : 'Photo loaded. Click "Start audio".');
+  };
+  img.src = URL.createObjectURL(file);
+}
+$('stage').addEventListener('click', () => { if (!pixels) $('file').click(); });
+$('loadBtn').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => handleFile(e.target.files[0]));
+$('stage').addEventListener('dragover', e => { e.preventDefault(); $('stage').classList.add('drag'); });
+$('stage').addEventListener('dragleave', () => $('stage').classList.remove('drag'));
+$('stage').addEventListener('drop', e => { e.preventDefault(); $('stage').classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+
+// ================= scan + sliders =================
+function updateLabels() {
+  const T = speedFromPos($('speed').value / 1000);
+  $('speedVal').textContent = T >= 10 ? `${T.toFixed(0)} s/pass` : `${T.toFixed(1)} s/pass`;
+  $('rStartVal').textContent = Math.round($('rStart').value / 10) + '%';
+  $('rEndVal').textContent = Math.round($('rEnd').value / 10) + '%';
+  $('thickVal').textContent = (2 * +$('thick').value + 1) + ' px';
+  $('gainVal').textContent = ($('gain').value / 1000).toFixed(2);
+}
+for (const id of ['speed', 'rStart', 'rEnd', 'thick']) $(id).addEventListener('input', updateLabels);
+$('gain').addEventListener('input', () => { updateLabels(); if (csound) csound.setControlChannel('masterGain', $('gain').value / 1000).catch(() => {}); });
+updateLabels();
+
+function toggleScan() {
+  if (!pixels) { status('Load a photo first.'); return; }
+  playing = !playing;
+  if (playing && $('mode').value === 'manual') $('mode').value = 'pingpong';
+  $('scanBtn').textContent = playing ? '❚❚ Pause' : '▶ Scan';
+  $('scanBtn').classList.toggle('on', playing);
+}
+$('scanBtn').addEventListener('click', toggleScan);
+
+$('helpBtn').addEventListener('click', () => {
+  alert(`PHOTO SCAN FM SYNTHESIZER v2
+
+FEATURES
+• Real-time photo analysis (11 image features)
+• 14-parameter FM synthesis with visual feedback
+• Preset system with save/load/export/import
+• MIDI control support
+• Keyboard shortcuts
+
+KEYBOARD SHORTCUTS
+Space     Toggle scan play/pause
+R         Randomize parameter mapping
+1-9       Load preset from slot
+Shift+1-9 Save to preset slot
+?         Show this help
+
+WORKFLOW
+1. Click "Start audio" to initialize Csound 7
+2. Load a photo (drag & drop or click)
+3. Press ▶ Scan or Space to start
+4. Drag on photo to scrub manually
+5. Adjust mapping table or try presets
+6. Save your own presets for later
+
+TIPS
+• Try different pitch scales for different moods
+• Adjust scan speed and range for variation
+• Use randomize for happy accidents
+• Export presets to share with others`);
+});
+
+// ================= randomize / reset =================
+$('randBtn').addEventListener('click', () => {
+  for (const c of CONTROLS) {
+    c.src = FEATURES[Math.floor(Math.random() * FEATURES.length)].key;
+    c.inv = Math.random() < 0.25;
+    let a = Math.random(), b = Math.random();
+    if (c.key === 'amp') { a = 0.3 + a * 0.3; b = 0.6 + b * 0.35; }
+    if (c.key === 'revSize') { a = 0.4 + a * 0.4; b = 0.6 + b * 0.4; }
+    c.min = posToVal(c, Math.min(a, b)); c.max = posToVal(c, Math.max(a, b));
+    c.glide = glideFromPos(0.2 + Math.random() * 0.6);
+    syncRow(c); sendGlide(c);
+  }
+  status('🎲 Mapping randomized');
+  log('🎲 Randomized all mappings');
+});
+$('resetBtn').addEventListener('click', () => {
+  CONTROLS.forEach((c, i) => { Object.assign(c, { ...DEFAULTS[i], el: c.el }); syncRow(c); sendGlide(c); });
+  status('↺ Reset to defaults');
+  log('↺ Reset all mappings to defaults');
+});
+
+// ================= audio engine =================
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  try {
+    status('Loading Csound 7…');
+    log('Loading Csound 7.0.0 WASM…');
+    csound = await Csound();
+    csound.on('message', m => log(m));
+    log('Setting audio options…');
+    await csound.setOption('-odac');
+    await csound.setOption('-d');
+    await csound.setOption('-m0');
+    log('Compiling orchestra…');
+    const rc = await csound.compileOrc(ORC);
+    if (rc !== 0) throw new Error('Orchestra failed to compile');
+    log('Starting real-time audio…');
+    await csound.start();
+    const ctx = await csound.getAudioContext();
+    if (ctx && ctx.state === 'suspended') { log('Resuming audio context…'); await ctx.resume(); }
+    log('Initialising channels…');
+    const vals = CONTROLS.map(c => mapControl(c, feats));
+    await Promise.all([
+      csound.setControlChannel('masterGain', $('gain').value / 1000),
+      ...CONTROLS.map(c => csound.setControlChannel('gl_' + c.key, c.glide)),
+      ...CONTROLS.map((c, i) => { lastSent[c.key] = vals[i]; return csound.setControlChannel(c.key, vals[i]); }),
+    ]);
+    log('Starting instruments…');
+    await csound.inputMessage('i 2 0 -1');
+    await csound.inputMessage('i 1 0 -1');
+    droneOn = true;
+    $('droneBtn').disabled = false; $('droneBtn').textContent = 'Drone: on'; $('droneBtn').classList.add('on');
+    $('bounceBtn').disabled = false;
+    $('startBtn').textContent = '✅ Audio running';
+    log('✅ Audio running');
+    status(pixels ? 'Ready. Press ▶ Scan (Space) or drag photo.' : 'Ready. Load a photo.');
+    
+    // Init MIDI
+    initMIDI();
+  } catch (err) {
+    console.error(err);
+    log('❌ Error: ' + err.message);
+    status('Error: ' + err.message);
+    $('startBtn').disabled = false;
+  }
+});
+
+$('droneBtn').addEventListener('click', async () => {
+  droneOn = !droneOn;
+  await csound.inputMessage(droneOn ? 'i 1 0 -1' : 'i -1 0 0');
+  $('droneBtn').textContent = 'Drone: ' + (droneOn ? 'on' : 'off');
+  $('droneBtn').classList.toggle('on', droneOn);
+  log((droneOn ? 'Started' : 'Stopped') + ' drone');
+});
+
+// ================= bounce to WAV =================
+let bouncing = false;
+$('bounceBtn').addEventListener('click', async () => {
+  if (bouncing) return;
+  bouncing = true;
+  $('bounceBtn').disabled = true;
+  $('bounceBtn').textContent = '⏳ Bouncing…';
+  try {
+    log('Starting offline render…');
+    const duration = prompt('Bounce duration in seconds:', '30');
+    if (!duration || isNaN(+duration)) { bouncing = false; $('bounceBtn').disabled = false; $('bounceBtn').textContent = '💾 Bounce WAV'; return; }
+    const secs = +duration;
+    const sr = 48000;
+    const offlineCtx = new OfflineAudioContext(2, sr * secs, sr);
+    const cs = await Csound({ audioContext: offlineCtx });
+    cs.on('message', m => log('[offline] ' + m));
+    await cs.setOption('-d');
+    await cs.compileOrc(ORC);
+    await cs.start();
+    const vals = CONTROLS.map(c => mapControl(c, feats));
+    await Promise.all([
+      cs.setControlChannel('masterGain', $('gain').value / 1000),
+      ...CONTROLS.map(c => cs.setControlChannel('gl_' + c.key, c.glide)),
+      ...CONTROLS.map((c, i) => cs.setControlChannel(c.key, vals[i])),
+    ]);
+    await cs.inputMessage('i 2 0 -1');
+    await cs.inputMessage('i 1 0 -1');
+    log(`Rendering ${secs}s to WAV…`);
+    const buf = await offlineCtx.startRendering();
+    log('Encoding WAV…');
+    const wav = encodeWAV(buf);
+    const blob = new Blob([wav], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `photo_fm_${Date.now()}.wav`;
+    a.click();
+    log('✅ Downloaded ' + a.download);
+    status('Bounced: ' + a.download);
+  } catch (err) {
+    log('❌ Bounce error: ' + err.message);
+    console.error(err);
+  } finally {
+    bouncing = false;
+    $('bounceBtn').disabled = false;
+    $('bounceBtn').textContent = '💾 Bounce WAV';
+  }
+});
+
+function encodeWAV(buf) {
+  const nCh = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate;
+  const data = new Int16Array(nCh * len);
+  for (let ch = 0; ch < nCh; ch++) {
+    const ch_data = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) data[i * nCh + ch] = Math.max(-1, Math.min(1, ch_data[i])) * 0x7FFF;
+  }
+  const byteRate = sr * nCh * 2;
+  const blockAlign = nCh * 2;
+  const wav = new ArrayBuffer(44 + data.length * 2);
+  const view = new DataView(wav);
+  const writeString = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  writeString(0, 'RIFF'); view.setUint32(4, 36 + data.length * 2, true); writeString(8, 'WAVE');
+  writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, nCh, true); view.setUint32(24, sr, true); view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+  writeString(36, 'data'); view.setUint32(40, data.length * 2, true);
+  for (let i = 0; i < data.length; i++) view.setInt16(44 + i * 2, data[i], true);
+  return wav;
+}
+</script>
+</body>
+</html>

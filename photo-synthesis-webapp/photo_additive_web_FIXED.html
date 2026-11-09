@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Scan Additive · Csound 7</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d0f14; color: #e8e8e8; padding: 20px; font-size: 14px; }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 1.5em; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #4ecdc4; color: #0d0f14; padding: 2px 8px; border-radius: 4px; font-size: 0.6em; font-weight: 700; }
+  .sub { opacity: .6; margin: 4px 0 16px; font-size: .9em; }
+  .top { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel { background: #161a22; border: 1px solid #252b38; border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: .78em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 10px; }
+  #stage { position: relative; min-height: 340px; border: 2px dashed #2f3747; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #0a0c10; }
+  #stage.has-image { border-style: solid; }
+  #stage.drag { border-color: #4ecdc4; }
+  #photo { max-width: 100%; max-height: 480px; display: none; }
+  #overlay { position: absolute; pointer-events: none; }
+  #prompt { text-align: center; opacity: .7; line-height: 1.6; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .9em; cursor: pointer; }
+  button.on { background: #4ecdc4; color: #0d0f14; border-color: #4ecdc4; }
+  button:disabled { opacity: .4; }
+  button.small { padding: 4px 10px; font-size: .85em; }
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: .82em; margin: 8px 0; }
+  .field span.v { color: #4ecdc4; font-variant-numeric: tabular-nums; }
+  .field .lab { display: flex; justify-content: space-between; opacity: .85; }
+  input[type=range] { width: 100%; accent-color: #4ecdc4; }
+  #status { margin-top: 10px; font-size: .85em; opacity: .8; }
+  #console { background: #0a0c10; border: 1px solid #252b38; border-radius: 6px; padding: 10px; font-family: monospace; font-size: .75em; max-height: 120px; overflow-y: auto; margin-top: 10px; }
+  .spectrum { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; margin: 12px 0; }
+  .partial { height: 80px; background: #252b38; border-radius: 3px; position: relative; overflow: hidden; }
+  .partial .fill { position: absolute; bottom: 0; width: 100%; background: linear-gradient(to top, #4ecdc4, #4ecdc480); transition: height .1s; }
+  .partial .label { position: absolute; bottom: 2px; width: 100%; text-align: center; font-size: .6em; opacity: .5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Photo Scan → Additive Synthesizer <span class="badge">ADDITIVE</span></h1>
+  <p class="sub">16-partial additive synthesis. Image features drive harmonic amplitudes to create evolving timbres.</p>
+
+  <div class="top">
+    <div class="panel">
+      <h2>Photo &amp; scan line</h2>
+      <div id="stage">
+        <div id="prompt">Drop a photo here<br><small>JPG · PNG · WebP</small></div>
+        <img id="photo" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <button id="loadBtn" class="small" style="margin-top:8px">Load photo…</button>
+    </div>
+
+    <div class="panel">
+      <h2>Harmonic spectrum (live)</h2>
+      <div class="spectrum" id="spectrum"></div>
+      
+      <div class="field"><div class="lab">Fundamental <span class="v" id="fundVal"></span></div><input type="range" id="fund" min="0" max="1000" value="400"></div>
+      <div class="field"><div class="lab">Brightness <span class="v" id="brightVal"></span></div><input type="range" id="bright" min="0" max="1000" value="500"></div>
+      <div class="field"><div class="lab">Inharmonicity <span class="v" id="inharmVal"></span></div><input type="range" id="inharm" min="0" max="1000" value="100"></div>
+      <div class="field"><div class="lab">Spectral tilt <span class="v" id="tiltVal"></span></div><input type="range" id="tilt" min="0" max="1000" value="700"></div>
+      <div class="field"><div class="lab">Master gain <span class="v" id="gainVal"></span></div><input type="range" id="gain" min="0" max="1000" value="400"></div>
+      
+      <div class="controls">
+        <button id="startBtn">Start audio</button>
+        <button id="scanBtn" disabled>▶ Scan</button>
+      </div>
+      <div id="status">Click "Start audio", load a photo, then ▶ Scan.</div>
+      <div id="console"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+// ================= Additive Csound orchestra =================
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+instr 1
+  kFund   = chnget:k("fund")
+  kBright = chnget:k("bright")
+  kInharm = chnget:k("inharm")
+  kTilt   = chnget:k("tilt")
+  kGain   = port(chnget:k("gain"), 0.05)
+  
+  ; Read 16 partial amplitudes from image analysis
+  kA1  = chnget:k("p1")
+  kA2  = chnget:k("p2")
+  kA3  = chnget:k("p3")
+  kA4  = chnget:k("p4")
+  kA5  = chnget:k("p5")
+  kA6  = chnget:k("p6")
+  kA7  = chnget:k("p7")
+  kA8  = chnget:k("p8")
+  kA9  = chnget:k("p9")
+  kA10 = chnget:k("p10")
+  kA11 = chnget:k("p11")
+  kA12 = chnget:k("p12")
+  kA13 = chnget:k("p13")
+  kA14 = chnget:k("p14")
+  kA15 = chnget:k("p15")
+  kA16 = chnget:k("p16")
+  
+  ; Apply spectral tilt (high partials fade with tilt)
+  kTiltFactor = (1 - kTilt) * 2
+  
+  ; Generate 16 partials with slight inharmonicity
+  a1  = oscili:a(kA1  * kBright * 1.0,            kFund * (1 + 0*kInharm))
+  a2  = oscili:a(kA2  * kBright * (1.0 - kTiltFactor*0.05), kFund * (2 + 1*kInharm*0.01))
+  a3  = oscili:a(kA3  * kBright * (1.0 - kTiltFactor*0.10), kFund * (3 + 2*kInharm*0.01))
+  a4  = oscili:a(kA4  * kBright * (1.0 - kTiltFactor*0.15), kFund * (4 + 3*kInharm*0.01))
+  a5  = oscili:a(kA5  * kBright * (1.0 - kTiltFactor*0.20), kFund * (5 + 4*kInharm*0.01))
+  a6  = oscili:a(kA6  * kBright * (1.0 - kTiltFactor*0.25), kFund * (6 + 5*kInharm*0.01))
+  a7  = oscili:a(kA7  * kBright * (1.0 - kTiltFactor*0.30), kFund * (7 + 6*kInharm*0.01))
+  a8  = oscili:a(kA8  * kBright * (1.0 - kTiltFactor*0.35), kFund * (8 + 7*kInharm*0.01))
+  a9  = oscili:a(kA9  * kBright * (1.0 - kTiltFactor*0.40), kFund * (9 + 8*kInharm*0.01))
+  a10 = oscili:a(kA10 * kBright * (1.0 - kTiltFactor*0.45), kFund * (10 + 9*kInharm*0.01))
+  a11 = oscili:a(kA11 * kBright * (1.0 - kTiltFactor*0.50), kFund * (11 + 10*kInharm*0.01))
+  a12 = oscili:a(kA12 * kBright * (1.0 - kTiltFactor*0.55), kFund * (12 + 11*kInharm*0.01))
+  a13 = oscili:a(kA13 * kBright * (1.0 - kTiltFactor*0.60), kFund * (13 + 12*kInharm*0.01))
+  a14 = oscili:a(kA14 * kBright * (1.0 - kTiltFactor*0.65), kFund * (14 + 13*kInharm*0.01))
+  a15 = oscili:a(kA15 * kBright * (1.0 - kTiltFactor*0.70), kFund * (15 + 14*kInharm*0.01))
+  a16 = oscili:a(kA16 * kBright * (1.0 - kTiltFactor*0.75), kFund * (16 + 15*kInharm*0.01))
+  
+  aSig = (a1+a2+a3+a4+a5+a6+a7+a8+a9+a10+a11+a12+a13+a14+a15+a16) * 0.08 * kGain
+  
+  out(aSig, aSig)
+endin
+`;
+
+// ================= UI & state =================
+const $ = id => document.getElementById(id);
+const log = msg => { const d = document.createElement('div'); d.textContent = msg; $('console').appendChild(d); $('console').scrollTop = $('console').scrollHeight; };
+const status = msg => $('status').textContent = msg;
+
+let csound = null, playing = false;
+let pixels = null, W = 0, H = 0, pos = 0;
+let partials = new Array(16).fill(0.5);
+
+// Build spectrum visualizer
+for (let i = 1; i <= 16; i++) {
+  $('spectrum').insertAdjacentHTML('beforeend', `<div class="partial"><div class="fill" id="p${i}fill"></div><div class="label">${i}</div></div>`);
+}
+
+function updateLabels() {
+  $('fundVal').textContent = Math.round($('fund').value * 0.5 + 50) + ' Hz';
+  $('brightVal').textContent = ($('bright').value / 1000).toFixed(2);
+  $('inharmVal').textContent = ($('inharm').value / 100).toFixed(1) + '%';
+  $('tiltVal').textContent = ($('tilt').value / 1000).toFixed(2);
+  $('gainVal').textContent = ($('gain').value / 1000).toFixed(2);
+}
+for (const id of ['fund','bright','inharm','tilt','gain']) {
+  $(id).addEventListener('input', () => {
+    updateLabels();
+    if (csound) csound.setControlChannel(id, $(id).value / 1000).catch(() => {});
+  });
+}
+updateLabels();
+
+function loadPixels(img) {
+  const c = document.createElement('canvas');
+  W = c.width = Math.min(480, img.naturalWidth);
+  H = c.height = Math.min(480, img.naturalHeight);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  pixels = ctx.getImageData(0, 0, W, H).data;
+}
+
+function analyseLine(p) {
+  const x = Math.floor(p * (W - 1));
+  const profile = [];
+  for (let y = 0; y < H; y++) {
+    const k = (y * W + x) * 4;
+    const r = pixels[k] / 255, g = pixels[k+1] / 255, b = pixels[k+2] / 255;
+    const brightness = (r + g + b) / 3;
+    profile.push(brightness);
+  }
+  
+  // Simple FFT-like analysis: divide scan line into 16 bands
+  const bandSize = Math.floor(H / 16);
+  const amps = [];
+  for (let i = 0; i < 16; i++) {
+    let sum = 0;
+    for (let j = 0; j < bandSize; j++) {
+      const idx = Math.min(i * bandSize + j, H - 1);
+      sum += profile[idx];
+    }
+    amps.push(sum / bandSize);
+  }
+  return amps;
+}
+
+function drawOverlay() {
+  const ov = $('overlay'), img = $('photo');
+  if (ov.width !== img.clientWidth) { ov.width = img.clientWidth; ov.height = img.clientHeight; }
+  const ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  ctx.strokeStyle = '#4ecdc4';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#4ecdc4';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  const x = pos * ov.width;
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, ov.height);
+  ctx.stroke();
+}
+
+function tick(t) {
+  if (pixels && playing) {
+    pos += 0.001;
+    if (pos > 1) pos = 0;
+    partials = analyseLine(pos);
+    drawOverlay();
+    
+    // Update spectrum visualizer
+    for (let i = 0; i < 16; i++) {
+      $(`p${i+1}fill`).style.height = (partials[i] * 100) + '%';
+    }
+    
+    // Send to Csound
+    if (csound) {
+      for (let i = 0; i < 16; i++) {
+        csound.setControlChannel(`p${i+1}`, partials[i]).catch(() => {});
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const img = $('photo');
+  img.onload = () => {
+    $('prompt').style.display = 'none';
+    img.style.display = 'block';
+    $('stage').classList.add('has-image');
+    loadPixels(img);
+    pos = 0;
+    status('Photo loaded. Press ▶ Scan.');
+    $('scanBtn').disabled = false;
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+$('stage').addEventListener('click', () => $('file').click());
+$('loadBtn').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => handleFile(e.target.files[0]));
+$('stage').addEventListener('dragover', e => { e.preventDefault(); $('stage').classList.add('drag'); });
+$('stage').addEventListener('dragleave', () => $('stage').classList.remove('drag'));
+$('stage').addEventListener('drop', e => { e.preventDefault(); $('stage').classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+
+$('scanBtn').addEventListener('click', () => {
+  if (!pixels) return;
+  playing = !playing;
+  $('scanBtn').textContent = playing ? '❚❚ Pause' : '▶ Scan';
+  $('scanBtn').classList.toggle('on', playing);
+});
+
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  try {
+    log('Loading Csound 7…');
+    csound = await Csound();
+    csound.on('message', m => log(m));
+    await csound.setOption('-odac');
+    await csound.setOption('-d');
+    log('Compiling orchestra…');
+    await csound.compileOrc(ORC);
+    await csound.start();
+    const ctx = await csound.getAudioContext();
+    if (ctx?.state === 'suspended') await ctx.resume();
+    
+    log('Initializing…');
+    for (const id of ['fund','bright','inharm','tilt','gain']) {
+      await csound.setControlChannel(id, $(id).value / 1000);
+    }
+    for (let i = 1; i <= 16; i++) {
+      await csound.setControlChannel(`p${i}`, 0.5);
+    }
+    await csound.inputMessage('i 1 0 -1');
+    
+    $('startBtn').textContent = '✅ Running';
+    log('✅ Audio running');
+    status('Ready. Load a photo and press ▶ Scan.');
+  } catch (err) {
+    log('❌ ' + err.message);
+    $('startBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

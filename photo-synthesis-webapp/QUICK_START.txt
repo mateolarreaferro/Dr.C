@@ -1,0 +1,53 @@
+═══════════════════════════════════════════════════════════════════
+  🌴 FLORIDA QUICK START - Photo Synthesis Audio
+═══════════════════════════════════════════════════════════════════
+
+WHAT WE FIXED:
+✅ Added missing instruments 98, 99, 999
+✅ Fixed initialization order (compile BEFORE setOption)
+✅ Added audio context logging
+
+═══════════════════════════════════════════════════════════════════
+  🚀 START (3 Commands)
+═══════════════════════════════════════════════════════════════════
+
+Terminal 1 (leave running):
+  cd /Users/richardboulanger/Dr.C-Terminal.C/photo-synthesis-webapp
+  python3 -m http.server 8080
+
+Terminal 2:
+  open -na "Google Chrome" --args --incognito http://localhost:8080/photo_multi_engine_complete.html
+
+Browser Console (Cmd+Option+J):
+  Look for: "Audio context state: running" ✅
+
+═══════════════════════════════════════════════════════════════════
+  🎵 TEST AUDIO (Browser Console)
+═══════════════════════════════════════════════════════════════════
+
+Test tone (should hear 440 Hz for 3 seconds):
+  await csound.inputMessage('i 999 0 3')
+
+If you hear this → Audio works! ✅
+If not → Audio context issue (see FLORIDA_STARTUP_GUIDE.md)
+
+═══════════════════════════════════════════════════════════════════
+  🖱️ TEST MOUSE SCAN
+═══════════════════════════════════════════════════════════════════
+
+1. Click "Choose Folder" (Slot A)
+2. Select folder with images
+3. Click "Mouse Scan" mode
+4. Move mouse over image
+5. Should hear pitch changing! 🎵
+
+═══════════════════════════════════════════════════════════════════
+  📖 MORE HELP
+═══════════════════════════════════════════════════════════════════
+
+Full guide: FLORIDA_STARTUP_GUIDE.md
+Technical: SESSION_HANDOFF_FLORIDA.md
+
+═══════════════════════════════════════════════════════════════════
+  ✅ SUCCESS = Hearing sound when mouse moves!
+═══════════════════════════════════════════════════════════════════

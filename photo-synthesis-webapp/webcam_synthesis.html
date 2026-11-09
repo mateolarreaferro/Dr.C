@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webcam Synthesis · Live</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0a0c10; color: #e8e8e8; padding: 20px; font-size: 14px; }
+  .wrap { max-width: 1800px; margin: 0 auto; }
+  h1 { font-size: 2em; font-weight: 700; margin-bottom: 10px; }
+  .badge { background: #ff6b6b; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 0.5em; font-weight: 700; margin-left: 10px; }
+  .sub { opacity: .7; margin-bottom: 24px; line-height: 1.6; }
+  
+  .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel { background: #161a22; border: 1px solid #252b38; border-radius: 10px; padding: 16px; }
+  .panel h2 { font-size: .85em; text-transform: uppercase; letter-spacing: .08em; opacity: .7; margin-bottom: 12px; }
+  
+  #videoContainer { position: relative; background: #0a0c10; border-radius: 8px; overflow: hidden; min-height: 400px; display: flex; align-items: center; justify-content: center; }
+  #webcamVideo { width: 100%; height: auto; display: block; }
+  #videoOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .start-prompt { text-align: center; opacity: .5; padding: 40px; }
+  
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button { padding: 10px 16px; border-radius: 6px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .95em; cursor: pointer; transition: all .15s; font-weight: 500; }
+  button:hover:not(:disabled) { border-color: #00ff88; background: #252b38; }
+  button.on { background: #00ff88; color: #0d0f14; border-color: #00ff88; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: .85em; opacity: .7; margin-bottom: 6px; }
+  select, input[type=range] { width: 100%; padding: 8px; background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 4px; font-size: .95em; }
+  input[type=range] { padding: 0; accent-color: #00ff88; }
+  
+  .zones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+  .zone { background: #0a0c10; border: 1px solid #2f3747; border-radius: 6px; padding: 10px; font-size: .85em; }
+  .zone .label { opacity: .6; font-size: .9em; margin-bottom: 4px; }
+  .zone .value { color: #00ff88; font-weight: 600; font-size: 1.1em; }
+  
+  .motion-graph { height: 60px; background: #0a0c10; border-radius: 6px; margin-top: 8px; position: relative; overflow: hidden; }
+  .motion-bar { position: absolute; bottom: 0; width: 2px; background: #00ff88; transition: height .1s; }
+  
+  #status { font-size: .9em; opacity: .7; margin-top: 12px; padding: 8px; background: #0a0c10; border-radius: 4px; }
+  
+  @media (max-width: 1200px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎥 Webcam Synthesis <span class="badge">LIVE</span></h1>
+  <p class="sub">Real-time video analysis driving synthesis. Motion detection, multi-zone analysis, and live waveform visualization.</p>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2>Live Video Feed</h2>
+        <div id="videoContainer">
+          <div class="start-prompt" id="startPrompt">
+            <h3 style="margin-bottom:10px">Click "Start Webcam" to begin</h3>
+            <p>Your camera feed will appear here</p>
+          </div>
+          <video id="webcamVideo" autoplay playsinline style="display:none"></video>
+          <canvas id="videoOverlay"></canvas>
+        </div>
+        <div class="controls" style="margin-top:12px">
+          <button id="startBtn">▶️ Start Webcam</button>
+          <button id="stopBtn" disabled>⏹ Stop</button>
+          <button id="audioBtn" disabled>🔊 Start Audio</button>
+        </div>
+        <div id="status">Waiting for webcam...</div>
+      </div>
+      
+      <div class="panel" style="margin-top:16px">
+        <h2>Multi-Zone Analysis (Live)</h2>
+        <div class="zones">
+          <div class="zone">
+            <div class="label">Top Left</div>
+            <div class="value" id="zoneA">—</div>
+          </div>
+          <div class="zone">
+            <div class="label">Top Right</div>
+            <div class="value" id="zoneB">—</div>
+          </div>
+          <div class="zone">
+            <div class="label">Bottom Left</div>
+            <div class="value" id="zoneC">—</div>
+          </div>
+          <div class="zone">
+            <div class="label">Bottom Right</div>
+            <div class="value" id="zoneD">—</div>
+          </div>
+        </div>
+        <h2 style="margin-top:16px">Motion Detection</h2>
+        <div class="motion-graph" id="motionGraph"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Synthesis Engine</h2>
+        <div class="field">
+          <label>Engine Type</label>
+          <select id="engineSelect">
+            <option value="fm" selected>FM Synthesis</option>
+            <option value="granular">Granular</option>
+            <option value="additive">Additive (16 partials)</option>
+          </select>
+        </div>
+        
+        <div class="field">
+          <label>Frame Rate</label>
+          <select id="fpsSelect">
+            <option value="15">15 FPS (low CPU)</option>
+            <option value="30" selected>30 FPS (balanced)</option>
+            <option value="60">60 FPS (smooth)</option>
+          </select>
+        </div>
+        
+        <div class="field">
+          <label>Resolution</label>
+          <select id="resolutionSelect">
+            <option value="640x480">640×480</option>
+            <option value="1280x720" selected>1280×720 (HD)</option>
+            <option value="1920x1080">1920×1080 (Full HD)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="panel" style="margin-top:16px">
+        <h2>Mapping: Video → Sound</h2>
+        <div class="field">
+          <label>Zone A → Pitch (Hz)</label>
+          <input type="range" id="zoneAPitch" min="100" max="2000" value="440">
+          <span id="zoneAPitchVal">440 Hz</span>
+        </div>
+        <div class="field">
+          <label>Zone B → Filter Cutoff</label>
+          <input type="range" id="zoneBFilter" min="100" max="10000" value="2000">
+          <span id="zoneBFilterVal">2000 Hz</span>
+        </div>
+        <div class="field">
+          <label>Motion → FM Index</label>
+          <input type="range" id="motionIndex" min="0" max="20" value="5">
+          <span id="motionIndexVal">5.0</span>
+        </div>
+        <div class="field">
+          <label>Overall Brightness → Amplitude</label>
+          <input type="range" id="brightnessAmp" min="0" max="100" value="70">
+          <span id="brightnessAmpVal">0.70</span>
+        </div>
+        <div class="field">
+          <label>Master Gain</label>
+          <input type="range" id="masterGain" min="0" max="100" value="60">
+          <span id="masterGainVal">0.60</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// FM Synthesis Csound Orchestra
+const ORC_FM = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+instr 1
+  kFreq = chnget:k("freq")
+  kIndex = chnget:k("index")
+  kCutoff = chnget:k("cutoff")
+  kAmp = chnget:k("amp")
+  kGain = chnget:k("gain")
+  
+  kModFreq = kFreq * 2
+  aMod = oscili:a(kIndex * kModFreq, kModFreq)
+  aCar = oscili:a(0.3, kFreq + aMod)
+  aFilt = moogladder:a(aCar, limit(kCutoff, 50, 18000), 0.3)
+  aSig = aFilt * kAmp * kGain
+  
+  aL, aR pan2 aSig, 0.5
+  out(aL, aR)
+endin
+`;
+
+// State
+let csound = null;
+let webcamStream = null;
+let webcamActive = false;
+let captureInterval = null;
+let motionHistory = [];
+let prevFrame = null;
+
+// Start webcam
+$('startBtn').addEventListener('click', async () => {
+  try {
+    const res = $('resolutionSelect').value;
+    const [width, height] = res.split('x').map(Number);
+    
+    webcamStream = await navigator.mediaDevices.getUserMedia({
+      video: { width, height, facingMode: 'user' }
+    });
+    
+    const video = $('webcamVideo');
+    video.srcObject = webcamStream;
+    video.style.display = 'block';
+    $('startPrompt').style.display = 'none';
+    
+    await new Promise(resolve => {
+      video.onloadedmetadata = () => {
+        video.play();
+        resolve();
+      };
+    });
+    
+    webcamActive = true;
+    $('startBtn').disabled = true;
+    $('stopBtn').disabled = false;
+    $('audioBtn').disabled = false;
+    $('status').textContent = '🎥 Webcam active - click "Start Audio" to begin synthesis';
+    
+    // Start frame capture
+    const fps = +$('fpsSelect').value;
+    startCapture(video, fps);
+    
+  } catch (err) {
+    $('status').textContent = '❌ ' + err.message;
+    console.error(err);
+  }
+});
+
+// Stop webcam
+$('stopBtn').addEventListener('click', () => {
+  if (webcamStream) {
+    webcamStream.getTracks().forEach(track => track.stop());
+    webcamStream = null;
+  }
+  if (captureInterval) {
+    clearInterval(captureInterval);
+    captureInterval = null;
+  }
+  
+  webcamActive = false;
+  $('webcamVideo').style.display = 'none';
+  $('startPrompt').style.display = 'block';
+  $('startBtn').disabled = false;
+  $('stopBtn').disabled = true;
+  $('audioBtn').disabled = true;
+  $('status').textContent = 'Webcam stopped';
+});
+
+// Start audio
+$('audioBtn').addEventListener('click', async () => {
+  if (!csound) {
+    try {
+      csound = await Csound();
+      await csound.setOption('-odac');
+      await csound.compileOrc(ORC_FM);
+      await csound.start();
+      
+      // Set initial values
+      await csound.setControlChannel('freq', 440);
+      await csound.setControlChannel('index', 5);
+      await csound.setControlChannel('cutoff', 2000);
+      await csound.setControlChannel('amp', 0.7);
+      await csound.setControlChannel('gain', 0.6);
+      
+      await csound.inputMessage('i 1 0 -1');
+      
+      const ctx = await csound.getAudioContext();
+      if (ctx.state === 'suspended') await ctx.resume();
+      
+      $('audioBtn').textContent = '🔊 Audio ON';
+      $('audioBtn').classList.add('on');
+      $('status').textContent = '✅ Synthesis active - move in front of camera!';
+      
+    } catch (err) {
+      $('status').textContent = '❌ Audio error: ' + err.message;
+      console.error(err);
+    }
+  }
+});
+
+// Frame capture and analysis
+function startCapture(video, fps) {
+  if (captureInterval) clearInterval(captureInterval);
+  
+  captureInterval = setInterval(() => {
+    if (!webcamActive) return;
+    analyzeFrame(video);
+  }, 1000 / fps);
+}
+
+function analyzeFrame(video) {
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+  
+  // Analyze 4 zones (quadrants)
+  const w = canvas.width, h = canvas.height;
+  const zones = [
+    { x: 0, y: 0, w: w/2, h: h/2, id: 'zoneA' },         // Top-left
+    { x: w/2, y: 0, w: w/2, h: h/2, id: 'zoneB' },       // Top-right
+    { x: 0, y: h/2, w: w/2, h: h/2, id: 'zoneC' },       // Bottom-left
+    { x: w/2, y: h/2, w: w/2, h: h/2, id: 'zoneD' },     // Bottom-right
+  ];
+  
+  zones.forEach(zone => {
+    let sum = 0, count = 0;
+    for (let y = Math.floor(zone.y); y < Math.floor(zone.y + zone.h); y += 4) {
+      for (let x = Math.floor(zone.x); x < Math.floor(zone.x + zone.w); x += 4) {
+        const idx = (y * w + x) * 4;
+        const brightness = (pixels[idx] + pixels[idx + 1] + pixels[idx + 2]) / 3 / 255;
+        sum += brightness;
+        count++;
+      }
+    }
+    const avg = count > 0 ? sum / count : 0;
+    $(zone.id).textContent = (avg * 100).toFixed(1) + '%';
+    
+    // Map to synthesis parameters
+    if (csound) {
+      if (zone.id === 'zoneA') {
+        const freq = 100 + avg * 1900; // 100-2000 Hz
+        csound.setControlChannel('freq', freq).catch(() => {});
+        $('zoneAPitchVal').textContent = freq.toFixed(0) + ' Hz';
+      }
+      if (zone.id === 'zoneB') {
+        const cutoff = 100 + avg * 9900; // 100-10000 Hz
+        csound.setControlChannel('cutoff', cutoff).catch(() => {});
+        $('zoneBFilterVal').textContent = cutoff.toFixed(0) + ' Hz';
+      }
+    }
+  });
+  
+  // Motion detection
+  if (prevFrame) {
+    let motion = 0;
+    for (let i = 0; i < pixels.length; i += 40) {
+      motion += Math.abs(pixels[i] - prevFrame[i]);
+    }
+    motion = motion / (pixels.length / 40) / 255;
+    
+    motionHistory.push(motion);
+    if (motionHistory.length > 100) motionHistory.shift();
+    
+    // Update motion graph
+    updateMotionGraph();
+    
+    // Map motion to FM index
+    if (csound) {
+      const index = motion * 20; // 0-20
+      csound.setControlChannel('index', index).catch(() => {});
+      $('motionIndexVal').textContent = index.toFixed(1);
+    }
+  }
+  
+  prevFrame = new Uint8ClampedArray(pixels);
+}
+
+function updateMotionGraph() {
+  const graph = $('motionGraph');
+  graph.innerHTML = '';
+  
+  const barWidth = graph.offsetWidth / motionHistory.length;
+  motionHistory.forEach((motion, i) => {
+    const bar = document.createElement('div');
+    bar.className = 'motion-bar';
+    bar.style.left = (i * barWidth) + 'px';
+    bar.style.height = (motion * 100) + '%';
+    bar.style.width = Math.max(2, barWidth) + 'px';
+    graph.appendChild(bar);
+  });
+}
+
+// Manual controls
+$('masterGain').addEventListener('input', () => {
+  const v = $('masterGain').value / 100;
+  $('masterGainVal').textContent = v.toFixed(2);
+  if (csound) csound.setControlChannel('gain', v).catch(() => {});
+});
+
+$('fpsSelect').addEventListener('change', () => {
+  if (webcamActive) {
+    const video = $('webcamVideo');
+    const fps = +$('fpsSelect').value;
+    startCapture(video, fps);
+  }
+});
+</script>
+</body>
+</html>

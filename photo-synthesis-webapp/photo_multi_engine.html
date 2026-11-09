@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Engine Performance System · Csound 7</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0a0c10; color: #e8e8e8; padding: 16px; font-size: 14px; }
+  .wrap { max-width: 1800px; margin: 0 auto; }
+  h1 { font-size: 1.4em; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #ff6b6b; color: #0a0c10; padding: 2px 8px; border-radius: 4px; font-size: 0.65em; font-weight: 700; }
+  .sub { opacity: .6; margin-bottom: 12px; font-size: .88em; }
+  
+  .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+  .slot { background: #161a22; border: 2px solid #252b38; border-radius: 8px; padding: 12px; }
+  .slot.active { border-color: #00ff88; }
+  .slot-header { font-size: .75em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 8px; font-weight: 600; }
+  
+  .photo-zone { position: relative; height: 180px; border: 2px dashed #2f3747; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #0d0f14; margin-bottom: 10px; overflow: hidden; }
+  .photo-zone.has-photo { border-style: solid; border-color: #00ff88; }
+  .photo-zone img { max-width: 100%; max-height: 100%; display: none; }
+  .photo-zone.has-photo img { display: block; }
+  .photo-zone canvas { position: absolute; pointer-events: none; }
+  .photo-prompt { text-align: center; font-size: .8em; opacity: .5; }
+  
+  .field { margin: 6px 0; font-size: .82em; }
+  .field .lab { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .field .v { color: #00ff88; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: #00ff88; height: 18px; }
+  select { width: 100%; padding: 4px 6px; background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 4px; font-size: .9em; }
+  
+  .master { background: #161a22; border: 2px solid #252b38; border-radius: 8px; padding: 12px; }
+  .master-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 2fr; gap: 16px; align-items: center; }
+  
+  .mode-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { padding: 6px 12px; border-radius: 5px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .85em; cursor: pointer; transition: all .15s; }
+  button:hover { border-color: #00ff88; }
+  button.on { background: #00ff88; color: #0a0c10; border-color: #00ff88; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  
+  #status { margin-top: 8px; font-size: .85em; opacity: .8; }
+  #console { background: #0d0f14; border: 1px solid #252b38; border-radius: 6px; padding: 8px; font-family: monospace; font-size: .7em; max-height: 100px; overflow-y: auto; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Multi-Engine Performance System <span class="badge">QUAD</span></h1>
+  <p class="sub">4 independent photo-synthesis slots with routing, mixing, and master effects.</p>
+  
+  <div class="slots" id="slots">
+    <!-- Slot A -->
+    <div class="slot" data-slot="A">
+      <div class="slot-header">SLOT A</div>
+      <div class="photo-zone" id="zoneA">
+        <div class="photo-prompt">Drop photo</div>
+        <img id="photoA" alt="">
+        <canvas id="overlayA"></canvas>
+      </div>
+      <input type="file" id="fileA" accept="image/*" hidden>
+      
+      <div class="field">
+        <div class="lab">Engine</div>
+        <select id="engineA">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+        </select>
+      </div>
+      
+      <div id="paramsA">
+        <div class="field"><div class="lab">Frequency <span class="v" id="valA_freq">200</span></div><input type="range" id="A_freq" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Ratio <span class="v" id="valA_ratio">2.0</span></div><input type="range" id="A_ratio" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Index <span class="v" id="valA_index">5.0</span></div><input type="range" id="A_index" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Cutoff <span class="v" id="valA_cutoff">2000</span></div><input type="range" id="A_cutoff" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Amplitude <span class="v" id="valA_amp">0.5</span></div><input type="range" id="A_amp" min="0" max="1000" value="500"></div>
+      </div>
+    </div>
+    
+    <!-- Slot B -->
+    <div class="slot" data-slot="B">
+      <div class="slot-header">SLOT B</div>
+      <div class="photo-zone" id="zoneB">
+        <div class="photo-prompt">Drop photo</div>
+        <img id="photoB" alt="">
+        <canvas id="overlayB"></canvas>
+      </div>
+      <input type="file" id="fileB" accept="image/*" hidden>
+      
+      <div class="field">
+        <div class="lab">Engine</div>
+        <select id="engineB">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+        </select>
+      </div>
+      
+      <div id="paramsB">
+        <div class="field"><div class="lab">Frequency <span class="v" id="valB_freq">200</span></div><input type="range" id="B_freq" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Ratio <span class="v" id="valB_ratio">2.0</span></div><input type="range" id="B_ratio" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Index <span class="v" id="valB_index">5.0</span></div><input type="range" id="B_index" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Cutoff <span class="v" id="valB_cutoff">2000</span></div><input type="range" id="B_cutoff" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Amplitude <span class="v" id="valB_amp">0.5</span></div><input type="range" id="B_amp" min="0" max="1000" value="500"></div>
+      </div>
+    </div>
+    
+    <!-- Slot C -->
+    <div class="slot" data-slot="C">
+      <div class="slot-header">SLOT C</div>
+      <div class="photo-zone" id="zoneC">
+        <div class="photo-prompt">Drop photo</div>
+        <img id="photoC" alt="">
+        <canvas id="overlayC"></canvas>
+      </div>
+      <input type="file" id="fileC" accept="image/*" hidden>
+      
+      <div class="field">
+        <div class="lab">Engine</div>
+        <select id="engineC">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+        </select>
+      </div>
+      
+      <div id="paramsC">
+        <div class="field"><div class="lab">Frequency <span class="v" id="valC_freq">200</span></div><input type="range" id="C_freq" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Ratio <span class="v" id="valC_ratio">2.0</span></div><input type="range" id="C_ratio" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Index <span class="v" id="valC_index">5.0</span></div><input type="range" id="C_index" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Cutoff <span class="v" id="valC_cutoff">2000</span></div><input type="range" id="C_cutoff" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Amplitude <span class="v" id="valC_amp">0.5</span></div><input type="range" id="C_amp" min="0" max="1000" value="500"></div>
+      </div>
+    </div>
+    
+    <!-- Slot D -->
+    <div class="slot" data-slot="D">
+      <div class="slot-header">SLOT D</div>
+      <div class="photo-zone" id="zoneD">
+        <div class="photo-prompt">Drop photo</div>
+        <img id="photoD" alt="">
+        <canvas id="overlayD"></canvas>
+      </div>
+      <input type="file" id="fileD" accept="image/*" hidden>
+      
+      <div class="field">
+        <div class="lab">Engine</div>
+        <select id="engineD">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+        </select>
+      </div>
+      
+      <div id="paramsD">
+        <div class="field"><div class="lab">Frequency <span class="v" id="valD_freq">200</span></div><input type="range" id="D_freq" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Ratio <span class="v" id="valD_ratio">2.0</span></div><input type="range" id="D_ratio" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">FM Index <span class="v" id="valD_index">5.0</span></div><input type="range" id="D_index" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Cutoff <span class="v" id="valD_cutoff">2000</span></div><input type="range" id="D_cutoff" min="0" max="1000" value="500"></div>
+        <div class="field"><div class="lab">Amplitude <span class="v" id="valD_amp">0.5</span></div><input type="range" id="D_amp" min="0" max="1000" value="500"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="master">
+    <div class="master-grid">
+      <div>
+        <div style="font-size:.75em; text-transform:uppercase; opacity:.6; margin-bottom:6px;">Playback Mode</div>
+        <select id="playMode">
+          <option value="solo_A">Solo: A</option>
+          <option value="solo_B">Solo: B</option>
+          <option value="solo_C">Solo: C</option>
+          <option value="solo_D">Solo: D</option>
+          <option value="pair_AB">Pair: A+B</option>
+          <option value="pair_AC">Pair: A+C</option>
+          <option value="pair_AD">Pair: A+D</option>
+          <option value="pair_BC">Pair: B+C</option>
+          <option value="pair_BD">Pair: B+D</option>
+          <option value="pair_CD">Pair: C+D</option>
+          <option value="trio_ABC">Trio: A+B+C</option>
+          <option value="trio_ABD">Trio: A+B+D</option>
+          <option value="trio_ACD">Trio: A+C+D</option>
+          <option value="trio_BCD">Trio: B+C+D</option>
+          <option value="quad" selected>Quad: A+B+C+D</option>
+        </select>
+      </div>
+      
+      <div class="field">
+        <div class="lab">Master Gain <span class="v" id="valMasterGain">0.70</span></div>
+        <input type="range" id="masterGain" min="0" max="1000" value="700">
+      </div>
+      
+      <div class="field">
+        <div class="lab">Reverb Size <span class="v" id="valRevSize">0.85</span></div>
+        <input type="range" id="revSize" min="0" max="1000" value="850">
+      </div>
+      
+      <div class="mode-buttons">
+        <button id="startBtn">🎵 Start Audio</button>
+        <button id="playBtn" disabled>▶ Play All</button>
+        <button id="stopBtn" disabled>■ Stop All</button>
+      </div>
+    </div>
+    
+    <div id="status">Start audio to begin.</div>
+    <div id="console"></div>
+  </div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+const $ = id => document.getElementById(id);
+
+// ================= Csound Orchestra =================
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+gaRevL init 0
+gaRevR init 0
+
+; FM Synthesis for each slot
+; instr 10 = Slot A, 20 = Slot B, 30 = Slot C, 40 = Slot D
+
+instr 10
+  SPrefix = "A_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  
+  kModFreq = kFreq * kRatio
+  aMod = oscili:a(kIndex * kModFreq, kModFreq)
+  aCar = oscili:a(0.3, kFreq + aMod)
+  aFilt = moogladder:a(aCar, limit(kCut, 30, 18000), 0.3)
+  aSig = aFilt * kAmp
+  
+  gaRevL += aSig * 0.3
+  gaRevR += aSig * 0.3
+  outs aSig, aSig
+endin
+
+instr 20
+  SPrefix = "B_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  
+  kModFreq = kFreq * kRatio
+  aMod = oscili:a(kIndex * kModFreq, kModFreq)
+  aCar = oscili:a(0.3, kFreq + aMod)
+  aFilt = moogladder:a(aCar, limit(kCut, 30, 18000), 0.3)
+  aSig = aFilt * kAmp
+  
+  gaRevL += aSig * 0.3
+  gaRevR += aSig * 0.3
+  outs aSig, aSig
+endin
+
+instr 30
+  SPrefix = "C_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  
+  kModFreq = kFreq * kRatio
+  aMod = oscili:a(kIndex * kModFreq, kModFreq)
+  aCar = oscili:a(0.3, kFreq + aMod)
+  aFilt = moogladder:a(aCar, limit(kCut, 30, 18000), 0.3)
+  aSig = aFilt * kAmp
+  
+  gaRevL += aSig * 0.3
+  gaRevR += aSig * 0.3
+  outs aSig, aSig
+endin
+
+instr 40
+  SPrefix = "D_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  
+  kModFreq = kFreq * kRatio
+  aMod = oscili:a(kIndex * kModFreq, kModFreq)
+  aCar = oscili:a(0.3, kFreq + aMod)
+  aFilt = moogladder:a(aCar, limit(kCut, 30, 18000), 0.3)
+  aSig = aFilt * kAmp
+  
+  gaRevL += aSig * 0.3
+  gaRevR += aSig * 0.3
+  outs aSig, aSig
+endin
+
+; Master reverb
+instr 90
+  kSize = chnget:k("revSize")
+  kSize = limit(kSize, 0.3, 0.98)
+  kGain = chnget:k("masterGain")
+  aRL, aRR reverbsc gaRevL, gaRevR, kSize, 10000
+  outs aRL * kGain, aRR * kGain
+  clear gaRevL, gaRevR
+endin
+`;
+
+// ================= State =================
+let csound = null;
+let playing = false;
+
+const slots = {
+  A: { pixels: null, pos: 0, scanning: false },
+  B: { pixels: null, pos: 0, scanning: false },
+  C: { pixels: null, pos: 0, scanning: false },
+  D: { pixels: null, pos: 0, scanning: false }
+};
+
+// ================= Utilities =================
+function log(msg) {
+  const c = $('console');
+  c.textContent += msg + '\n';
+  c.scrollTop = c.scrollHeight;
+}
+
+function status(msg) {
+  $('status').textContent = msg;
+}
+
+// ================= Parameter Binding =================
+const params = ['freq', 'ratio', 'index', 'cutoff', 'amp'];
+['A', 'B', 'C', 'D'].forEach(slot => {
+  params.forEach(param => {
+    const id = `${slot}_${param}`;
+    const slider = $(id);
+    const valSpan = $(`val${id}`);
+    
+    slider.addEventListener('input', () => {
+      let v = slider.value / 1000;
+      
+      // Scale parameters
+      if (param === 'freq') v = 50 + v * 950; // 50-1000 Hz
+      if (param === 'ratio') v = 0.5 + v * 7.5; // 0.5-8.0
+      if (param === 'index') v = v * 20; // 0-20
+      if (param === 'cutoff') v = 200 + v * 8800; // 200-9000 Hz
+      
+      valSpan.textContent = v.toFixed(param === 'amp' ? 2 : 0);
+      
+      if (csound) {
+        csound.setControlChannel(id, v).catch(() => {});
+      }
+    });
+    
+    // Initialize display
+    slider.dispatchEvent(new Event('input'));
+  });
+});
+
+// Master controls
+$('masterGain').addEventListener('input', () => {
+  const v = $('masterGain').value / 1000;
+  $('valMasterGain').textContent = v.toFixed(2);
+  if (csound) csound.setControlChannel('masterGain', v).catch(() => {});
+});
+
+$('revSize').addEventListener('input', () => {
+  const v = $('revSize').value / 1000;
+  $('valRevSize').textContent = v.toFixed(2);
+  if (csound) csound.setControlChannel('revSize', v).catch(() => {});
+});
+
+// ================= Photo Loading =================
+function setupPhotoZone(slot) {
+  const zone = $(`zone${slot}`);
+  const file = $(`file${slot}`);
+  const img = $(`photo${slot}`);
+  
+  zone.addEventListener('click', () => file.click());
+  
+  file.addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    
+    img.onload = () => {
+      zone.classList.add('has-photo');
+      loadPixels(slot, img);
+      log(`📸 Slot ${slot}: Photo loaded`);
+    };
+    img.src = URL.createObjectURL(f);
+  });
+  
+  zone.addEventListener('dragover', e => e.preventDefault());
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) {
+      img.onload = () => {
+        zone.classList.add('has-photo');
+        loadPixels(slot, img);
+        log(`📸 Slot ${slot}: Photo loaded`);
+      };
+      img.src = URL.createObjectURL(f);
+    }
+  });
+}
+
+function loadPixels(slot, img) {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  slots[slot].pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function analyzePhoto(slot) {
+  if (!slots[slot].pixels) return { hue: 0.5, brightness: 0.5, contrast: 0.5 };
+  
+  const pixels = slots[slot].pixels;
+  let r = 0, g = 0, b = 0, count = 0;
+  
+  // Sample pixels
+  for (let i = 0; i < pixels.data.length; i += 40) {
+    r += pixels.data[i];
+    g += pixels.data[i + 1];
+    b += pixels.data[i + 2];
+    count++;
+  }
+  
+  r /= count;
+  g /= count;
+  b /= count;
+  
+  const brightness = (r + g + b) / (3 * 255);
+  const hue = (r / 255 + g / 255 * 0.5) / 1.5;
+  const contrast = Math.abs(r - g) / 255;
+  
+  return { hue, brightness, contrast };
+}
+
+['A', 'B', 'C', 'D'].forEach(setupPhotoZone);
+
+// ================= Scanning =================
+function tick() {
+  ['A', 'B', 'C', 'D'].forEach(slot => {
+    if (slots[slot].scanning && slots[slot].pixels) {
+      slots[slot].pos += 0.002;
+      if (slots[slot].pos > 1) slots[slot].pos = 0;
+      
+      const features = analyzePhoto(slot);
+      
+      // Map photo features to parameters
+      if (csound) {
+        csound.setControlChannel(`${slot}_freq`, 50 + features.brightness * 950).catch(() => {});
+        csound.setControlChannel(`${slot}_index`, features.contrast * 20).catch(() => {});
+      }
+    }
+  });
+  requestAnimationFrame(tick);
+}
+tick();
+
+// ================= Playback Mode =================
+$('playMode').addEventListener('change', () => {
+  const mode = $('playMode').value;
+  log(`🎛️ Mode: ${mode}`);
+  
+  // Stop all slots
+  if (csound) {
+    ['A', 'B', 'C', 'D'].forEach(slot => {
+      slots[slot].scanning = false;
+    });
+  }
+  
+  // Highlight active slots
+  document.querySelectorAll('.slot').forEach(el => el.classList.remove('active'));
+  
+  // Determine which slots to activate
+  const active = [];
+  if (mode.includes('A')) active.push('A');
+  if (mode.includes('B')) active.push('B');
+  if (mode.includes('C')) active.push('C');
+  if (mode.includes('D')) active.push('D');
+  
+  active.forEach(slot => {
+    document.querySelector(`.slot[data-slot="${slot}"]`).classList.add('active');
+  });
+});
+
+// ================= Csound Init =================
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  try {
+    log('Loading Csound 7…');
+    csound = await Csound();
+    csound.on('message', m => log(m));
+    await csound.setOption('-odac');
+    await csound.setOption('-d');
+    
+    log('Compiling orchestra…');
+    await csound.compileOrc(ORC);
+    await csound.start();
+    const ctx = await csound.getAudioContext();
+    if (ctx?.state === 'suspended') await ctx.resume();
+    
+    log('Initializing channels…');
+    // Init all slot parameters
+    ['A', 'B', 'C', 'D'].forEach(slot => {
+      params.forEach(param => {
+        const slider = $(`${slot}_${param}`);
+        slider.dispatchEvent(new Event('input'));
+      });
+    });
+    
+    // Init master
+    $('masterGain').dispatchEvent(new Event('input'));
+    $('revSize').dispatchEvent(new Event('input'));
+    
+    log('Starting master reverb…');
+    await csound.inputMessage('i 90 0 -1');
+    
+    $('playBtn').disabled = false;
+    $('stopBtn').disabled = false;
+    $('startBtn').textContent = '✅ Audio Running';
+    log('✅ Ready to play');
+    status('Load photos in slots, select mode, then press ▶ Play');
+  } catch (err) {
+    log('❌ ' + err.message);
+    $('startBtn').disabled = false;
+  }
+});
+
+$('playBtn').addEventListener('click', async () => {
+  if (!csound) return;
+  
+  const mode = $('playMode').value;
+  const active = [];
+  if (mode.includes('A')) active.push('A');
+  if (mode.includes('B')) active.push('B');
+  if (mode.includes('C')) active.push('C');
+  if (mode.includes('D')) active.push('D');
+  
+  // Start active slot instruments
+  const instrMap = { A: 10, B: 20, C: 30, D: 40 };
+  for (const slot of active) {
+    await csound.inputMessage(`i ${instrMap[slot]} 0 -1`);
+    slots[slot].scanning = true;
+    log(`▶ Started slot ${slot}`);
+  }
+  
+  playing = true;
+  status(`Playing: ${active.join(' + ')}`);
+});
+
+$('stopBtn').addEventListener('click', async () => {
+  if (!csound) return;
+  
+  // Stop all instruments except reverb
+  await csound.inputMessage('i -10 0 0');
+  await csound.inputMessage('i -20 0 0');
+  await csound.inputMessage('i -30 0 0');
+  await csound.inputMessage('i -40 0 0');
+  
+  ['A', 'B', 'C', 'D'].forEach(slot => {
+    slots[slot].scanning = false;
+  });
+  
+  playing = false;
+  log('■ Stopped all slots');
+  status('Stopped');
+});
+
+// Initialize mode display
+$('playMode').dispatchEvent(new Event('change'));
+
+</script>
+</body>
+</html>

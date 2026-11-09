@@ -1,0 +1,87 @@
+═══════════════════════════════════════════════════════════════
+🌴 FLORIDA AUDIO TEST CHECKLIST 🌴
+═══════════════════════════════════════════════════════════════
+
+📋 STARTUP (30 seconds)
+───────────────────────────────────────────────────────────────
+cd ~/Dr.C-Terminal.C/photo-synthesis-webapp
+python3 -m http.server 8080
+
+Open Chrome incognito:
+http://localhost:8080/photo_multi_engine_complete.html
+
+Press Cmd+Option+J (console)
+Click "🎬 Start Audio Engine"
+
+───────────────────────────────────────────────────────────────
+✅ WHAT YOU SHOULD SEE
+───────────────────────────────────────────────────────────────
+✅ Reverb (90) started
+✅ Harmony A-D (501-504) started
+✅ Slot A playing - move mouse over image for sound!
+--Csound version 7.0
+
+NO ERRORS
+NO "invalid instrument" messages
+NO "outs is deprecated" warnings
+
+───────────────────────────────────────────────────────────────
+🧪 QUICK TESTS
+───────────────────────────────────────────────────────────────
+1. Test tone:
+   await csound.inputMessage('i 999 0 3')
+   → Should hear 440 Hz for 3 seconds
+
+2. Load image:
+   Click 📁 in Slot A → choose any image
+
+3. Move mouse:
+   Move mouse over image → SHOULD HEAR FM SYNTH!
+
+───────────────────────────────────────────────────────────────
+🐛 IF NO SOUND
+───────────────────────────────────────────────────────────────
+Check audio context:
+const ctx = await csound.getAudioContext()
+console.log(ctx.state)
+→ Should be "running" not "suspended"
+
+Check channels:
+await csound.setControlChannel('A_freq', 440)
+await csound.getControlChannel('A_freq')
+→ Should return 440
+
+Manual test:
+await csound.setControlChannel('A_amp', 0.5)
+await csound.inputMessage('i 10 0 5')
+→ Should hear 5-second tone
+
+───────────────────────────────────────────────────────────────
+📊 WHAT WAS FIXED
+───────────────────────────────────────────────────────────────
+✅ All 9 envelope i(k) casts
+✅ schedkwhen instead of schedule
+✅ Function table in header
+✅ Correct init order (compile→options→start)
+✅ All outs → out
+✅ Stop button only uses valid instruments
+✅ Engine switch saves oldEngine first
+✅ Slot A auto-starts on load
+
+───────────────────────────────────────────────────────────────
+🎯 SUCCESS = SOUND!
+───────────────────────────────────────────────────────────────
+When you hear sound from moving mouse over image:
+🎉 YOU'RE GOLDEN! 🎉
+
+Then test:
+- All 5 engines (FM, Granular, Additive, Percussive, Waveguide)
+- All 4 slots (A, B, C, D)
+- Harmony toggle
+- Parameter sliders
+- Sequencer
+- Presets
+
+───────────────────────────────────────────────────────────────
+Safe travels! 🌴✈️
+═══════════════════════════════════════════════════════════════

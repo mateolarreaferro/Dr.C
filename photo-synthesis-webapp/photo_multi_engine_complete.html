@@ -1,0 +1,3717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Engine Performance System · Csound 7</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0a0c10; color: #e8e8e8; padding: 16px; font-size: 14px; overflow-x: hidden; }
+  .wrap { max-width: 1900px; margin: 0 auto; }
+  h1 { font-size: 1.6em; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #ff6b6b; color: #0a0c10; padding: 3px 10px; border-radius: 4px; font-size: 0.55em; font-weight: 700; letter-spacing: 0.05em; }
+  .sub { opacity: .6; margin-bottom: 16px; font-size: .9em; }
+  
+  .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+  .slot { background: #161a22; border: 2px solid #252b38; border-radius: 8px; padding: 12px; transition: border-color .2s; }
+  .slot.active { border-color: #00ff88; box-shadow: 0 0 16px rgba(0,255,136,0.3); }
+  .slot-header { font-size: .75em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 8px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .slot-status { font-size: .85em; color: #00ff88; }
+  
+  .photo-zone { position: relative; height: 200px; border: 2px dashed #2f3747; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: #0d0f14; margin-bottom: 10px; overflow: hidden; }
+  .photo-zone.has-photo { border-style: solid; border-color: #00ff88; }
+  .photo-zone img { max-width: 100%; max-height: 100%; display: none; }
+  .photo-zone.has-photo img { display: block; }
+  .photo-zone canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  .photo-prompt { text-align: center; font-size: .8em; opacity: .5; }
+  
+  .field { margin: 6px 0; font-size: .8em; }
+  .field .lab { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  .field .v { color: #00ff88; font-variant-numeric: tabular-nums; font-size: .9em; }
+  input[type=range] { width: 100%; accent-color: #00ff88; height: 18px; }
+  select { width: 100%; padding: 5px 8px; background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 4px; font-size: .85em; cursor: pointer; }
+  select:hover { border-color: #00ff88; }
+  
+  .master { background: #161a22; border: 2px solid #252b38; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .master-header { font-size: .8em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 12px; font-weight: 600; }
+  .master-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 2fr; gap: 20px; align-items: center; }
+  
+  .sequence { background: #161a22; border: 2px solid #252b38; border-radius: 8px; padding: 16px; }
+  .seq-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .timeline { height: 60px; background: #0d0f14; border-radius: 6px; position: relative; overflow: hidden; }
+  .timeline-track { position: absolute; height: 12px; background: #00ff88; border-radius: 2px; opacity: 0.3; transition: opacity .2s; }
+  .timeline-track.active { opacity: 1; box-shadow: 0 0 8px rgba(0,255,136,0.6); }
+  
+  .mode-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { padding: 8px 14px; border-radius: 5px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .85em; cursor: pointer; transition: all .15s; }
+  button:hover:not(:disabled) { border-color: #00ff88; background: #222a38; }
+  button.on { background: #00ff88; color: #0a0c10; border-color: #00ff88; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  
+  .preset-row { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .preset-row select { flex: 1; }
+  .preset-row button { padding: 6px 12px; }
+  
+  #status { margin-top: 12px; font-size: .9em; opacity: .8; padding: 8px; background: #0d0f14; border-radius: 4px; }
+  #console { background: #0d0f14; border: 1px solid #252b38; border-radius: 6px; padding: 8px; font-family: 'SF Mono', 'Consolas', monospace; font-size: .68em; max-height: 120px; overflow-y: auto; margin-top: 8px; line-height: 1.4; }
+  
+  .scan-viz { height: 4px; background: #252b38; border-radius: 2px; overflow: hidden; margin-top: 4px; }
+  .scan-progress { height: 100%; background: linear-gradient(90deg, #00ff88, #00cc66); transition: width .1s linear; }
+  
+  .folder-ctrl { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 6px; background: #0d0f14; border-radius: 4px; }
+  .folder-btn { padding: 4px 10px; font-size: .75em; background: #252b38; border: 1px solid #2f3747; border-radius: 4px; color: #e8e8e8; cursor: pointer; transition: all .15s; }
+  .folder-btn:hover { border-color: #00ff88; background: #2f3747; }
+  .folder-info { font-size: .7em; opacity: .7; flex: 1; }
+  .folder-nav { display: flex; gap: 4px; }
+  .nav-btn { padding: 3px 8px; font-size: .75em; background: #1e2430; border: 1px solid #2f3747; border-radius: 3px; color: #e8e8e8; cursor: pointer; transition: all .15s; }
+  .nav-btn:hover:not(:disabled) { border-color: #00ff88; background: #252b38; }
+  .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
+  
+  .folder-settings { background: #0d0f14; border-radius: 4px; padding: 6px; margin: 6px 0; }
+  .mini-select { width: 100%; padding: 3px 6px; background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 3px; font-size: .75em; cursor: pointer; }
+  .mini-select:hover { border-color: #00ff88; }
+  
+  .timing-params { margin-top: 6px; padding: 6px; background: #161a22; border-radius: 3px; }
+  .timing-params .field { margin: 4px 0; }
+  .timing-params .lab { font-size: .7em; }
+  .timing-params input[type=number] { width: 60px; padding: 2px 4px; background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 3px; font-size: .75em; }
+  .timing-params input[type=range] { height: 14px; }
+  
+  .musical-grid { display: grid; grid-template-columns: 1fr 1.5fr 100px; gap: 20px; align-items: center; }
+  .beat-indicator { display: flex; gap: 8px; justify-content: center; align-items: center; }
+  .beat-light { width: 20px; height: 20px; border-radius: 50%; background: #2f3747; border: 2px solid #252b38; transition: all .1s; }
+  .beat-light.active { background: #00ff88; border-color: #00ff88; box-shadow: 0 0 12px rgba(0,255,136,0.8); }
+  
+  .scan-mode-ctrl { margin: 6px 0; padding: 6px; background: #0d0f14; border-radius: 4px; }
+  .scan-mode-ctrl .lab { font-size: .7em; opacity: .7; margin-bottom: 4px; }
+  .scan-mode-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .scan-mode-btn { padding: 4px 8px; font-size: .7em; background: #1e2430; border: 1px solid #2f3747; border-radius: 3px; cursor: pointer; transition: all .15s; }
+  .scan-mode-btn:hover { border-color: #00ff88; }
+  .scan-mode-btn.active { background: #00ff88; color: #0a0c10; border-color: #00ff88; font-weight: 600; }
+  
+  .phrase-ctrl { margin: 6px 0; padding: 6px; background: #0d0f14; border-radius: 4px; }
+  .phrase-ctrl .mini-field { margin: 3px 0; }
+  .phrase-ctrl .mini-field .lab { font-size: .65em; display: flex; justify-content: space-between; }
+  .phrase-ctrl .mini-field input[type=range] { height: 12px; }
+  
+  .adsr-ctrl { margin: 6px 0; padding: 6px; background: #0d0f14; border-radius: 4px; }
+  .adsr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .adsr-grid .mini-field { margin: 2px 0; }
+  .adsr-grid .mini-field .lab { font-size: .6em; display: flex; justify-content: space-between; }
+  .adsr-grid .mini-field input[type=range] { height: 10px; }
+  
+  .poly-ctrl { margin: 6px 0; padding: 6px; background: #0f0d14; border-radius: 4px; border-left: 2px solid #6a4c93; }
+  .poly-ctrl .mini-field { margin: 4px 0; }
+  .poly-ctrl .mini-field .lab { font-size: .65em; display: flex; justify-content: space-between; }
+  .poly-ctrl .mini-field input[type=range] { height: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Multi-Engine Performance System <span class="badge">5 ENGINES</span></h1>
+  <p class="sub">4 independent photo-synthesis slots · 5 engines per slot (FM / Granular / Additive / Percussive / Waveguide) · Real-time routing & mixing</p>
+  
+  <div class="slots" id="slots">
+    <!-- Slot A -->
+    <div class="slot" data-slot="A">
+      <div class="slot-header">
+        <span>SLOT A</span>
+        <span class="slot-status" id="statusA">—</span>
+      </div>
+      <div class="photo-zone" id="zoneA">
+        <div class="photo-prompt">📸 Drop photo or click</div>
+        <img id="photoA" alt="">
+        <canvas id="overlayA"></canvas>
+      </div>
+      <input type="file" id="fileA" accept="image/*" hidden>
+      <input type="file" id="folderInputA" webkitdirectory directory multiple hidden>
+      
+      <div class="folder-ctrl" id="folderCtrlA">
+        <button class="folder-btn" id="loadFolderA">📁 Folder</button>
+        <span class="folder-info" id="folderInfoA">—</span>
+        <div class="folder-nav" id="folderNavA" style="display:none">
+          <button class="nav-btn" id="prevA" title="Previous">⬅</button>
+          <button class="nav-btn" id="nextA" title="Next">➡</button>
+        </div>
+      </div>
+      
+      <div class="folder-settings" id="folderSettingsA" style="display:none">
+        <div class="field">
+          <div class="lab"><span>Mode</span></div>
+          <select id="folderModeA" class="mini-select">
+            <option value="sequential">Sequential</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="lab"><span>Timing</span></div>
+          <select id="timingModeA" class="mini-select">
+            <option value="manual">Manual Only</option>
+            <option value="scan">On Scan Complete</option>
+            <option value="fixed">Fixed Rate</option>
+            <option value="random">Random Rate</option>
+            <option value="midi">MIDI Note</option>
+          </select>
+        </div>
+        <div id="timingParamsA"></div>
+      </div>
+      
+      <div class="field">
+        <div class="lab"><span>Engine</span></div>
+        <select id="engineA">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+          <option value="percussive">Percussive</option>
+          <option value="waveguide">Waveguide Resonator</option>
+        </select>
+      </div>
+      
+      <div id="paramsA"></div>
+      
+      <div class="scan-mode-ctrl">
+        <div class="lab">Scan Mode</div>
+        <div class="scan-mode-grid">
+          <button class="scan-mode-btn active" data-slot="A" data-mode="line">Line</button>
+          <button class="scan-mode-btn" data-slot="A" data-mode="manual">Mouse</button>
+          <button class="scan-mode-btn" data-slot="A" data-mode="random">Random</button>
+        </div>
+      </div>
+      
+      <div class="phrase-ctrl">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Phrase Mode</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="phraseEnableA" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="phraseParamsA" style="display:none;">
+          <div class="mini-field">
+            <div class="lab"><span>Play (beats)</span><span class="v" id="phrasePlayA">4</span></div>
+            <input type="range" id="phrasePlayBeatsA" min="1" max="16" value="4" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Rest (beats)</span><span class="v" id="phraseRestA">2</span></div>
+            <input type="range" id="phraseRestBeatsA" min="0" max="8" value="2" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="adsr-ctrl">
+        <div class="lab" style="margin-bottom:4px;">ADSR Envelope</div>
+        <div class="adsr-grid">
+          <div class="mini-field">
+            <div class="lab"><span>Attack</span><span class="v" id="atkA">0.01</span></div>
+            <input type="range" id="attackA" min="0" max="2000" value="10" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Decay</span><span class="v" id="decA">0.2</span></div>
+            <input type="range" id="decayA" min="0" max="2000" value="200" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Sustain</span><span class="v" id="susA">0.7</span></div>
+            <input type="range" id="sustainA" min="0" max="1000" value="700" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Release</span><span class="v" id="relA">0.5</span></div>
+            <input type="range" id="releaseA" min="0" max="5000" value="500" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="poly-ctrl">
+        <div class="lab" style="margin-bottom:4px;">Polyphonic Controls</div>
+        <div class="mini-field">
+          <div class="lab"><span>Scan Speed</span><span class="v" id="speedA">1.0×</span></div>
+          <input type="range" id="scanSpeedA" min="25" max="400" value="100" step="25">
+        </div>
+        <div class="mini-field">
+          <div class="lab"><span>Phase Offset</span><span class="v" id="phaseA">0%</span></div>
+          <input type="range" id="phaseOffsetA" min="0" max="100" value="0" step="1">
+        </div>
+      </div>
+      
+      <div class="harmony-ctrl" style="margin:6px 0; padding:6px; background:#14120f; border-radius:4px; border-left:2px solid #d4af37;">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Harmony (Berklee Jazz)</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="harmonyEnableA" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="harmonyParamsA" style="display:none;">
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Voicing</div>
+            <select id="voicingTypeA" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="close">Close (4-voice)</option>
+              <option value="drop2" selected>Drop-2 (4-voice)</option>
+              <option value="drop3">Drop-3 (4-voice)</option>
+              <option value="spread">Spread (5-voice)</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Modal Center</div>
+            <select id="modalCenterA" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="ionian" selected>Ionian (Major)</option>
+              <option value="dorian">Dorian</option>
+              <option value="phrygian">Phrygian</option>
+              <option value="lydian">Lydian</option>
+              <option value="mixolydian">Mixolydian</option>
+              <option value="aeolian">Aeolian (Minor)</option>
+              <option value="locrian">Locrian</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Harmonic Rhythm</div>
+            <select id="harmonicRhythmA" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="1">1 beat/chord</option>
+              <option value="2">2 beats/chord</option>
+              <option value="4" selected>4 beats/chord</option>
+              <option value="8">8 beats/chord</option>
+              <option value="16">16 beats/chord</option>
+            </select>
+          </div>
+          <div class="chord-display" id="currentChordA" style="text-align:center; font-size:1.2em; font-weight:bold; color:#d4af37; margin:4px 0;">—</div>
+        </div>
+      </div>
+      
+      <div class="scan-viz"><div class="scan-progress" id="scanA" style="width:0%"></div></div>
+    </div>
+    
+    <!-- Slot B -->
+    <div class="slot" data-slot="B">
+      <div class="slot-header">
+        <span>SLOT B</span>
+        <span class="slot-status" id="statusB">—</span>
+      </div>
+      <div class="photo-zone" id="zoneB">
+        <div class="photo-prompt">📸 Drop photo or click</div>
+        <img id="photoB" alt="">
+        <canvas id="overlayB"></canvas>
+      </div>
+      <input type="file" id="fileB" accept="image/*" hidden>
+      <input type="file" id="folderInputB" webkitdirectory directory multiple hidden>
+      
+      <div class="folder-ctrl" id="folderCtrlB">
+        <button class="folder-btn" id="loadFolderB">📁 Folder</button>
+        <span class="folder-info" id="folderInfoB">—</span>
+        <div class="folder-nav" id="folderNavB" style="display:none">
+          <button class="nav-btn" id="prevB" title="Previous">⬅</button>
+          <button class="nav-btn" id="nextB" title="Next">➡</button>
+        </div>
+      </div>
+      
+      <div class="folder-settings" id="folderSettingsB" style="display:none">
+        <div class="field">
+          <div class="lab"><span>Mode</span></div>
+          <select id="folderModeB" class="mini-select">
+            <option value="sequential">Sequential</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="lab"><span>Timing</span></div>
+          <select id="timingModeB" class="mini-select">
+            <option value="manual">Manual Only</option>
+            <option value="scan">On Scan Complete</option>
+            <option value="fixed">Fixed Rate</option>
+            <option value="random">Random Rate</option>
+            <option value="midi">MIDI Note</option>
+          </select>
+        </div>
+        <div id="timingParamsB"></div>
+      </div>
+      
+      <div class="field">
+        <div class="lab"><span>Engine</span></div>
+        <select id="engineB">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+          <option value="percussive">Percussive</option>
+          <option value="waveguide">Waveguide Resonator</option>
+        </select>
+      </div>
+      
+      <div id="paramsB"></div>
+      
+      <div class="scan-mode-ctrl">
+        <div class="lab">Scan Mode</div>
+        <div class="scan-mode-grid">
+          <button class="scan-mode-btn active" data-slot="B" data-mode="line">Line</button>
+          <button class="scan-mode-btn" data-slot="B" data-mode="manual">Mouse</button>
+          <button class="scan-mode-btn" data-slot="B" data-mode="random">Random</button>
+        </div>
+      </div>
+      
+      <div class="phrase-ctrl">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Phrase Mode</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="phraseEnableB" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="phraseParamsB" style="display:none;">
+          <div class="mini-field">
+            <div class="lab"><span>Play (beats)</span><span class="v" id="phrasePlayB">4</span></div>
+            <input type="range" id="phrasePlayBeatsB" min="1" max="16" value="4" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Rest (beats)</span><span class="v" id="phraseRestB">2</span></div>
+            <input type="range" id="phraseRestBeatsB" min="0" max="8" value="2" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="adsr-ctrl">
+        <div class="lab" style="margin-bottom:4px;">ADSR Envelope</div>
+        <div class="adsr-grid">
+          <div class="mini-field">
+            <div class="lab"><span>Attack</span><span class="v" id="atkB">0.01</span></div>
+            <input type="range" id="attackB" min="0" max="2000" value="10" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Decay</span><span class="v" id="decB">0.2</span></div>
+            <input type="range" id="decayB" min="0" max="2000" value="200" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Sustain</span><span class="v" id="susB">0.7</span></div>
+            <input type="range" id="sustainB" min="0" max="1000" value="700" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Release</span><span class="v" id="relB">0.5</span></div>
+            <input type="range" id="releaseB" min="0" max="5000" value="500" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="poly-ctrl">
+        <div class="lab" style="margin-bottom:4px;">Polyphonic Controls</div>
+        <div class="mini-field">
+          <div class="lab"><span>Scan Speed</span><span class="v" id="speedB">1.0×</span></div>
+          <input type="range" id="scanSpeedB" min="25" max="400" value="100" step="25">
+        </div>
+        <div class="mini-field">
+          <div class="lab"><span>Phase Offset</span><span class="v" id="phaseB">0%</span></div>
+          <input type="range" id="phaseOffsetB" min="0" max="100" value="0" step="1">
+        </div>
+      </div>
+      
+      <div class="harmony-ctrl" style="margin:6px 0; padding:6px; background:#14120f; border-radius:4px; border-left:2px solid #d4af37;">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Harmony (Berklee Jazz)</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="harmonyEnableB" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="harmonyParamsB" style="display:none;">
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Voicing</div>
+            <select id="voicingTypeB" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="close">Close (4-voice)</option>
+              <option value="drop2" selected>Drop-2 (4-voice)</option>
+              <option value="drop3">Drop-3 (4-voice)</option>
+              <option value="spread">Spread (5-voice)</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Modal Center</div>
+            <select id="modalCenterB" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="ionian" selected>Ionian (Major)</option>
+              <option value="dorian">Dorian</option>
+              <option value="phrygian">Phrygian</option>
+              <option value="lydian">Lydian</option>
+              <option value="mixolydian">Mixolydian</option>
+              <option value="aeolian">Aeolian (Minor)</option>
+              <option value="locrian">Locrian</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Harmonic Rhythm</div>
+            <select id="harmonicRhythmB" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="1">1 beat/chord</option>
+              <option value="2">2 beats/chord</option>
+              <option value="4" selected>4 beats/chord</option>
+              <option value="8">8 beats/chord</option>
+              <option value="16">16 beats/chord</option>
+            </select>
+          </div>
+          <div class="chord-display" id="currentChordB" style="text-align:center; font-size:1.2em; font-weight:bold; color:#d4af37; margin:4px 0;">—</div>
+        </div>
+      </div>
+      
+      <div class="scan-viz"><div class="scan-progress" id="scanB" style="width:0%"></div></div>
+    </div>
+    
+    <!-- Slot C -->
+    <div class="slot" data-slot="C">
+      <div class="slot-header">
+        <span>SLOT C</span>
+        <span class="slot-status" id="statusC">—</span>
+      </div>
+      <div class="photo-zone" id="zoneC">
+        <div class="photo-prompt">📸 Drop photo or click</div>
+        <img id="photoC" alt="">
+        <canvas id="overlayC"></canvas>
+      </div>
+      <input type="file" id="fileC" accept="image/*" hidden>
+      <input type="file" id="folderInputC" webkitdirectory directory multiple hidden>
+      
+      <div class="folder-ctrl" id="folderCtrlC">
+        <button class="folder-btn" id="loadFolderC">📁 Folder</button>
+        <span class="folder-info" id="folderInfoC">—</span>
+        <div class="folder-nav" id="folderNavC" style="display:none">
+          <button class="nav-btn" id="prevC" title="Previous">⬅</button>
+          <button class="nav-btn" id="nextC" title="Next">➡</button>
+        </div>
+      </div>
+      
+      <div class="folder-settings" id="folderSettingsC" style="display:none">
+        <div class="field">
+          <div class="lab"><span>Mode</span></div>
+          <select id="folderModeC" class="mini-select">
+            <option value="sequential">Sequential</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="lab"><span>Timing</span></div>
+          <select id="timingModeC" class="mini-select">
+            <option value="manual">Manual Only</option>
+            <option value="scan">On Scan Complete</option>
+            <option value="fixed">Fixed Rate</option>
+            <option value="random">Random Rate</option>
+            <option value="midi">MIDI Note</option>
+          </select>
+        </div>
+        <div id="timingParamsC"></div>
+      </div>
+      
+      <div class="field">
+        <div class="lab"><span>Engine</span></div>
+        <select id="engineC">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+          <option value="percussive">Percussive</option>
+          <option value="waveguide">Waveguide Resonator</option>
+        </select>
+      </div>
+      
+      <div id="paramsC"></div>
+      
+      <div class="scan-mode-ctrl">
+        <div class="lab">Scan Mode</div>
+        <div class="scan-mode-grid">
+          <button class="scan-mode-btn active" data-slot="C" data-mode="line">Line</button>
+          <button class="scan-mode-btn" data-slot="C" data-mode="manual">Mouse</button>
+          <button class="scan-mode-btn" data-slot="C" data-mode="random">Random</button>
+        </div>
+      </div>
+      
+      <div class="phrase-ctrl">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Phrase Mode</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="phraseEnableC" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="phraseParamsC" style="display:none;">
+          <div class="mini-field">
+            <div class="lab"><span>Play (beats)</span><span class="v" id="phrasePlayC">4</span></div>
+            <input type="range" id="phrasePlayBeatsC" min="1" max="16" value="4" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Rest (beats)</span><span class="v" id="phraseRestC">2</span></div>
+            <input type="range" id="phraseRestBeatsC" min="0" max="8" value="2" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="adsr-ctrl">
+        <div class="lab" style="margin-bottom:4px;">ADSR Envelope</div>
+        <div class="adsr-grid">
+          <div class="mini-field">
+            <div class="lab"><span>Attack</span><span class="v" id="atkC">0.01</span></div>
+            <input type="range" id="attackC" min="0" max="2000" value="10" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Decay</span><span class="v" id="decC">0.2</span></div>
+            <input type="range" id="decayC" min="0" max="2000" value="200" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Sustain</span><span class="v" id="susC">0.7</span></div>
+            <input type="range" id="sustainC" min="0" max="1000" value="700" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Release</span><span class="v" id="relC">0.5</span></div>
+            <input type="range" id="releaseC" min="0" max="5000" value="500" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="poly-ctrl">
+        <div class="lab" style="margin-bottom:4px;">Polyphonic Controls</div>
+        <div class="mini-field">
+          <div class="lab"><span>Scan Speed</span><span class="v" id="speedC">1.0×</span></div>
+          <input type="range" id="scanSpeedC" min="25" max="400" value="100" step="25">
+        </div>
+        <div class="mini-field">
+          <div class="lab"><span>Phase Offset</span><span class="v" id="phaseC">0%</span></div>
+          <input type="range" id="phaseOffsetC" min="0" max="100" value="0" step="1">
+        </div>
+      </div>
+      
+      <div class="harmony-ctrl" style="margin:6px 0; padding:6px; background:#14120f; border-radius:4px; border-left:2px solid #d4af37;">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Harmony (Berklee Jazz)</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="harmonyEnableC" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="harmonyParamsC" style="display:none;">
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Voicing</div>
+            <select id="voicingTypeC" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="close">Close (4-voice)</option>
+              <option value="drop2" selected>Drop-2 (4-voice)</option>
+              <option value="drop3">Drop-3 (4-voice)</option>
+              <option value="spread">Spread (5-voice)</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Modal Center</div>
+            <select id="modalCenterC" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="ionian" selected>Ionian (Major)</option>
+              <option value="dorian">Dorian</option>
+              <option value="phrygian">Phrygian</option>
+              <option value="lydian">Lydian</option>
+              <option value="mixolydian">Mixolydian</option>
+              <option value="aeolian">Aeolian (Minor)</option>
+              <option value="locrian">Locrian</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Harmonic Rhythm</div>
+            <select id="harmonicRhythmC" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="1">1 beat/chord</option>
+              <option value="2">2 beats/chord</option>
+              <option value="4" selected>4 beats/chord</option>
+              <option value="8">8 beats/chord</option>
+              <option value="16">16 beats/chord</option>
+            </select>
+          </div>
+          <div class="chord-display" id="currentChordC" style="text-align:center; font-size:1.2em; font-weight:bold; color:#d4af37; margin:4px 0;">—</div>
+        </div>
+      </div>
+      
+      <div class="scan-viz"><div class="scan-progress" id="scanC" style="width:0%"></div></div>
+    </div>
+    
+    <!-- Slot D -->
+    <div class="slot" data-slot="D">
+      <div class="slot-header">
+        <span>SLOT D</span>
+        <span class="slot-status" id="statusD">—</span>
+      </div>
+      <div class="photo-zone" id="zoneD">
+        <div class="photo-prompt">📸 Drop photo or click</div>
+        <img id="photoD" alt="">
+        <canvas id="overlayD"></canvas>
+      </div>
+      <input type="file" id="fileD" accept="image/*" hidden>
+      <input type="file" id="folderInputD" webkitdirectory directory multiple hidden>
+      
+      <div class="folder-ctrl" id="folderCtrlD">
+        <button class="folder-btn" id="loadFolderD">📁 Folder</button>
+        <span class="folder-info" id="folderInfoD">—</span>
+        <div class="folder-nav" id="folderNavD" style="display:none">
+          <button class="nav-btn" id="prevD" title="Previous">⬅</button>
+          <button class="nav-btn" id="nextD" title="Next">➡</button>
+        </div>
+      </div>
+      
+      <div class="folder-settings" id="folderSettingsD" style="display:none">
+        <div class="field">
+          <div class="lab"><span>Mode</span></div>
+          <select id="folderModeD" class="mini-select">
+            <option value="sequential">Sequential</option>
+            <option value="random">Random</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="lab"><span>Timing</span></div>
+          <select id="timingModeD" class="mini-select">
+            <option value="manual">Manual Only</option>
+            <option value="scan">On Scan Complete</option>
+            <option value="fixed">Fixed Rate</option>
+            <option value="random">Random Rate</option>
+            <option value="midi">MIDI Note</option>
+          </select>
+        </div>
+        <div id="timingParamsD"></div>
+      </div>
+      
+      <div class="field">
+        <div class="lab"><span>Engine</span></div>
+        <select id="engineD">
+          <option value="fm">FM Synthesis</option>
+          <option value="granular">Granular</option>
+          <option value="additive">Additive</option>
+          <option value="percussive">Percussive</option>
+          <option value="waveguide">Waveguide Resonator</option>
+        </select>
+      </div>
+      
+      <div id="paramsD"></div>
+      
+      <div class="scan-mode-ctrl">
+        <div class="lab">Scan Mode</div>
+        <div class="scan-mode-grid">
+          <button class="scan-mode-btn active" data-slot="D" data-mode="line">Line</button>
+          <button class="scan-mode-btn" data-slot="D" data-mode="manual">Mouse</button>
+          <button class="scan-mode-btn" data-slot="D" data-mode="random">Random</button>
+        </div>
+      </div>
+      
+      <div class="phrase-ctrl">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Phrase Mode</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="phraseEnableD" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="phraseParamsD" style="display:none;">
+          <div class="mini-field">
+            <div class="lab"><span>Play (beats)</span><span class="v" id="phrasePlayD">4</span></div>
+            <input type="range" id="phrasePlayBeatsD" min="1" max="16" value="4" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Rest (beats)</span><span class="v" id="phraseRestD">2</span></div>
+            <input type="range" id="phraseRestBeatsD" min="0" max="8" value="2" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="adsr-ctrl">
+        <div class="lab" style="margin-bottom:4px;">ADSR Envelope</div>
+        <div class="adsr-grid">
+          <div class="mini-field">
+            <div class="lab"><span>Attack</span><span class="v" id="atkD">0.01</span></div>
+            <input type="range" id="attackD" min="0" max="2000" value="10" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Decay</span><span class="v" id="decD">0.2</span></div>
+            <input type="range" id="decayD" min="0" max="2000" value="200" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Sustain</span><span class="v" id="susD">0.7</span></div>
+            <input type="range" id="sustainD" min="0" max="1000" value="700" step="1">
+          </div>
+          <div class="mini-field">
+            <div class="lab"><span>Release</span><span class="v" id="relD">0.5</span></div>
+            <input type="range" id="releaseD" min="0" max="5000" value="500" step="1">
+          </div>
+        </div>
+      </div>
+      
+      <div class="poly-ctrl">
+        <div class="lab" style="margin-bottom:4px;">Polyphonic Controls</div>
+        <div class="mini-field">
+          <div class="lab"><span>Scan Speed</span><span class="v" id="speedD">1.0×</span></div>
+          <input type="range" id="scanSpeedD" min="25" max="400" value="100" step="25">
+        </div>
+        <div class="mini-field">
+          <div class="lab"><span>Phase Offset</span><span class="v" id="phaseD">0%</span></div>
+          <input type="range" id="phaseOffsetD" min="0" max="100" value="0" step="1">
+        </div>
+      </div>
+      
+      <div class="harmony-ctrl" style="margin:6px 0; padding:6px; background:#14120f; border-radius:4px; border-left:2px solid #d4af37;">
+        <div class="lab" style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span>Harmony (Berklee Jazz)</span>
+          <label style="font-size:.9em;"><input type="checkbox" id="harmonyEnableD" style="margin:0 3px 0 0;"> Enable</label>
+        </div>
+        <div id="harmonyParamsD" style="display:none;">
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Voicing</div>
+            <select id="voicingTypeD" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="close">Close (4-voice)</option>
+              <option value="drop2" selected>Drop-2 (4-voice)</option>
+              <option value="drop3">Drop-3 (4-voice)</option>
+              <option value="spread">Spread (5-voice)</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Modal Center</div>
+            <select id="modalCenterD" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="ionian" selected>Ionian (Major)</option>
+              <option value="dorian">Dorian</option>
+              <option value="phrygian">Phrygian</option>
+              <option value="lydian">Lydian</option>
+              <option value="mixolydian">Mixolydian</option>
+              <option value="aeolian">Aeolian (Minor)</option>
+              <option value="locrian">Locrian</option>
+            </select>
+          </div>
+          <div class="mini-field" style="margin:4px 0;">
+            <div class="lab" style="font-size:.65em;">Harmonic Rhythm</div>
+            <select id="harmonicRhythmD" style="width:100%; font-size:.8em; padding:2px;">
+              <option value="1">1 beat/chord</option>
+              <option value="2">2 beats/chord</option>
+              <option value="4" selected>4 beats/chord</option>
+              <option value="8">8 beats/chord</option>
+              <option value="16">16 beats/chord</option>
+            </select>
+          </div>
+          <div class="chord-display" id="currentChordD" style="text-align:center; font-size:1.2em; font-weight:bold; color:#d4af37; margin:4px 0;">—</div>
+        </div>
+      </div>
+      
+      <div class="scan-viz"><div class="scan-progress" id="scanD" style="width:0%"></div></div>
+    </div>
+  </div>
+  
+  <div class="master">
+    <div class="master-header">Musical Controls</div>
+    <div class="musical-grid">
+      <div class="field">
+        <div class="lab"><span>BPM</span><span class="v" id="valBpm">120</span></div>
+        <input type="range" id="bpm" min="40" max="240" value="120" step="1">
+        <button id="tapTempo" style="margin-top:4px; width:100%; padding:4px;">⏱ Tap Tempo</button>
+      </div>
+      <div class="field">
+        <div class="lab"><span>Scale</span></div>
+        <select id="scale" style="margin-bottom:4px;">
+          <option value="chromatic">Chromatic (off)</option>
+          <option value="major">Major</option>
+          <option value="minor">Natural Minor</option>
+          <option value="harmonic-minor">Harmonic Minor</option>
+          <option value="melodic-minor">Melodic Minor</option>
+          <option value="pentatonic-major">Pentatonic Major</option>
+          <option value="pentatonic-minor">Pentatonic Minor</option>
+          <option value="blues">Blues</option>
+          <option value="dorian">Dorian</option>
+          <option value="phrygian">Phrygian</option>
+          <option value="lydian">Lydian</option>
+          <option value="mixolydian">Mixolydian</option>
+          <option value="whole-tone">Whole Tone</option>
+        </select>
+        <div class="lab"><span>Root Note</span></div>
+        <select id="rootNote">
+          <option value="0">C</option>
+          <option value="1">C# / Db</option>
+          <option value="2">D</option>
+          <option value="3">D# / Eb</option>
+          <option value="4">E</option>
+          <option value="5">F</option>
+          <option value="6">F# / Gb</option>
+          <option value="7">G</option>
+          <option value="8">G# / Ab</option>
+          <option value="9">A</option>
+          <option value="10">A# / Bb</option>
+          <option value="11">B</option>
+        </select>
+      </div>
+      <div class="beat-indicator" id="beatIndicator">
+        <div class="beat-light" id="beat1"></div>
+        <div class="beat-light" id="beat2"></div>
+        <div class="beat-light" id="beat3"></div>
+        <div class="beat-light" id="beat4"></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="master">
+    <div class="master-header">Polyphonic / Counterpoint</div>
+    <div class="musical-grid">
+      <div class="field">
+        <button id="cloneImageAll" style="width:100%; padding:8px; margin-bottom:8px;">
+          📋 Clone Last Image to All Slots
+        </button>
+        <div style="font-size:.75em; opacity:.6; margin-top:4px;">
+          Creates multi-voice counterpoint: each slot scans the same image at different speeds/offsets
+        </div>
+      </div>
+      <div class="field">
+        <div class="lab"><span>Quick Presets</span></div>
+        <button id="preset2Voice" style="width:100%; padding:6px; margin-bottom:4px;">2-Part Invention</button>
+        <button id="preset4Voice" style="width:100%; padding:6px; margin-bottom:4px;">4-Voice Fugue</button>
+        <button id="presetCanon" style="width:100%; padding:6px;">Canon (Round)</button>
+        <div style="font-size:.7em; opacity:.5; margin-top:4px;">
+          Sets speed + phase for contrapuntal textures
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="master">
+    <div class="master-header">Master Controls & Playback</div>
+    <div class="master-grid">
+      <div>
+        <div style="font-size:.75em; opacity:.6; margin-bottom:6px;">Playback Mode</div>
+        <select id="playMode">
+          <option value="solo_A">Solo: A only</option>
+          <option value="solo_B">Solo: B only</option>
+          <option value="solo_C">Solo: C only</option>
+          <option value="solo_D">Solo: D only</option>
+          <option value="pair_AB">Pair: A + B</option>
+          <option value="pair_AC">Pair: A + C</option>
+          <option value="pair_AD">Pair: A + D</option>
+          <option value="pair_BC">Pair: B + C</option>
+          <option value="pair_BD">Pair: B + D</option>
+          <option value="pair_CD">Pair: C + D</option>
+          <option value="trio_ABC">Trio: A + B + C</option>
+          <option value="trio_ABD">Trio: A + B + D</option>
+          <option value="trio_ACD">Trio: A + C + D</option>
+          <option value="trio_BCD">Trio: B + C + D</option>
+          <option value="quad" selected>Quad: All (A+B+C+D)</option>
+        </select>
+      </div>
+      
+      <div class="field">
+        <div class="lab">Master Gain <span class="v" id="valMasterGain">0.70</span></div>
+        <input type="range" id="masterGain" min="0" max="1000" value="700">
+      </div>
+      
+      <div class="field">
+        <div class="lab">Reverb Size <span class="v" id="valRevSize">0.85</span></div>
+        <input type="range" id="revSize" min="0" max="1000" value="850">
+      </div>
+
+      <div class="field">
+        <div class="lab">MIDI Input <span class="v" id="midiStatus">choose after start</span></div>
+        <select id="midiDeviceSelect" disabled>
+          <option value="">— Start audio, then choose a MIDI input —</option>
+        </select>
+      </div>
+      
+      <div class="mode-buttons">
+        <button id="startBtn">🎵 Start Audio Engine</button>
+        <button id="playBtn" disabled>▶ Play</button>
+        <button id="stopBtn" disabled>■ Stop</button>
+      </div>
+    </div>
+    
+    <div class="preset-row">
+      <select id="presetList">
+        <option value="">— Select preset —</option>
+      </select>
+      <button id="savePresetBtn" disabled>💾 Save</button>
+      <button id="loadPresetBtn" disabled>📂 Load</button>
+      <button id="deletePresetBtn" disabled>🗑 Delete</button>
+    </div>
+  </div>
+  
+  <div class="sequence">
+    <div class="master-header">Sequence Mode</div>
+    <div class="seq-controls">
+      <div class="field">
+        <div class="lab">Cycle Time <span class="v" id="valCycleTime">8.0s</span></div>
+        <input type="range" id="cycleTime" min="0" max="1000" value="400">
+      </div>
+      <div class="mode-buttons">
+        <button id="seqBtn" disabled>🔄 Auto-Sequence: OFF</button>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end;">
+        <span style="font-size:.75em;opacity:.6;">Pattern:</span>
+        <select id="seqPattern" style="width:auto;">
+          <option value="ABCD">A→B→C→D</option>
+          <option value="ABDC">A→B→D→C</option>
+          <option value="ACBD">A→C→B→D</option>
+          <option value="random">Random</option>
+        </select>
+      </div>
+    </div>
+    <div class="timeline" id="timeline"></div>
+    
+    <div id="status">Load photos, select engines, choose playback mode, then press ▶ Play</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#111;">
+      <span style="color:#666; font-size:0.85em;">Console Log</span>
+      <button id="copyConsoleBtn" style="padding:2px 8px; font-size:0.8em; cursor:pointer;">📋 Copy</button>
+    </div>
+    <div id="console"></div>
+  </div>
+</div>
+
+<script type="module">
+// Use SAME Csound version as working weather_sonification_v2.html
+const { Csound } = await import("https://cdn.jsdelivr.net/npm/@csound/browser@7.0.0-beta26/dist/csound.js");
+
+const $ = id => document.getElementById(id);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+// ================= Csound Orchestra =================
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+gaRevL init 0
+gaRevR init 0
+
+; Function tables
+gi1 ftgen 1, 0, 8192, 10, 1  ; Sine wave for foscil
+
+; === FM SYNTHESIS INSTRUMENTS (10, 20, 30, 40) ===
+opcode FmVoice, aa, Skkkkkkkkkk
+  SPrefix, kFreq, kRatio, kIndex, kCut, kRes, kAmp, kAtk, kDec, kSus, kRel xin
+  
+  ; Proper ADSR envelope with i(k) casting for Csound 7
+  kEnv madsr i(kAtk), i(kDec), i(kSus), i(kRel)
+  
+  kModFreq = kFreq * kRatio
+  aMod = oscili:a(kIndex * kModFreq, kModFreq)
+  aCar1 = oscili:a(0.3, kFreq + aMod)
+  aCar2 = oscili:a(0.3, kFreq * 1.003 + aMod)
+  aCar3 = oscili:a(0.3, kFreq * 0.997 + aMod)
+  aCar = (aCar1 + aCar2 + aCar3) / 3
+  aFilt = moogladder:a(aCar, limit(kCut, 30, 18000), limit(kRes, 0, 0.95))
+  aL = aFilt * kEnv * kAmp
+  aR = aFilt * kEnv * kAmp
+  xout aL, aR
+endop
+
+instr 10
+  SPrefix = "A_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kRes    = chnget:k(strcat(SPrefix, "res"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR FmVoice SPrefix, kFreq, kRatio, kIndex, kCut, kRes, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+instr 20
+  SPrefix = "B_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kRes    = chnget:k(strcat(SPrefix, "res"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR FmVoice SPrefix, kFreq, kRatio, kIndex, kCut, kRes, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+instr 30
+  SPrefix = "C_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kRes    = chnget:k(strcat(SPrefix, "res"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR FmVoice SPrefix, kFreq, kRatio, kIndex, kCut, kRes, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+instr 40
+  SPrefix = "D_"
+  kFreq   = chnget:k(strcat(SPrefix, "freq"))
+  kRatio  = chnget:k(strcat(SPrefix, "ratio"))
+  kIndex  = chnget:k(strcat(SPrefix, "index"))
+  kCut    = chnget:k(strcat(SPrefix, "cutoff"))
+  kRes    = chnget:k(strcat(SPrefix, "res"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR FmVoice SPrefix, kFreq, kRatio, kIndex, kCut, kRes, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+; === GRANULAR SYNTHESIS INSTRUMENTS (11, 21, 31, 41) ===
+opcode GranVoice, aa, Skkkkkkkkk
+  SPrefix, kDens, kPitch, kDur, kSpread, kAmp, kAtk, kDec, kSus, kRel xin
+  
+  ; Proper ADSR envelope with i(k) casting for Csound 7
+  kEnv madsr i(kAtk), i(kDec), i(kSus), i(kRel)
+  
+  kTrig = metro:k(limit(kDens, 1, 200))
+  kRndPitch = kPitch * (1 + (rnd:k(1) - 0.5) * kSpread)
+  kRndDur = kDur * (0.8 + rnd:k(1) * 0.4)
+  kRndPan = rnd:k(1)
+  kRndAmp = 0.8 + rnd:k(1) * 0.2
+  kRndAmpFinal = kRndAmp * kEnv * kAmp
+  schedkwhen kTrig, 0, 0, 99, 0, kRndDur, kRndPitch, kRndPan, kRndAmpFinal
+  
+  aZero = 0
+  xout aZero, aZero
+endop
+
+instr 11
+  SPrefix = "A_"
+  kDens   = chnget:k(strcat(SPrefix, "density"))
+  kPitch  = chnget:k(strcat(SPrefix, "pitch"))
+  kDur    = chnget:k(strcat(SPrefix, "duration"))
+  kSpread = chnget:k(strcat(SPrefix, "spread"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR GranVoice SPrefix, kDens, kPitch, kDur, kSpread, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+instr 21
+  SPrefix = "B_"
+  kDens   = chnget:k(strcat(SPrefix, "density"))
+  kPitch  = chnget:k(strcat(SPrefix, "pitch"))
+  kDur    = chnget:k(strcat(SPrefix, "duration"))
+  kSpread = chnget:k(strcat(SPrefix, "spread"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR GranVoice SPrefix, kDens, kPitch, kDur, kSpread, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+instr 31
+  SPrefix = "C_"
+  kDens   = chnget:k(strcat(SPrefix, "density"))
+  kPitch  = chnget:k(strcat(SPrefix, "pitch"))
+  kDur    = chnget:k(strcat(SPrefix, "duration"))
+  kSpread = chnget:k(strcat(SPrefix, "spread"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR GranVoice SPrefix, kDens, kPitch, kDur, kSpread, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+instr 41
+  SPrefix = "D_"
+  kDens   = chnget:k(strcat(SPrefix, "density"))
+  kPitch  = chnget:k(strcat(SPrefix, "pitch"))
+  kDur    = chnget:k(strcat(SPrefix, "duration"))
+  kSpread = chnget:k(strcat(SPrefix, "spread"))
+  kAmp    = chnget:k(strcat(SPrefix, "amp"))
+  kAtk    = chnget:k(strcat(SPrefix, "attack"))
+  kDec    = chnget:k(strcat(SPrefix, "decay"))
+  kSus    = chnget:k(strcat(SPrefix, "sustain"))
+  kRel    = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR GranVoice SPrefix, kDens, kPitch, kDur, kSpread, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+; Grain render instrument
+instr 99
+  iFreq = p4
+  iPan = p5
+  iAmp = p6
+  iDur = p3
+  
+  aEnv = linseg:a(0, iDur*0.3, iAmp, iDur*0.4, iAmp, iDur*0.3, 0)
+  aGrain = oscili:a(aEnv, iFreq)
+  aL, aR pan2 aGrain, iPan
+  
+  gaRevL += aL * 0.2
+  gaRevR += aR * 0.2
+  out aL, aR
+endin
+
+; === ADDITIVE SYNTHESIS INSTRUMENTS (12, 22, 32, 42) ===
+opcode AddVoice, aa, Skkkkkkkk
+  SPrefix, kFund, kBright, kInharm, kAmp, kAtk, kDec, kSus, kRel xin
+  
+  ; Proper ADSR envelope with i(k) casting for Csound 7
+  kEnv madsr i(kAtk), i(kDec), i(kSus), i(kRel)
+  
+  aSum = 0
+  kPartial = 1
+  while (kPartial <= 16) do
+    kFreq = kFund * kPartial * (1 + kInharm * (kPartial / 16))
+    kPartAmp = kBright / kPartial
+    aPartial = oscili:a(kPartAmp, kFreq)
+    aSum += aPartial
+    kPartial += 1
+  od
+  
+  aSum = aSum * kEnv * kAmp / 16
+  xout aSum, aSum
+endop
+
+instr 12
+  SPrefix = "A_"
+  kFund    = chnget:k(strcat(SPrefix, "fundamental"))
+  kBright  = chnget:k(strcat(SPrefix, "brightness"))
+  kInharm  = chnget:k(strcat(SPrefix, "inharmonicity"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR AddVoice SPrefix, kFund, kBright, kInharm, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+instr 22
+  SPrefix = "B_"
+  kFund    = chnget:k(strcat(SPrefix, "fundamental"))
+  kBright  = chnget:k(strcat(SPrefix, "brightness"))
+  kInharm  = chnget:k(strcat(SPrefix, "inharmonicity"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR AddVoice SPrefix, kFund, kBright, kInharm, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+instr 32
+  SPrefix = "C_"
+  kFund    = chnget:k(strcat(SPrefix, "fundamental"))
+  kBright  = chnget:k(strcat(SPrefix, "brightness"))
+  kInharm  = chnget:k(strcat(SPrefix, "inharmonicity"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR AddVoice SPrefix, kFund, kBright, kInharm, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+instr 42
+  SPrefix = "D_"
+  kFund    = chnget:k(strcat(SPrefix, "fundamental"))
+  kBright  = chnget:k(strcat(SPrefix, "brightness"))
+  kInharm  = chnget:k(strcat(SPrefix, "inharmonicity"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR AddVoice SPrefix, kFund, kBright, kInharm, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.25
+  gaRevR += aR * 0.25
+  out aL, aR
+endin
+
+; === PERCUSSIVE SYNTHESIS INSTRUMENTS (13, 23, 33, 43) ===
+opcode PercVoice, aa, Skkkkkkkkkk
+  SPrefix, kDens, kPitchLo, kPitchHi, kHarm, kDecay, kAmp, kAtk, kDec, kSus, kRel xin
+  
+  ; Proper ADSR envelope with i(k) casting for Csound 7
+  kEnv madsr i(kAtk), i(kDec), i(kSus), i(kRel)
+  
+  kTrig = metro:k(limit(kDens, 0.5, 50))
+  kPitch = random:k(kPitchLo, kPitchHi)
+  kDecay = limit:k(kDecay * (0.8 + random:k(0, 0.4)), 0.05, 2)
+  kPan = random:k(0, 1)
+  kAmpFinal = kEnv * kAmp * (0.7 + random:k(0, 0.3))
+  kHarm = int(limit:k(kHarm, 1, 16))
+  schedkwhen kTrig, 0, 0, 98, 0, kDecay, kPitch, kPan, kAmpFinal, kHarm, kDecay
+  
+  aZero = 0
+  xout aZero, aZero
+endop
+
+instr 13
+  SPrefix = "A_"
+  kDens    = chnget:k(strcat(SPrefix, "density"))
+  kPitchLo = chnget:k(strcat(SPrefix, "pitchLo"))
+  kPitchHi = chnget:k(strcat(SPrefix, "pitchHi"))
+  kHarm    = chnget:k(strcat(SPrefix, "harmonics"))
+  kDecay   = chnget:k(strcat(SPrefix, "decay"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR PercVoice SPrefix, kDens, kPitchLo, kPitchHi, kHarm, kDecay, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+instr 23
+  SPrefix = "B_"
+  kDens    = chnget:k(strcat(SPrefix, "density"))
+  kPitchLo = chnget:k(strcat(SPrefix, "pitchLo"))
+  kPitchHi = chnget:k(strcat(SPrefix, "pitchHi"))
+  kHarm    = chnget:k(strcat(SPrefix, "harmonics"))
+  kDecay   = chnget:k(strcat(SPrefix, "decay"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR PercVoice SPrefix, kDens, kPitchLo, kPitchHi, kHarm, kDecay, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+instr 33
+  SPrefix = "C_"
+  kDens    = chnget:k(strcat(SPrefix, "density"))
+  kPitchLo = chnget:k(strcat(SPrefix, "pitchLo"))
+  kPitchHi = chnget:k(strcat(SPrefix, "pitchHi"))
+  kHarm    = chnget:k(strcat(SPrefix, "harmonics"))
+  kDecay   = chnget:k(strcat(SPrefix, "decay"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR PercVoice SPrefix, kDens, kPitchLo, kPitchHi, kHarm, kDecay, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+instr 43
+  SPrefix = "D_"
+  kDens    = chnget:k(strcat(SPrefix, "density"))
+  kPitchLo = chnget:k(strcat(SPrefix, "pitchLo"))
+  kPitchHi = chnget:k(strcat(SPrefix, "pitchHi"))
+  kHarm    = chnget:k(strcat(SPrefix, "harmonics"))
+  kDecay   = chnget:k(strcat(SPrefix, "decay"))
+  kAmp     = chnget:k(strcat(SPrefix, "amp"))
+  kAtk     = chnget:k(strcat(SPrefix, "attack"))
+  kDec     = chnget:k(strcat(SPrefix, "decay"))
+  kSus     = chnget:k(strcat(SPrefix, "sustain"))
+  kRel     = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR PercVoice SPrefix, kDens, kPitchLo, kPitchHi, kHarm, kDecay, kAmp, kAtk, kDec, kSus, kRel
+endin
+
+; Percussive note renderer
+instr 98
+  iFreq = p4
+  iPan = p5
+  iAmp = p6
+  iHarm = p7
+  iDecay = p8
+  
+  aEnv = expsega(0.001, 0.005, 1, iDecay*0.9, 0.001, iDecay*0.1, 0.001)
+  aBuzz = gbuzz:a(iAmp * aEnv, iFreq, iHarm, 1, 0.5, -1)
+  aFilt = moogladder:a(aBuzz, limit(iFreq * 4, 100, 8000), 0.3)
+  aL, aR pan2 aFilt, iPan
+  
+  gaRevL += aL * 0.3
+  gaRevR += aR * 0.3
+  out aL, aR
+endin
+
+; === WAVEGUIDE RESONATOR INSTRUMENTS (14, 24, 34, 44) ===
+opcode WGuideVoice, aa, Skkkkkkkkkkk
+  SPrefix, kFreq1, kFreq2, kCut1, kCut2, kFb1, kFb2, kAmp, kAtk, kDec, kSus, kRel xin
+  
+  ; Proper ADSR envelope with i(k) casting for Csound 7
+  kEnv madsr i(kAtk), i(kDec), i(kSus), i(kRel)
+  
+  ; Generate impulse train as excitation
+  kTrig = metro:k(8)
+  aImpulse = mpulse:a(0.5, 0.125)
+  
+  ; Smooth parameter changes
+  kFreq1S = port:k(limit(kFreq1, 20, 5000), 0.05)
+  kFreq2S = port:k(limit(kFreq2, 20, 5000), 0.05)
+  kCut1S = port:k(limit(kCut1, 50, 12000), 0.05)
+  kCut2S = port:k(limit(kCut2, 50, 12000), 0.05)
+  kFb1S = port:k(limit(kFb1, 0, 0.45), 0.05)
+  kFb2S = port:k(limit(kFb2, 0, 0.45), 0.05)
+  
+  ; Convert to a-rate for wguide2
+  aFreq1 = interp:a(kFreq1S)
+  aFreq2 = interp:a(kFreq2S)
+  
+  ; Waveguide resonator
+  aRes = wguide2:a(aImpulse, aFreq1, aFreq2, kCut1S, kCut2S, kFb1S, kFb2S)
+  aRes = dcblock2:a(aRes)
+  aOut = aRes * kEnv * kAmp * 2
+  
+  xout aOut, aOut
+endop
+
+instr 14
+  SPrefix = "A_"
+  kFreq1 = chnget:k(strcat(SPrefix, "freq1"))
+  kFreq2 = chnget:k(strcat(SPrefix, "freq2"))
+  kCut1  = chnget:k(strcat(SPrefix, "cutoff1"))
+  kCut2  = chnget:k(strcat(SPrefix, "cutoff2"))
+  kFb1   = chnget:k(strcat(SPrefix, "feedback1"))
+  kFb2   = chnget:k(strcat(SPrefix, "feedback2"))
+  kAmp   = chnget:k(strcat(SPrefix, "amp"))
+  kAtk   = chnget:k(strcat(SPrefix, "attack"))
+  kDec   = chnget:k(strcat(SPrefix, "decay"))
+  kSus   = chnget:k(strcat(SPrefix, "sustain"))
+  kRel   = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR WGuideVoice SPrefix, kFreq1, kFreq2, kCut1, kCut2, kFb1, kFb2, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.2
+  gaRevR += aR * 0.2
+  out aL, aR
+endin
+
+instr 24
+  SPrefix = "B_"
+  kFreq1 = chnget:k(strcat(SPrefix, "freq1"))
+  kFreq2 = chnget:k(strcat(SPrefix, "freq2"))
+  kCut1  = chnget:k(strcat(SPrefix, "cutoff1"))
+  kCut2  = chnget:k(strcat(SPrefix, "cutoff2"))
+  kFb1   = chnget:k(strcat(SPrefix, "feedback1"))
+  kFb2   = chnget:k(strcat(SPrefix, "feedback2"))
+  kAmp   = chnget:k(strcat(SPrefix, "amp"))
+  kAtk   = chnget:k(strcat(SPrefix, "attack"))
+  kDec   = chnget:k(strcat(SPrefix, "decay"))
+  kSus   = chnget:k(strcat(SPrefix, "sustain"))
+  kRel   = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR WGuideVoice SPrefix, kFreq1, kFreq2, kCut1, kCut2, kFb1, kFb2, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.2
+  gaRevR += aR * 0.2
+  out aL, aR
+endin
+
+instr 34
+  SPrefix = "C_"
+  kFreq1 = chnget:k(strcat(SPrefix, "freq1"))
+  kFreq2 = chnget:k(strcat(SPrefix, "freq2"))
+  kCut1  = chnget:k(strcat(SPrefix, "cutoff1"))
+  kCut2  = chnget:k(strcat(SPrefix, "cutoff2"))
+  kFb1   = chnget:k(strcat(SPrefix, "feedback1"))
+  kFb2   = chnget:k(strcat(SPrefix, "feedback2"))
+  kAmp   = chnget:k(strcat(SPrefix, "amp"))
+  kAtk   = chnget:k(strcat(SPrefix, "attack"))
+  kDec   = chnget:k(strcat(SPrefix, "decay"))
+  kSus   = chnget:k(strcat(SPrefix, "sustain"))
+  kRel   = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR WGuideVoice SPrefix, kFreq1, kFreq2, kCut1, kCut2, kFb1, kFb2, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.2
+  gaRevR += aR * 0.2
+  out aL, aR
+endin
+
+instr 44
+  SPrefix = "D_"
+  kFreq1 = chnget:k(strcat(SPrefix, "freq1"))
+  kFreq2 = chnget:k(strcat(SPrefix, "freq2"))
+  kCut1  = chnget:k(strcat(SPrefix, "cutoff1"))
+  kCut2  = chnget:k(strcat(SPrefix, "cutoff2"))
+  kFb1   = chnget:k(strcat(SPrefix, "feedback1"))
+  kFb2   = chnget:k(strcat(SPrefix, "feedback2"))
+  kAmp   = chnget:k(strcat(SPrefix, "amp"))
+  kAtk   = chnget:k(strcat(SPrefix, "attack"))
+  kDec   = chnget:k(strcat(SPrefix, "decay"))
+  kSus   = chnget:k(strcat(SPrefix, "sustain"))
+  kRel   = chnget:k(strcat(SPrefix, "release"))
+  
+  aL, aR WGuideVoice SPrefix, kFreq1, kFreq2, kCut1, kCut2, kFb1, kFb2, kAmp, kAtk, kDec, kSus, kRel
+  gaRevL += aL * 0.2
+  gaRevR += aR * 0.2
+  out aL, aR
+endin
+
+; Master reverb
+instr 90
+  kSize = chnget:k("revSize")
+  kSize = limit(kSize, 0.3, 0.98)
+  kGain = chnget:k("masterGain")
+  aRL, aRR reverbsc gaRevL, gaRevR, kSize, 10000
+  out aRL * kGain, aRR * kGain
+  clear gaRevL, gaRevR
+endin
+
+; === Harmony Instruments (Berklee Modal Jazz) ===
+
+; Slot A Harmony (4-5 voice pad)
+instr 501
+  SPrefix = "A_"
+  kAmp = chnget:k(strcat(SPrefix, "harmonyAmp"))
+  kV1 = chnget:k(strcat(SPrefix, "harmonyVoice1"))
+  kV2 = chnget:k(strcat(SPrefix, "harmonyVoice2"))
+  kV3 = chnget:k(strcat(SPrefix, "harmonyVoice3"))
+  kV4 = chnget:k(strcat(SPrefix, "harmonyVoice4"))
+  kV5 = chnget:k(strcat(SPrefix, "harmonyVoice5"))
+  kAtk = chnget:k(strcat(SPrefix, "attack"))
+  kRel = chnget:k(strcat(SPrefix, "release"))
+  
+  ; Proper envelope with i(k) casting for Csound 7
+  kEnv linsegr 0, i(kAtk), 1, i(kRel), 0
+  
+  ; 4-voice FM pad
+  a1 foscil kEnv * kAmp * 0.2, kV1, 1, 1.5, 0.5, 1
+  a2 foscil kEnv * kAmp * 0.2, kV2, 1, 1.5, 0.5, 1
+  a3 foscil kEnv * kAmp * 0.2, kV3, 1, 1.5, 0.5, 1
+  a4 foscil kEnv * kAmp * 0.2, kV4, 1, 1.5, 0.5, 1
+  a5 foscil kEnv * kAmp * 0.15, kV5, 1, 1.5, 0.5, 1
+  
+  aMix = a1 + a2 + a3 + a4 + a5
+  
+  ; Stereo spread and chorus
+  aL, aR pan2 aMix, 0.5
+  gaRevL += aL * 0.4
+  gaRevR += aR * 0.4
+  out aL, aR
+endin
+
+; Slot B Harmony
+instr 502
+  SPrefix = "B_"
+  kAmp = chnget:k(strcat(SPrefix, "harmonyAmp"))
+  kV1 = chnget:k(strcat(SPrefix, "harmonyVoice1"))
+  kV2 = chnget:k(strcat(SPrefix, "harmonyVoice2"))
+  kV3 = chnget:k(strcat(SPrefix, "harmonyVoice3"))
+  kV4 = chnget:k(strcat(SPrefix, "harmonyVoice4"))
+  kV5 = chnget:k(strcat(SPrefix, "harmonyVoice5"))
+  kAtk = chnget:k(strcat(SPrefix, "attack"))
+  kRel = chnget:k(strcat(SPrefix, "release"))
+  
+  ; Proper envelope with i(k) casting for Csound 7
+  kEnv linsegr 0, i(kAtk), 1, i(kRel), 0
+  
+  a1 foscil kEnv * kAmp * 0.2, kV1, 1, 1.5, 0.5, 1
+  a2 foscil kEnv * kAmp * 0.2, kV2, 1, 1.5, 0.5, 1
+  a3 foscil kEnv * kAmp * 0.2, kV3, 1, 1.5, 0.5, 1
+  a4 foscil kEnv * kAmp * 0.2, kV4, 1, 1.5, 0.5, 1
+  a5 foscil kEnv * kAmp * 0.15, kV5, 1, 1.5, 0.5, 1
+  
+  aMix = a1 + a2 + a3 + a4 + a5
+  
+  aL, aR pan2 aMix, 0.5
+  gaRevL += aL * 0.4
+  gaRevR += aR * 0.4
+  out aL, aR
+endin
+
+; Slot C Harmony
+instr 503
+  SPrefix = "C_"
+  kAmp = chnget:k(strcat(SPrefix, "harmonyAmp"))
+  kV1 = chnget:k(strcat(SPrefix, "harmonyVoice1"))
+  kV2 = chnget:k(strcat(SPrefix, "harmonyVoice2"))
+  kV3 = chnget:k(strcat(SPrefix, "harmonyVoice3"))
+  kV4 = chnget:k(strcat(SPrefix, "harmonyVoice4"))
+  kV5 = chnget:k(strcat(SPrefix, "harmonyVoice5"))
+  kAtk = chnget:k(strcat(SPrefix, "attack"))
+  kRel = chnget:k(strcat(SPrefix, "release"))
+  
+  ; Proper envelope with i(k) casting for Csound 7
+  kEnv linsegr 0, i(kAtk), 1, i(kRel), 0
+  
+  a1 foscil kEnv * kAmp * 0.2, kV1, 1, 1.5, 0.5, 1
+  a2 foscil kEnv * kAmp * 0.2, kV2, 1, 1.5, 0.5, 1
+  a3 foscil kEnv * kAmp * 0.2, kV3, 1, 1.5, 0.5, 1
+  a4 foscil kEnv * kAmp * 0.2, kV4, 1, 1.5, 0.5, 1
+  a5 foscil kEnv * kAmp * 0.15, kV5, 1, 1.5, 0.5, 1
+  
+  aMix = a1 + a2 + a3 + a4 + a5
+  
+  aL, aR pan2 aMix, 0.5
+  gaRevL += aL * 0.4
+  gaRevR += aR * 0.4
+  out aL, aR
+endin
+
+; Slot D Harmony
+instr 504
+  SPrefix = "D_"
+  kAmp = chnget:k(strcat(SPrefix, "harmonyAmp"))
+  kV1 = chnget:k(strcat(SPrefix, "harmonyVoice1"))
+  kV2 = chnget:k(strcat(SPrefix, "harmonyVoice2"))
+  kV3 = chnget:k(strcat(SPrefix, "harmonyVoice3"))
+  kV4 = chnget:k(strcat(SPrefix, "harmonyVoice4"))
+  kV5 = chnget:k(strcat(SPrefix, "harmonyVoice5"))
+  kAtk = chnget:k(strcat(SPrefix, "attack"))
+  kRel = chnget:k(strcat(SPrefix, "release"))
+  
+  ; Proper envelope with i(k) casting for Csound 7
+  kEnv linsegr 0, i(kAtk), 1, i(kRel), 0
+  
+  a1 foscil kEnv * kAmp * 0.2, kV1, 1, 1.5, 0.5, 1
+  a2 foscil kEnv * kAmp * 0.2, kV2, 1, 1.5, 0.5, 1
+  a3 foscil kEnv * kAmp * 0.2, kV3, 1, 1.5, 0.5, 1
+  a4 foscil kEnv * kAmp * 0.2, kV4, 1, 1.5, 0.5, 1
+  a5 foscil kEnv * kAmp * 0.15, kV5, 1, 1.5, 0.5, 1
+  
+  aMix = a1 + a2 + a3 + a4 + a5
+  
+  aL, aR pan2 aMix, 0.5
+  gaRevL += aL * 0.4
+  gaRevR += aR * 0.4
+  out aL, aR
+endin
+
+; === TEST INSTRUMENT ===
+instr 999
+  aSig = oscili:a(0.3, 440)
+  out aSig, aSig
+endin
+`;
+
+// ================= Engine Parameter Definitions =================
+const ENGINE_PARAMS = {
+  fm: [
+    { key: 'freq', label: 'Frequency', min: 50, max: 1000, default: 200, unit: 'Hz' },
+    { key: 'ratio', label: 'FM Ratio', min: 0.5, max: 8, default: 2, unit: '' },
+    { key: 'index', label: 'FM Index', min: 0, max: 20, default: 5, unit: '' },
+    { key: 'cutoff', label: 'Filter Cutoff', min: 200, max: 9000, default: 2000, unit: 'Hz' },
+    { key: 'res', label: 'Resonance', min: 0, max: 0.9, default: 0.3, unit: '' },
+    { key: 'amp', label: 'Amplitude', min: 0, max: 1, default: 0.5, unit: '' },
+  ],
+  granular: [
+    { key: 'density', label: 'Grain Density', min: 1, max: 200, default: 40, unit: '/s' },
+    { key: 'pitch', label: 'Pitch Center', min: 50, max: 2000, default: 300, unit: 'Hz' },
+    { key: 'duration', label: 'Grain Duration', min: 0.005, max: 0.5, default: 0.05, unit: 's' },
+    { key: 'spread', label: 'Pitch Spread', min: 0, max: 1, default: 0.3, unit: '' },
+    { key: 'amp', label: 'Amplitude', min: 0, max: 1, default: 0.5, unit: '' },
+  ],
+  additive: [
+    { key: 'fundamental', label: 'Fundamental', min: 50, max: 550, default: 110, unit: 'Hz' },
+    { key: 'brightness', label: 'Brightness', min: 0, max: 1, default: 0.6, unit: '' },
+    { key: 'inharmonicity', label: 'Inharmonicity', min: 0, max: 0.1, default: 0.02, unit: '' },
+    { key: 'amp', label: 'Amplitude', min: 0, max: 1, default: 0.5, unit: '' },
+  ],
+  percussive: [
+    { key: 'density', label: 'Trigger Density', min: 0.5, max: 50, default: 8, unit: '/s' },
+    { key: 'pitchLo', label: 'Pitch Low', min: 50, max: 500, default: 100, unit: 'Hz' },
+    { key: 'pitchHi', label: 'Pitch High', min: 100, max: 2000, default: 800, unit: 'Hz' },
+    { key: 'harmonics', label: 'Harmonic Count', min: 1, max: 16, default: 8, unit: '' },
+    { key: 'decay', label: 'Decay Time', min: 0.05, max: 2, default: 0.3, unit: 's' },
+    { key: 'amp', label: 'Amplitude', min: 0, max: 1, default: 0.5, unit: '' },
+  ],
+  waveguide: [
+    { key: 'freq1', label: 'Frequency 1', min: 20, max: 5000, default: 200, unit: 'Hz' },
+    { key: 'freq2', label: 'Frequency 2', min: 20, max: 5000, default: 350, unit: 'Hz' },
+    { key: 'cutoff1', label: 'Cutoff 1', min: 50, max: 12000, default: 2000, unit: 'Hz' },
+    { key: 'cutoff2', label: 'Cutoff 2', min: 50, max: 12000, default: 3000, unit: 'Hz' },
+    { key: 'feedback1', label: 'Feedback 1', min: 0, max: 0.45, default: 0.25, unit: '' },
+    { key: 'feedback2', label: 'Feedback 2', min: 0, max: 0.45, default: 0.2, unit: '' },
+    { key: 'amp', label: 'Amplitude', min: 0, max: 1, default: 0.5, unit: '' },
+  ],
+};
+
+// ================= State =================
+let csound = null;
+let playing = false;
+let sequencing = false;
+let seqInterval = null;
+let seqStep = 0;
+
+// BPM Clock
+let bpm = 120;
+let beatInterval = 500; // ms per beat
+let lastBeatTime = 0;
+let beatCount = 0; // 0-3 for 4/4 time
+let globalBeatCount = 0; // total beats since start
+let tapTimes = [];
+
+// Scale Quantization
+let currentScale = 'chromatic';
+let rootNote = 0; // 0-11 (C=0)
+
+const SCALES = {
+  'chromatic': [0,1,2,3,4,5,6,7,8,9,10,11],
+  'major': [0,2,4,5,7,9,11],
+  'minor': [0,2,3,5,7,8,10],
+  'harmonic-minor': [0,2,3,5,7,8,11],
+  'melodic-minor': [0,2,3,5,7,9,11],
+  'pentatonic-major': [0,2,4,7,9],
+  'pentatonic-minor': [0,3,5,7,10],
+  'blues': [0,3,5,6,7,10],
+  'dorian': [0,2,3,5,7,9,10],
+  'phrygian': [0,1,3,5,7,8,10],
+  'lydian': [0,2,4,6,7,9,11],
+  'mixolydian': [0,2,4,5,7,9,10],
+  'whole-tone': [0,2,4,6,8,10]
+};
+
+// Track last loaded image for cloning
+let lastLoadedImage = null;
+
+// ================= Berklee Modal Jazz Harmony System =================
+// Modal chord scales (Berklee-style)
+const MODAL_CHORDS = {
+  'ionian': ['I△7', 'ii-7', 'iii-7', 'IV△7', 'V7', 'vi-7', 'vii-ø7'],
+  'dorian': ['i-7', 'ii-7', '♭III△7', 'IV7', 'v-7', 'vi-ø7', '♭VII△7'],
+  'phrygian': ['i-7', '♭II△7', '♭III7', 'iv-7', 'v°7', '♭VI△7', '♭vii-7'],
+  'lydian': ['I△7', 'II7', 'iii-7', '#iv-ø7', 'V△7', 'vi-7', 'vii-7'],
+  'mixolydian': ['I7', 'ii-7', 'iii-ø7', 'IV△7', 'v-7', 'vi-7', '♭VII△7'],
+  'aeolian': ['i-7', 'ii-ø7', '♭III△7', 'iv-7', 'v-7', '♭VI△7', '♭VII7'],
+  'locrian': ['i-ø7', '♭II△7', '♭iii-7', 'iv-7', '♭V△7', '♭VI7', '♭vii-7']
+};
+
+// Markov chain transitions (Berklee-style jazz progressions)
+const MARKOV_TRANSITIONS = {
+  'I△7': { 'IV△7': 0.25, 'ii-7': 0.2, 'vi-7': 0.2, 'V7': 0.15, 'I△7': 0.2 },
+  'ii-7': { 'V7': 0.5, 'iii-7': 0.15, 'I△7': 0.1, 'IV△7': 0.15, 'vi-7': 0.1 },
+  'iii-7': { 'vi-7': 0.4, 'IV△7': 0.2, 'ii-7': 0.2, 'I△7': 0.2 },
+  'IV△7': { 'V7': 0.3, 'ii-7': 0.25, 'I△7': 0.25, 'vii-ø7': 0.2 },
+  'V7': { 'I△7': 0.6, 'vi-7': 0.15, 'IV△7': 0.1, 'ii-7': 0.15 },
+  'vi-7': { 'ii-7': 0.4, 'V7': 0.3, 'IV△7': 0.2, 'iii-7': 0.1 },
+  'vii-ø7': { 'iii-7': 0.4, 'I△7': 0.3, 'V7': 0.3 },
+  'i-7': { 'iv-7': 0.35, 'V7': 0.25, '♭VII△7': 0.2, 'i-7': 0.2 },
+  'iv-7': { 'V7': 0.4, 'i-7': 0.3, '♭VII△7': 0.2, 'ii-ø7': 0.1 },
+  '♭III△7': { 'iv-7': 0.3, '♭VII△7': 0.3, 'i-7': 0.2, 'ii-ø7': 0.2 },
+  '♭VII△7': { 'i-7': 0.4, 'IV7': 0.3, '♭III△7': 0.3 },
+  'I7': { 'IV△7': 0.4, 'ii-7': 0.3, '♭VII△7': 0.2, 'I7': 0.1 },
+  'II7': { 'V△7': 0.4, 'I△7': 0.3, 'iii-7': 0.3 },
+  'ii-ø7': { 'V7': 0.5, 'i-7': 0.3, '♭VII7': 0.2 },
+  '#iv-ø7': { 'I△7': 0.5, 'V△7': 0.3, 'II7': 0.2 },
+  'v-7': { 'i-7': 0.4, 'IV△7': 0.3, 'ii-7': 0.3 },
+  'vi-ø7': { 'ii-7': 0.5, 'V7': 0.3, 'i-7': 0.2 },
+  '♭II△7': { 'i-7': 0.5, 'iv-7': 0.3, '♭III7': 0.2 },
+  '♭III7': { '♭VI△7': 0.4, 'i-7': 0.3, 'iv-7': 0.3 },
+  'v°7': { 'i-7': 0.5, '♭VI△7': 0.3, '♭II△7': 0.2 },
+  '♭VI△7': { 'i-7': 0.4, '♭II△7': 0.3, '♭vii-7': 0.3 },
+  '♭vii-7': { 'i-7': 0.5, '♭III7': 0.3, '♭VI△7': 0.2 },
+  'iii-ø7': { 'vi-7': 0.4, 'I7': 0.3, 'IV△7': 0.3 },
+  'IV7': { 'i-7': 0.4, '♭VII△7': 0.3, 'ii-7': 0.3 },
+  '♭V△7': { 'i-ø7': 0.5, '♭VI7': 0.3, '♭II△7': 0.2 },
+  '♭VI7': { 'i-ø7': 0.5, '♭II△7': 0.3, '♭V△7': 0.2 },
+  'i-ø7': { '♭V△7': 0.4, '♭II△7': 0.3, 'iv-7': 0.3 },
+  '♭iii-7': { 'i-ø7': 0.4, '♭VI7': 0.3, 'iv-7': 0.3 },
+  '♭VII7': { 'i-7': 0.5, '♭III△7': 0.3, 'iv-7': 0.2 }
+};
+
+// Chord tone definitions (intervals from root)
+const CHORD_TONES = {
+  '△7': [0, 4, 7, 11],        // Major 7th
+  '-7': [0, 3, 7, 10],        // Minor 7th
+  '7': [0, 4, 7, 10],         // Dominant 7th
+  '-ø7': [0, 3, 6, 10],       // Half-diminished 7th
+  'ø7': [0, 3, 6, 10],        // Half-diminished (alternate notation)
+  '°7': [0, 3, 6, 9]          // Diminished 7th
+};
+
+// Chord extensions for tension levels
+const CHORD_EXTENSIONS = {
+  low: [],                     // No extensions
+  medium: [14, 21],           // Add 9th and 13th
+  high: [13, 15, 18, 20]      // Add ♭9, #9, #11, ♭13
+};
+
+const slots = {
+  A: { 
+    pixels: null, W: 0, H: 0, pos: 0, scanning: false, engine: 'fm', features: {},
+    scanMode: 'line',
+    scanSpeed: 1.0,
+    phaseOffset: 0.0,
+    manualX: 0.5,
+    manualY: 0.5,
+    randomJumpRate: 4,
+    randomLastJump: 0,
+    phraseEnabled: false,
+    phrasePlayBeats: 4,
+    phraseRestBeats: 2,
+    phraseState: 'playing',
+    phraseBeatCount: 0,
+    phraseGate: 1,
+    attack: 0.01,
+    decay: 0.2,
+    sustain: 0.7,
+    release: 0.5,
+    harmony: {
+      enabled: false,
+      modalCenter: 'ionian',
+      voicingType: 'drop2',
+      harmonicRhythm: 4,
+      tension: 50,
+      currentChord: 'I△7',
+      currentVoicing: [],
+      lastChordChange: 0,
+      chordHistory: []
+    },
+    folder: {
+      enabled: false,
+      files: [],
+      currentIndex: 0,
+      mode: 'sequential',
+      timingMode: 'manual',
+      fixedRate: 10,
+      randomMin: 5,
+      randomMax: 20,
+      midiNote: 60,
+      lastChangeTime: 0,
+      nextChangeTime: 0,
+      lastScanPos: 0,
+      folderName: ''
+    }
+  },
+  B: { 
+    pixels: null, W: 0, H: 0, pos: 0, scanning: false, engine: 'fm', features: {},
+    scanMode: 'line',
+    scanSpeed: 1.0,
+    phaseOffset: 0.0,
+    manualX: 0.5,
+    manualY: 0.5,
+    randomJumpRate: 4,
+    randomLastJump: 0,
+    phraseEnabled: false,
+    phrasePlayBeats: 4,
+    phraseRestBeats: 2,
+    phraseState: 'playing',
+    phraseBeatCount: 0,
+    phraseGate: 1,
+    attack: 0.01,
+    decay: 0.2,
+    sustain: 0.7,
+    release: 0.5,
+    harmony: {
+      enabled: false,
+      modalCenter: 'ionian',
+      voicingType: 'drop2',
+      harmonicRhythm: 4,
+      tension: 50,
+      currentChord: 'I△7',
+      currentVoicing: [],
+      lastChordChange: 0,
+      chordHistory: []
+    },
+    folder: {
+      enabled: false,
+      files: [],
+      currentIndex: 0,
+      mode: 'sequential',
+      timingMode: 'manual',
+      fixedRate: 10,
+      randomMin: 5,
+      randomMax: 20,
+      midiNote: 60,
+      lastChangeTime: 0,
+      nextChangeTime: 0,
+      lastScanPos: 0,
+      folderName: ''
+    }
+  },
+  C: { 
+    pixels: null, W: 0, H: 0, pos: 0, scanning: false, engine: 'fm', features: {},
+    scanMode: 'line',
+    scanSpeed: 1.0,
+    phaseOffset: 0.0,
+    manualX: 0.5,
+    manualY: 0.5,
+    randomJumpRate: 4,
+    randomLastJump: 0,
+    phraseEnabled: false,
+    phrasePlayBeats: 4,
+    phraseRestBeats: 2,
+    phraseState: 'playing',
+    phraseBeatCount: 0,
+    phraseGate: 1,
+    attack: 0.01,
+    decay: 0.2,
+    sustain: 0.7,
+    release: 0.5,
+    harmony: {
+      enabled: false,
+      modalCenter: 'ionian',
+      voicingType: 'drop2',
+      harmonicRhythm: 4,
+      tension: 50,
+      currentChord: 'I△7',
+      currentVoicing: [],
+      lastChordChange: 0,
+      chordHistory: []
+    },
+    folder: {
+      enabled: false,
+      files: [],
+      currentIndex: 0,
+      mode: 'sequential',
+      timingMode: 'manual',
+      fixedRate: 10,
+      randomMin: 5,
+      randomMax: 20,
+      midiNote: 60,
+      lastChangeTime: 0,
+      nextChangeTime: 0,
+      lastScanPos: 0,
+      folderName: ''
+    }
+  },
+  D: { 
+    pixels: null, W: 0, H: 0, pos: 0, scanning: false, engine: 'fm', features: {},
+    scanMode: 'line',
+    scanSpeed: 1.0,
+    phaseOffset: 0.0,
+    manualX: 0.5,
+    manualY: 0.5,
+    randomJumpRate: 4,
+    randomLastJump: 0,
+    phraseEnabled: false,
+    phrasePlayBeats: 4,
+    phraseRestBeats: 2,
+    phraseState: 'playing',
+    phraseBeatCount: 0,
+    phraseGate: 1,
+    attack: 0.01,
+    decay: 0.2,
+    sustain: 0.7,
+    release: 0.5,
+    harmony: {
+      enabled: false,
+      modalCenter: 'ionian',
+      voicingType: 'drop2',
+      harmonicRhythm: 4,
+      tension: 50,
+      currentChord: 'I△7',
+      currentVoicing: [],
+      lastChordChange: 0,
+      chordHistory: []
+    },
+    folder: {
+      enabled: false,
+      files: [],
+      currentIndex: 0,
+      mode: 'sequential',
+      timingMode: 'manual',
+      fixedRate: 10,
+      randomMin: 5,
+      randomMax: 20,
+      midiNote: 60,
+      lastChangeTime: 0,
+      nextChangeTime: 0,
+      lastScanPos: 0,
+      folderName: ''
+    }
+  },
+};
+
+// ================= Utilities =================
+function log(msg) {
+  const c = $('console');
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  c.textContent += `[${time}] ${msg}\n`;
+  c.scrollTop = c.scrollHeight;
+}
+
+function status(msg) {
+  $('status').textContent = msg;
+}
+
+// Copy console to clipboard
+$('copyConsoleBtn').addEventListener('click', () => {
+  const text = $('console').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = $('copyConsoleBtn');
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(err => {
+    alert('Copy failed: ' + err.message);
+  });
+});
+
+function fmt(val, decimals = 1) {
+  return typeof val === 'number' ? val.toFixed(decimals) : val;
+}
+
+// ================= Dynamic Parameter UI =================
+function buildParamUI(slot) {
+  const engine = slots[slot].engine;
+  const params = ENGINE_PARAMS[engine];
+  const container = $(`params${slot}`);
+  
+  container.innerHTML = '';
+  
+  params.forEach(p => {
+    const id = `${slot}_${p.key}`;
+    const valId = `val${slot}_${p.key}`;
+    const normalized = (p.default - p.min) / (p.max - p.min);
+    
+    const field = document.createElement('div');
+    field.className = 'field';
+    field.innerHTML = `
+      <div class="lab">
+        <span>${p.label}</span>
+        <span class="v" id="${valId}">${fmt(p.default, p.unit === 'Hz' ? 0 : 2)}</span>
+      </div>
+      <input type="range" id="${id}" min="0" max="1000" value="${Math.round(normalized * 1000)}">
+    `;
+    container.appendChild(field);
+    
+    const slider = $(id);
+    const valSpan = $(valId);
+    
+    slider.addEventListener('input', () => {
+      const norm = slider.value / 1000;
+      const val = p.min + norm * (p.max - p.min);
+      valSpan.textContent = fmt(val, p.unit === 'Hz' || p.key === 'density' ? 0 : 2);
+      
+      if (csound) {
+        csound.setControlChannel(id, val).catch(() => {});
+      }
+    });
+    
+    // Initialize
+    slider.dispatchEvent(new Event('input'));
+  });
+}
+
+// ================= Photo Loading =================
+function setupPhotoZone(slot) {
+  const zone = $(`zone${slot}`);
+  const file = $(`file${slot}`);
+  const img = $(`photo${slot}`);
+  
+  zone.addEventListener('click', () => file.click());
+  
+  file.addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    
+    img.onload = () => {
+      zone.classList.add('has-photo');
+      loadPixels(slot, img);
+      log(`📸 Slot ${slot}: "${f.name}" loaded`);
+      $(`status${slot}`).textContent = '✓ Ready';
+    };
+    img.src = URL.createObjectURL(f);
+  });
+  
+  zone.addEventListener('dragover', e => e.preventDefault());
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) {
+      img.onload = () => {
+        zone.classList.add('has-photo');
+        loadPixels(slot, img);
+        log(`📸 Slot ${slot}: "${f.name}" loaded`);
+        $(`status${slot}`).textContent = '✓ Ready';
+      };
+      img.src = URL.createObjectURL(f);
+    }
+  });
+}
+
+function loadPixels(slot, img) {
+  const canvas = document.createElement('canvas');
+  const maxDim = 480;
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+  
+  canvas.width = Math.floor(img.naturalWidth * scale);
+  canvas.height = Math.floor(img.naturalHeight * scale);
+  
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  slots[slot].pixels = imgData.data;
+  slots[slot].W = canvas.width;
+  slots[slot].H = canvas.height;
+  
+  // Apply phase offset to initial scan position
+  slots[slot].pos = slots[slot].phaseOffset;
+  
+  // Save for cloning
+  lastLoadedImage = { imgData, width: canvas.width, height: canvas.height, img };
+}
+
+// ================= Folder Management =================
+function setupFolderControls(slot) {
+  const loadBtn = $(`loadFolder${slot}`);
+  const folderInput = $(`folderInput${slot}`);
+  const prevBtn = $(`prev${slot}`);
+  const nextBtn = $(`next${slot}`);
+  const modeSelect = $(`folderMode${slot}`);
+  const timingSelect = $(`timingMode${slot}`);
+  
+  if (!loadBtn || !folderInput) {
+    console.error(`Folder controls not found for slot ${slot}`);
+    return;
+  }
+  
+  // Load folder
+  loadBtn.addEventListener('click', () => {
+    console.log(`📁 Folder button clicked for slot ${slot}`);
+    folderInput.click();
+  });
+  
+  folderInput.addEventListener('change', e => {
+    const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) {
+      alert('No image files found in folder');
+      return;
+    }
+    
+    // Sort by filename
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    
+    const folder = slots[slot].folder;
+    folder.files = files;
+    folder.currentIndex = 0;
+    folder.enabled = true;
+    folder.folderName = files[0].webkitRelativePath.split('/')[0] || 'Folder';
+    
+    // Load first image
+    loadImageFromFolder(slot, 0);
+    
+    // Update UI
+    $(`folderNav${slot}`).style.display = 'flex';
+    $(`folderSettings${slot}`).style.display = 'block';
+    updateFolderInfo(slot);
+    buildTimingParams(slot);
+    
+    log(`📁 Slot ${slot}: Loaded ${files.length} images from "${folder.folderName}"`);
+  });
+  
+  // Navigation
+  prevBtn.addEventListener('click', () => previousImage(slot));
+  nextBtn.addEventListener('click', () => nextImage(slot));
+  
+  // Mode changes
+  modeSelect.addEventListener('change', () => {
+    slots[slot].folder.mode = modeSelect.value;
+    log(`📁 Slot ${slot}: Mode = ${modeSelect.value}`);
+  });
+  
+  timingSelect.addEventListener('change', () => {
+    slots[slot].folder.timingMode = timingSelect.value;
+    buildTimingParams(slot);
+    resetFolderTiming(slot);
+    log(`📁 Slot ${slot}: Timing = ${timingSelect.value}`);
+  });
+}
+
+function loadImageFromFolder(slot, index) {
+  const folder = slots[slot].folder;
+  if (!folder.enabled || folder.files.length === 0) return;
+  
+  folder.currentIndex = index;
+  const file = folder.files[index];
+  const img = $(`photo${slot}`);
+  const zone = $(`zone${slot}`);
+  
+  img.onload = () => {
+    zone.classList.add('has-photo');
+    loadPixels(slot, img);
+    updateFolderInfo(slot);
+    log(`📸 Slot ${slot}: "${file.name}" (${index + 1}/${folder.files.length})`);
+  };
+  
+  img.src = URL.createObjectURL(file);
+}
+
+function nextImage(slot) {
+  const folder = slots[slot].folder;
+  if (!folder.enabled) return;
+  
+  let nextIdx;
+  if (folder.mode === 'sequential') {
+    nextIdx = (folder.currentIndex + 1) % folder.files.length;
+  } else {
+    nextIdx = Math.floor(Math.random() * folder.files.length);
+  }
+  
+  loadImageFromFolder(slot, nextIdx);
+  resetFolderTiming(slot);
+}
+
+function previousImage(slot) {
+  const folder = slots[slot].folder;
+  if (!folder.enabled) return;
+  
+  let prevIdx;
+  if (folder.mode === 'sequential') {
+    prevIdx = (folder.currentIndex - 1 + folder.files.length) % folder.files.length;
+  } else {
+    prevIdx = Math.floor(Math.random() * folder.files.length);
+  }
+  
+  loadImageFromFolder(slot, prevIdx);
+  resetFolderTiming(slot);
+}
+
+function updateFolderInfo(slot) {
+  const folder = slots[slot].folder;
+  const info = $(`folderInfo${slot}`);
+  
+  if (folder.enabled && folder.files.length > 0) {
+    info.textContent = `${folder.currentIndex + 1}/${folder.files.length}`;
+  } else {
+    info.textContent = '—';
+  }
+}
+
+function buildTimingParams(slot) {
+  const folder = slots[slot].folder;
+  const container = $(`timingParams${slot}`);
+  const mode = folder.timingMode;
+  
+  container.innerHTML = '';
+  
+  if (mode === 'manual') {
+    // No params needed
+  } else if (mode === 'scan') {
+    // No params needed
+  } else if (mode === 'fixed') {
+    container.innerHTML = `
+      <div class="timing-params">
+        <div class="field">
+          <div class="lab"><span>Rate (seconds)</span><span class="v" id="fixedRate${slot}Val">${folder.fixedRate}</span></div>
+          <input type="range" id="fixedRate${slot}" min="1" max="60" value="${folder.fixedRate}" step="1">
+        </div>
+      </div>
+    `;
+    $(`fixedRate${slot}`).addEventListener('input', e => {
+      folder.fixedRate = parseFloat(e.target.value);
+      $(`fixedRate${slot}Val`).textContent = folder.fixedRate;
+      resetFolderTiming(slot);
+    });
+  } else if (mode === 'random') {
+    container.innerHTML = `
+      <div class="timing-params">
+        <div class="field">
+          <div class="lab"><span>Min (seconds)</span><span class="v" id="randomMin${slot}Val">${folder.randomMin}</span></div>
+          <input type="range" id="randomMin${slot}" min="1" max="30" value="${folder.randomMin}" step="1">
+        </div>
+        <div class="field">
+          <div class="lab"><span>Max (seconds)</span><span class="v" id="randomMax${slot}Val">${folder.randomMax}</span></div>
+          <input type="range" id="randomMax${slot}" min="2" max="60" value="${folder.randomMax}" step="1">
+        </div>
+      </div>
+    `;
+    $(`randomMin${slot}`).addEventListener('input', e => {
+      folder.randomMin = parseFloat(e.target.value);
+      $(`randomMin${slot}Val`).textContent = folder.randomMin;
+      resetFolderTiming(slot);
+    });
+    $(`randomMax${slot}`).addEventListener('input', e => {
+      folder.randomMax = parseFloat(e.target.value);
+      $(`randomMax${slot}Val`).textContent = folder.randomMax;
+      resetFolderTiming(slot);
+    });
+  } else if (mode === 'midi') {
+    container.innerHTML = `
+      <div class="timing-params">
+        <div class="field">
+          <div class="lab"><span>MIDI Note</span><span class="v" id="midiNote${slot}Val">${folder.midiNote}</span></div>
+          <input type="range" id="midiNote${slot}" min="0" max="127" value="${folder.midiNote}" step="1">
+        </div>
+      </div>
+    `;
+    $(`midiNote${slot}`).addEventListener('input', e => {
+      folder.midiNote = parseInt(e.target.value);
+      $(`midiNote${slot}Val`).textContent = folder.midiNote;
+    });
+  }
+}
+
+function resetFolderTiming(slot) {
+  const folder = slots[slot].folder;
+  const now = Date.now();
+  
+  folder.lastChangeTime = now;
+  
+  if (folder.timingMode === 'fixed') {
+    folder.nextChangeTime = now + (folder.fixedRate * 1000);
+  } else if (folder.timingMode === 'random') {
+    const interval = folder.randomMin + Math.random() * (folder.randomMax - folder.randomMin);
+    folder.nextChangeTime = now + (interval * 1000);
+  }
+}
+
+function checkFolderTiming(slot) {
+  const folder = slots[slot].folder;
+  if (!folder.enabled || !slots[slot].scanning) return;
+  
+  const now = Date.now();
+  
+  if (folder.timingMode === 'scan') {
+    // Check if scan wrapped around
+    if (slots[slot].pos < folder.lastScanPos) {
+      nextImage(slot);
+    }
+    folder.lastScanPos = slots[slot].pos;
+  } else if (folder.timingMode === 'fixed' || folder.timingMode === 'random') {
+    if (now >= folder.nextChangeTime) {
+      nextImage(slot);
+    }
+  }
+}
+
+function handleFolderMidiNote(slot, note) {
+  const folder = slots[slot].folder;
+  if (folder.enabled && folder.timingMode === 'midi' && note === folder.midiNote) {
+    nextImage(slot);
+  }
+}
+
+// ================= BPM Clock System =================
+function updateBPM(newBpm) {
+  bpm = newBpm;
+  beatInterval = (60 / bpm) * 1000; // ms per beat
+  $('valBpm').textContent = bpm;
+}
+
+function beatTick() {
+  const now = Date.now();
+  
+  if (now - lastBeatTime >= beatInterval) {
+    lastBeatTime = now;
+    beatCount = (beatCount + 1) % 4;
+    globalBeatCount++;
+    
+    updateBeatIndicator();
+    
+    // Update phrase states
+    ['A', 'B', 'C', 'D'].forEach(updatePhraseState);
+    
+    // Update random scan positions
+    ['A', 'B', 'C', 'D'].forEach(updateRandomScan);
+    
+    // Update harmony (Berklee Modal Jazz)
+    ['A', 'B', 'C', 'D'].forEach(slot => updateHarmony(slot, globalBeatCount));
+  }
+}
+
+function updateBeatIndicator() {
+  for (let i = 1; i <= 4; i++) {
+    const light = $(`beat${i}`);
+    if (i - 1 === beatCount) {
+      light.classList.add('active');
+    } else {
+      light.classList.remove('active');
+    }
+  }
+}
+
+function handleTapTempo() {
+  const now = Date.now();
+  tapTimes.push(now);
+  
+  // Keep only last 4 taps
+  if (tapTimes.length > 4) tapTimes.shift();
+  
+  if (tapTimes.length >= 2) {
+    // Calculate average interval
+    let totalInterval = 0;
+    for (let i = 1; i < tapTimes.length; i++) {
+      totalInterval += tapTimes[i] - tapTimes[i-1];
+    }
+    const avgInterval = totalInterval / (tapTimes.length - 1);
+    const calculatedBpm = Math.round(60000 / avgInterval);
+    
+    // Clamp to valid range
+    const newBpm = Math.max(40, Math.min(240, calculatedBpm));
+    
+    $('bpm').value = newBpm;
+    updateBPM(newBpm);
+    
+    log(`⏱ Tap tempo: ${newBpm} BPM`);
+  }
+  
+  // Reset if too much time elapsed
+  if (tapTimes.length >= 2 && (now - tapTimes[tapTimes.length - 2]) > 2000) {
+    tapTimes = [now];
+  }
+}
+
+// ================= Scale Quantization =================
+function quantizeToScale(freqHz) {
+  if (currentScale === 'chromatic') return freqHz;
+  
+  // Convert Hz → MIDI note number
+  let midi = 69 + 12 * Math.log2(freqHz / 440);
+  
+  // Get scale degrees
+  const scaleNotes = SCALES[currentScale];
+  const octave = Math.floor(midi / 12);
+  const semitone = Math.round(midi % 12);
+  
+  // Find closest scale degree
+  let closest = scaleNotes[0];
+  let minDist = Math.abs(semitone - scaleNotes[0]);
+  
+  for (let note of scaleNotes) {
+    const dist = Math.abs(semitone - note);
+    if (dist < minDist) {
+      minDist = dist;
+      closest = note;
+    }
+  }
+  
+  // Apply root note offset
+  closest = (closest + rootNote) % 12;
+  
+  // Convert back to Hz
+  const quantizedMidi = octave * 12 + closest;
+  return 440 * Math.pow(2, (quantizedMidi - 69) / 12);
+}
+
+// ================= Phrase Mode =================
+function updatePhraseState(slot) {
+  const s = slots[slot];
+  if (!s.phraseEnabled) {
+    s.phraseGate = 1;
+    return;
+  }
+  
+  s.phraseBeatCount++;
+  
+  const totalBeats = s.phrasePlayBeats + s.phraseRestBeats;
+  
+  if (s.phraseBeatCount >= totalBeats) {
+    s.phraseBeatCount = 0;
+  }
+  
+  if (s.phraseBeatCount < s.phrasePlayBeats) {
+    s.phraseState = 'playing';
+    s.phraseGate = 1;
+  } else {
+    s.phraseState = 'resting';
+    s.phraseGate = 0;
+  }
+}
+
+// ================= Scan Modes =================
+function setupScanMode(slot) {
+  const zone = $(`zone${slot}`);
+  const buttons = document.querySelectorAll(`.scan-mode-btn[data-slot="${slot}"]`);
+  
+  // Button clicks
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.mode;
+      slots[slot].scanMode = mode;
+      
+      // Update button states
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      log(`📐 Slot ${slot}: Scan mode = ${mode}`);
+    });
+  });
+  
+  // Mouse tracking for manual mode
+  zone.addEventListener('mousemove', e => {
+    if (slots[slot].scanMode !== 'manual') return;
+    
+    const rect = zone.getBoundingClientRect();
+    slots[slot].manualX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    slots[slot].manualY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+  });
+}
+
+function updateRandomScan(slot) {
+  const s = slots[slot];
+  if (s.scanMode !== 'random') return;
+  
+  // Jump every N beats
+  if (globalBeatCount - s.randomLastJump >= s.randomJumpRate) {
+    s.manualX = Math.random();
+    s.manualY = Math.random();
+    s.randomLastJump = globalBeatCount;
+  }
+}
+
+// ================= MIDI Support =================
+// Launchkey exposes two inputs. Notes and knobs arrive on "MIDI Out".
+// "DAW Out" is the control surface and must never be mapped.
+let midiAccess = null;
+let activeMidiId = null;
+
+function isDawPort(name) {
+  return /daw/i.test(name || '');
+}
+
+function isKeyboardPort(name) {
+  return /midi out/i.test(name || '') && !isDawPort(name);
+}
+
+function fillMidiDevices() {
+  const sel = $('midiDeviceSelect');
+  const inputs = [...midiAccess.inputs.values()];
+  const previous = sel.value || activeMidiId;
+
+  sel.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = inputs.length ? '— Choose MIDI input —' : 'No MIDI inputs found';
+  sel.appendChild(placeholder);
+
+  for (const input of inputs) {
+    const opt = document.createElement('option');
+    opt.value = input.id;
+    if (isDawPort(input.name)) {
+      opt.textContent = `${input.name}  ·  DAW port, not mapped`;
+      opt.disabled = true;
+    } else {
+      opt.textContent = input.name;
+    }
+    sel.appendChild(opt);
+  }
+
+  const playable = inputs.filter(input => !isDawPort(input.name));
+  sel.disabled = playable.length === 0;
+
+  let chosen = '';
+  const previousInput = previous ? midiAccess.inputs.get(previous) : null;
+  if (previousInput && !isDawPort(previousInput.name)) {
+    chosen = previous;
+  } else {
+    const keyboard = playable.find(input => isKeyboardPort(input.name));
+    chosen = (keyboard || playable[0] || {}).id || '';
+  }
+
+  sel.value = chosen;
+  connectMidiDevice(chosen);
+
+  const dawCount = inputs.length - playable.length;
+  log(`🎹 ${playable.length} keyboard port(s). ${dawCount} DAW port(s) left unmapped.`);
+}
+
+function connectMidiDevice(deviceId) {
+  if (!midiAccess) return;
+
+  for (const input of midiAccess.inputs.values()) {
+    input.onmidimessage = null;
+  }
+
+  if (!deviceId) {
+    activeMidiId = null;
+    $('midiStatus').textContent = 'none';
+    log('🎹 No MIDI input selected');
+    return;
+  }
+
+  const input = midiAccess.inputs.get(deviceId);
+  if (!input || isDawPort(input.name)) {
+    activeMidiId = null;
+    $('midiStatus').textContent = 'DAW port refused';
+    log(`🎹 Refusing DAW port${input ? ': ' + input.name : ''}`);
+    return;
+  }
+
+  input.onmidimessage = handleMidiMessage;
+  activeMidiId = deviceId;
+  $('midiStatus').textContent = 'live';
+  log(`🎹 Listening only to: ${input.name}`);
+}
+
+async function initMidi() {
+  if (!navigator.requestMIDIAccess) {
+    log('⚠️ MIDI not supported in this browser');
+    $('midiStatus').textContent = 'unsupported';
+    return;
+  }
+
+  try {
+    if (!midiAccess) {
+      log('🎹 Asking the browser for MIDI access…');
+      midiAccess = await navigator.requestMIDIAccess();
+      midiAccess.onstatechange = () => {
+        log('🎹 MIDI ports changed');
+        fillMidiDevices();
+      };
+    }
+    log('🎹 MIDI access granted. Choose the Launchkey MIDI Out, not the DAW Out.');
+    fillMidiDevices();
+  } catch (err) {
+    log('⚠️ MIDI access denied: ' + err.message);
+    $('midiStatus').textContent = 'denied';
+  }
+}
+
+$('midiDeviceSelect').addEventListener('change', e => {
+  connectMidiDevice(e.target.value);
+});
+
+function handleMidiMessage(msg) {
+  const [status, note, velocity] = msg.data;
+  const cmd = status >> 4;
+
+  // Note On (0x9) with velocity > 0
+  if (cmd === 9 && velocity > 0) {
+    log(`🎹 Note ${note}  vel ${velocity}`);
+    ['A', 'B', 'C', 'D'].forEach(slot => {
+      handleFolderMidiNote(slot, note);
+    });
+  }
+}
+
+// ================= Image Analysis (Simplified) =================
+function analyzeLine(slot) {
+  const s = slots[slot];
+  if (!s.pixels) return { hue: 0.5, saturation: 0.5, brightness: 0.5, contrast: 0.5 };
+  
+  const { W, H, pixels } = s;
+  
+  let r = 0, g = 0, b = 0, count = 0, minL = 1, maxL = 0;
+  
+  if (s.scanMode === 'line') {
+    // Vertical line scan (original behavior)
+    const lineIdx = Math.floor(s.pos * W);
+    
+    for (let y = 0; y < H; y++) {
+      const idx = (y * W + lineIdx) * 4;
+      const nr = pixels[idx] / 255;
+      const ng = pixels[idx + 1] / 255;
+      const nb = pixels[idx + 2] / 255;
+      
+      r += nr;
+      g += ng;
+      b += nb;
+      
+      const lum = (nr + ng + nb) / 3;
+      minL = Math.min(minL, lum);
+      maxL = Math.max(maxL, lum);
+      count++;
+    }
+  } else if (s.scanMode === 'manual' || s.scanMode === 'random') {
+    // Point sample with surrounding area (5x5 kernel)
+    const cx = Math.floor(s.manualX * W);
+    const cy = Math.floor(s.manualY * H);
+    const radius = 2;
+    
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const x = Math.max(0, Math.min(W - 1, cx + dx));
+        const y = Math.max(0, Math.min(H - 1, cy + dy));
+        const idx = (y * W + x) * 4;
+        
+        const nr = pixels[idx] / 255;
+        const ng = pixels[idx + 1] / 255;
+        const nb = pixels[idx + 2] / 255;
+        
+        r += nr;
+        g += ng;
+        b += nb;
+        
+        const lum = (nr + ng + nb) / 3;
+        minL = Math.min(minL, lum);
+        maxL = Math.max(maxL, lum);
+        count++;
+      }
+    }
+  }
+  
+  if (count === 0) return { hue: 0.5, saturation: 0.5, brightness: 0.5, contrast: 0.5 };
+  
+  r /= count;
+  g /= count;
+  b /= count;
+  
+  const brightness = (r + g + b) / 3;
+  const hue = (r * 0.3 + g * 0.6 + b * 0.1);
+  const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+  const contrast = maxL - minL;
+  
+  return { hue, saturation, brightness, contrast };
+}
+
+function drawOverlay(slot) {
+  const s = slots[slot];
+  const img = $(`photo${slot}`);
+  const overlay = $(`overlay${slot}`);
+  
+  if (!s.pixels || !img.clientWidth) return;
+  
+  overlay.width = img.clientWidth;
+  overlay.height = img.clientHeight;
+  overlay.style.width = img.clientWidth + 'px';
+  overlay.style.height = img.clientHeight + 'px';
+  
+  const ctx = overlay.getContext('2d');
+  ctx.clearRect(0, 0, overlay.width, overlay.height);
+  
+  ctx.strokeStyle = '#00ff88';
+  ctx.fillStyle = '#00ff88';
+  ctx.shadowColor = '#00ff88';
+  ctx.shadowBlur = 8;
+  
+  if (s.scanMode === 'line') {
+    // Vertical line
+    const x = s.pos * overlay.width;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, overlay.height);
+    ctx.stroke();
+  } else if (s.scanMode === 'manual' || s.scanMode === 'random') {
+    // Crosshair
+    const x = s.manualX * overlay.width;
+    const y = s.manualY * overlay.height;
+    const size = 10;
+    
+    ctx.lineWidth = 2;
+    // Horizontal line
+    ctx.beginPath();
+    ctx.moveTo(x - size, y);
+    ctx.lineTo(x + size, y);
+    ctx.stroke();
+    
+    // Vertical line
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x, y + size);
+    ctx.stroke();
+    
+    // Circle
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  
+  ctx.shadowBlur = 0;
+}
+
+// ================= Scanning & Mapping =================
+function tick() {
+  // Update BPM clock
+  beatTick();
+  
+  ['A', 'B', 'C', 'D'].forEach(slot => {
+    const s = slots[slot];
+    if (s.scanning && s.pixels) {
+      // Update scan position (line mode only)
+      if (s.scanMode === 'line') {
+        s.pos += 0.002 * s.scanSpeed;
+        if (s.pos > 1) s.pos = 0;
+      }
+      
+      const features = analyzeLine(slot);
+      s.features = features;
+      
+      // Map features to parameters based on engine
+      const engine = s.engine;
+      
+      // Apply phrase mode gating to amplitude
+      const gatedAmp = s.phraseGate;
+      
+      if (csound) {
+        // Send ADSR parameters
+        csound.setControlChannel(`${slot}_attack`, s.attack).catch(() => {});
+        csound.setControlChannel(`${slot}_decay`, s.decay).catch(() => {});
+        csound.setControlChannel(`${slot}_sustain`, s.sustain).catch(() => {});
+        csound.setControlChannel(`${slot}_release`, s.release).catch(() => {});
+        
+        if (engine === 'fm') {
+          let freq = quantizeToScale(50 + features.brightness * 950);
+          csound.setControlChannel(`${slot}_freq`, freq).catch(() => {});
+          csound.setControlChannel(`${slot}_index`, features.contrast * 20).catch(() => {});
+          csound.setControlChannel(`${slot}_cutoff`, 200 + features.saturation * 8800).catch(() => {});
+          csound.setControlChannel(`${slot}_amp`, gatedAmp).catch(() => {});
+        } else if (engine === 'granular') {
+          let pitch = quantizeToScale(50 + features.brightness * 1950);
+          csound.setControlChannel(`${slot}_density`, (1 + features.contrast * 199) * gatedAmp).catch(() => {});
+          csound.setControlChannel(`${slot}_pitch`, pitch).catch(() => {});
+          csound.setControlChannel(`${slot}_spread`, features.saturation).catch(() => {});
+          csound.setControlChannel(`${slot}_amp`, gatedAmp).catch(() => {});
+        } else if (engine === 'additive') {
+          let fund = quantizeToScale(50 + features.brightness * 500);
+          csound.setControlChannel(`${slot}_fundamental`, fund).catch(() => {});
+          csound.setControlChannel(`${slot}_brightness`, features.saturation).catch(() => {});
+          csound.setControlChannel(`${slot}_inharmonicity`, features.contrast * 0.1).catch(() => {});
+          csound.setControlChannel(`${slot}_amp`, gatedAmp).catch(() => {});
+        } else if (engine === 'percussive') {
+          let pitchLo = quantizeToScale(50 + features.brightness * 450);
+          let pitchHi = quantizeToScale(100 + features.saturation * 1900);
+          csound.setControlChannel(`${slot}_density`, (0.5 + features.contrast * 49.5) * gatedAmp).catch(() => {});
+          csound.setControlChannel(`${slot}_pitchLo`, pitchLo).catch(() => {});
+          csound.setControlChannel(`${slot}_pitchHi`, pitchHi).catch(() => {});
+          csound.setControlChannel(`${slot}_harmonics`, 1 + Math.floor(features.saturation * 15)).catch(() => {});
+          csound.setControlChannel(`${slot}_amp`, gatedAmp).catch(() => {});
+        } else if (engine === 'waveguide') {
+          let freq1 = quantizeToScale(20 + features.brightness * 4980);
+          let freq2 = quantizeToScale(20 + features.saturation * 4980);
+          csound.setControlChannel(`${slot}_freq1`, freq1).catch(() => {});
+          csound.setControlChannel(`${slot}_freq2`, freq2).catch(() => {});
+          csound.setControlChannel(`${slot}_cutoff1`, 50 + features.contrast * 11950).catch(() => {});
+          csound.setControlChannel(`${slot}_cutoff2`, 50 + (1 - features.contrast) * 11950).catch(() => {});
+          csound.setControlChannel(`${slot}_feedback1`, features.brightness * 0.45).catch(() => {});
+          csound.setControlChannel(`${slot}_feedback2`, features.saturation * 0.45).catch(() => {});
+          csound.setControlChannel(`${slot}_amp`, gatedAmp).catch(() => {});
+        }
+      }
+      
+      // Check folder timing triggers
+      checkFolderTiming(slot);
+      
+      drawOverlay(slot);
+      
+      // Update scan progress bar (line mode shows position, others show 50%)
+      if (s.scanMode === 'line') {
+        $(`scan${slot}`).style.width = (s.pos * 100) + '%';
+      } else {
+        $(`scan${slot}`).style.width = '50%';
+      }
+    }
+  });
+  
+  requestAnimationFrame(tick);
+}
+
+// ================= Engine Selection =================
+['A', 'B', 'C', 'D'].forEach(slot => {
+  $(`engine${slot}`).addEventListener('change', () => {
+    const newEngine = $(`engine${slot}`).value;
+    slots[slot].engine = newEngine;
+    buildParamUI(slot);
+    log(`🔧 Slot ${slot}: Engine changed to ${newEngine.toUpperCase()}`);
+    
+    // If playing, restart instrument
+    if (slots[slot].scanning && csound) {
+      const newInstr = getInstrNum(slot, newEngine);
+      const oldInstr = getInstrNum(slot, oldEngine); // Use saved old engine
+      
+      csound.inputMessage(`i -${oldInstr} 0 0`).catch(() => {}); // Ignore if not running
+      setTimeout(() => {
+        csound.inputMessage(`i ${newInstr} 0 -1`);
+      }, 100);
+    }
+  });
+});
+
+function getInstrNum(slot, engine) {
+  const base = { A: 10, B: 20, C: 30, D: 40 };
+  const offset = { fm: 0, granular: 1, additive: 2, percussive: 3, waveguide: 4 };
+  return base[slot] + offset[engine];
+}
+
+// ================= Playback Mode =================
+$('playMode').addEventListener('change', () => {
+  const mode = $('playMode').value;
+  log(`🎛️ Playback mode: ${mode}`);
+  
+  document.querySelectorAll('.slot').forEach(el => el.classList.remove('active'));
+  
+  const active = [];
+  if (mode.includes('A')) active.push('A');
+  if (mode.includes('B')) active.push('B');
+  if (mode.includes('C')) active.push('C');
+  if (mode.includes('D')) active.push('D');
+  
+  active.forEach(slot => {
+    document.querySelector(`.slot[data-slot="${slot}"]`).classList.add('active');
+  });
+  
+  updateTimeline();
+});
+
+function updateTimeline() {
+  const timeline = $('timeline');
+  const mode = $('playMode').value;
+  
+  timeline.innerHTML = '';
+  
+  const active = [];
+  if (mode.includes('A')) active.push('A');
+  if (mode.includes('B')) active.push('B');
+  if (mode.includes('C')) active.push('C');
+  if (mode.includes('D')) active.push('D');
+  
+  active.forEach((slot, idx) => {
+    const track = document.createElement('div');
+    track.className = 'timeline-track';
+    track.style.top = (idx * 14) + 'px';
+    track.style.left = '0%';
+    track.style.width = '100%';
+    track.textContent = slot;
+    track.style.paddingLeft = '8px';
+    track.style.fontSize = '10px';
+    track.style.lineHeight = '12px';
+    track.style.color = '#0a0c10';
+    track.style.fontWeight = '600';
+    
+    if (slots[slot].scanning) {
+      track.classList.add('active');
+    }
+    
+    timeline.appendChild(track);
+  });
+}
+
+// ================= Master Controls =================
+$('masterGain').addEventListener('input', () => {
+  const v = $('masterGain').value / 1000;
+  $('valMasterGain').textContent = v.toFixed(2);
+  if (csound) csound.setControlChannel('masterGain', v).catch(() => {});
+});
+
+$('revSize').addEventListener('input', () => {
+  const v = $('revSize').value / 1000;
+  $('valRevSize').textContent = v.toFixed(2);
+  if (csound) csound.setControlChannel('revSize', v).catch(() => {});
+});
+
+$('cycleTime').addEventListener('input', () => {
+  const v = 1 + ($('cycleTime').value / 1000) * 19; // 1-20s
+  $('valCycleTime').textContent = v.toFixed(1) + 's';
+});
+
+// ================= Sequence Mode =================
+$('seqBtn').addEventListener('click', () => {
+  sequencing = !sequencing;
+  
+  if (sequencing) {
+    $('seqBtn').textContent = '🔄 Auto-Sequence: ON';
+    $('seqBtn').classList.add('on');
+    startSequence();
+  } else {
+    $('seqBtn').textContent = '🔄 Auto-Sequence: OFF';
+    $('seqBtn').classList.remove('on');
+    stopSequence();
+  }
+});
+
+function startSequence() {
+  const cycleTime = (1 + ($('cycleTime').value / 1000) * 19) * 1000;
+  const pattern = $('seqPattern').value;
+  
+  seqStep = 0;
+  
+  seqInterval = setInterval(() => {
+    let slots;
+    
+    if (pattern === 'random') {
+      const all = ['A', 'B', 'C', 'D'];
+      slots = all[Math.floor(Math.random() * all.length)];
+    } else {
+      slots = pattern[seqStep % pattern.length];
+    }
+    
+    $('playMode').value = `solo_${slots}`;
+    $('playMode').dispatchEvent(new Event('change'));
+    
+    seqStep++;
+  }, cycleTime);
+  
+  log(`🔄 Sequence started: ${pattern} · ${(cycleTime/1000).toFixed(1)}s per step`);
+}
+
+function stopSequence() {
+  if (seqInterval) {
+    clearInterval(seqInterval);
+    seqInterval = null;
+  }
+  log('🔄 Sequence stopped');
+}
+
+// ================= Csound Init =================
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  
+  try {
+    log('🎵 Loading Csound 7 WASM...');
+    status('Loading audio engine...');
+    
+    // EXACT options from working weather_sonification_v2.html
+    csound = await Csound({
+      useWorker: false,
+      useSPN: false,
+      outputChannelCount: 2
+    });
+    
+    csound.on('message', m => {
+      if (!m.includes('WARNING') && !m.includes('0dBFS')) {
+        log(m);
+      }
+    });
+    
+    log('🎼 Compiling orchestra...');
+    await csound.compileOrc(ORC);
+    
+    log('⚙️ Setting -odac (audio output)...');
+    await csound.setOption("-odac");
+    
+    log('🔊 Getting audio context (before start)...');
+    const ctx = await csound.getAudioContext();
+    log('🔊 Audio context:', ctx ? 'exists' : 'NULL');
+    log('🔊 Audio context state:', ctx?.state);
+    
+    if (ctx) {
+      if (ctx.state === 'suspended') {
+        log('▶️ Resuming suspended audio context...');
+        await ctx.resume();
+        log('✅ Audio context resumed to:', ctx.state);
+      } else {
+        log('✅ Audio context already running:', ctx.state);
+      }
+    } else {
+      throw new Error('Audio context is NULL! Cannot initialize audio.');
+    }
+    
+    log('🎬 Starting Csound engine...');
+    await csound.start();
+    log('✅ Csound started with real audio output!');
+    
+    log('📻 Initializing channels...');
+    
+    // Initialize all slot parameters
+    ['A', 'B', 'C', 'D'].forEach(slot => {
+      const engine = slots[slot].engine;
+      const params = ENGINE_PARAMS[engine];
+      
+      params.forEach(p => {
+        const val = p.default;
+        csound.setControlChannel(`${slot}_${p.key}`, val).catch(() => {});
+      });
+    });
+    
+    // Initialize master controls
+    $('masterGain').dispatchEvent(new Event('input'));
+    $('revSize').dispatchEvent(new Event('input'));
+    
+    log('🎚️ Starting master reverb...');
+    await csound.inputMessage('i 90 0 -1');
+    log('✅ Reverb (90) started');
+    
+    log('🎹 Starting harmony instruments...');
+    await csound.inputMessage('i 501 0 -1');
+    log('✅ Harmony A (501) started');
+    await csound.inputMessage('i 502 0 -1');
+    log('✅ Harmony B (502) started');
+    await csound.inputMessage('i 503 0 -1');
+    log('✅ Harmony C (503) started');
+    await csound.inputMessage('i 504 0 -1');
+    log('✅ Harmony D (504) started');
+    
+    // Auto-start slot A FM synth for immediate sound
+    log('🎸 Auto-starting Slot A (FM synth)...');
+    await csound.inputMessage('i 10 0 -1');
+    slots.A.scanning = true;
+    $('statusA').textContent = '▶ Playing';
+    log('✅ Slot A playing - move mouse over image for sound!');
+    
+    $('playBtn').disabled = false;
+    $('stopBtn').disabled = false;
+    $('seqBtn').disabled = false;
+    $('savePresetBtn').disabled = false;
+    $('loadPresetBtn').disabled = false;
+    
+    $('startBtn').textContent = '✅ Audio Running';
+    $('startBtn').classList.add('on');
+    
+    log('✅ Ready! Load photos and press ▶ Play');
+    status('✅ Audio engine ready · Load photos in slots, choose mode, press ▶ Play');
+    
+    // Initialize MIDI for folder triggers
+    initMidi();
+    
+  } catch (err) {
+    log('❌ INITIALIZATION ERROR: ' + err.message);
+    log('❌ Stack: ' + err.stack);
+    status('❌ Audio engine failed to start - check console');
+    $('startBtn').disabled = false;
+    $('startBtn').textContent = '🎬 Start Audio Engine';
+    console.error('Full error object:', err);
+  }
+});
+
+$('playBtn').addEventListener('click', async () => {
+  if (!csound) return;
+  
+  const mode = $('playMode').value;
+  const active = [];
+  if (mode.includes('A')) active.push('A');
+  if (mode.includes('B')) active.push('B');
+  if (mode.includes('C')) active.push('C');
+  if (mode.includes('D')) active.push('D');
+  
+  for (const slot of active) {
+    const engine = slots[slot].engine;
+    const instrNum = getInstrNum(slot, engine);
+    
+    await csound.inputMessage(`i ${instrNum} 0 -1`);
+    slots[slot].scanning = true;
+    $(`status${slot}`).textContent = '▶ Playing';
+    log(`▶ Slot ${slot} started (${engine.toUpperCase()})`);
+  }
+  
+  playing = true;
+  updateTimeline();
+  status(`▶ Playing: ${active.join(' + ')}`);
+  
+  $('playBtn').classList.add('on');
+  $('stopBtn').classList.remove('on');
+});
+
+$('stopBtn').addEventListener('click', async () => {
+  if (!csound) return;
+  
+  // Stop all slot instruments (only valid instrument numbers)
+  const validInstrs = [10,11,12,13,14, 20,21,22,23,24, 30,31,32,33,34, 40,41,42,43,44];
+  for (const i of validInstrs) {
+    csound.inputMessage(`i -${i} 0 0`).catch(() => {}); // Ignore if not running
+  }
+  
+  ['A', 'B', 'C', 'D'].forEach(slot => {
+    slots[slot].scanning = false;
+    $(`status${slot}`).textContent = '■ Stopped';
+  });
+  
+  playing = false;
+  updateTimeline();
+  log('■ All slots stopped');
+  status('■ Stopped');
+  
+  $('playBtn').classList.remove('on');
+  $('stopBtn').classList.add('on');
+});
+
+// ================= Presets =================
+function capturePreset() {
+  const preset = {
+    slots: {},
+    mode: $('playMode').value,
+    master: {
+      gain: $('masterGain').value,
+      revSize: $('revSize').value,
+    },
+  };
+  
+  ['A', 'B', 'C', 'D'].forEach(slot => {
+    const engine = slots[slot].engine;
+    const params = {};
+    
+    ENGINE_PARAMS[engine].forEach(p => {
+      const slider = $(`${slot}_${p.key}`);
+      if (slider) params[p.key] = slider.value;
+    });
+    
+    // Capture folder settings (but not files - those need to be reloaded)
+    const folder = {
+      mode: slots[slot].folder.mode,
+      timingMode: slots[slot].folder.timingMode,
+      fixedRate: slots[slot].folder.fixedRate,
+      randomMin: slots[slot].folder.randomMin,
+      randomMax: slots[slot].folder.randomMax,
+      midiNote: slots[slot].folder.midiNote
+    };
+    
+    preset.slots[slot] = { engine, params, folder };
+  });
+  
+  return preset;
+}
+
+function loadPreset(preset) {
+  if (!preset) return;
+  
+  // Set playback mode
+  if (preset.mode) {
+    $('playMode').value = preset.mode;
+    $('playMode').dispatchEvent(new Event('change'));
+  }
+  
+  // Set master controls
+  if (preset.master) {
+    if (preset.master.gain !== undefined) {
+      $('masterGain').value = preset.master.gain;
+      $('masterGain').dispatchEvent(new Event('input'));
+    }
+    if (preset.master.revSize !== undefined) {
+      $('revSize').value = preset.master.revSize;
+      $('revSize').dispatchEvent(new Event('input'));
+    }
+  }
+  
+  // Set slot configurations
+  if (preset.slots) {
+    ['A', 'B', 'C', 'D'].forEach(slot => {
+      if (preset.slots[slot]) {
+        const slotData = preset.slots[slot];
+        
+        // Set engine
+        $(`engine${slot}`).value = slotData.engine;
+        slots[slot].engine = slotData.engine;
+        buildParamUI(slot);
+        
+        // Set parameters
+        if (slotData.params) {
+          Object.entries(slotData.params).forEach(([key, value]) => {
+            const slider = $(`${slot}_${key}`);
+            if (slider) {
+              slider.value = value;
+              slider.dispatchEvent(new Event('input'));
+            }
+          });
+        }
+        
+        // Restore folder settings (if folder is loaded)
+        if (slotData.folder && slots[slot].folder.enabled) {
+          slots[slot].folder.mode = slotData.folder.mode || 'sequential';
+          slots[slot].folder.timingMode = slotData.folder.timingMode || 'manual';
+          slots[slot].folder.fixedRate = slotData.folder.fixedRate || 10;
+          slots[slot].folder.randomMin = slotData.folder.randomMin || 5;
+          slots[slot].folder.randomMax = slotData.folder.randomMax || 20;
+          slots[slot].folder.midiNote = slotData.folder.midiNote || 60;
+          
+          // Update UI
+          $(`folderMode${slot}`).value = slots[slot].folder.mode;
+          $(`timingMode${slot}`).value = slots[slot].folder.timingMode;
+          buildTimingParams(slot);
+          resetFolderTiming(slot);
+        }
+      }
+    });
+  }
+  
+  log('📂 Preset loaded');
+  status('Preset loaded successfully');
+}
+
+$('savePresetBtn').addEventListener('click', () => {
+  const name = prompt('Enter preset name:');
+  if (!name) return;
+  
+  const preset = capturePreset();
+  const presets = JSON.parse(localStorage.getItem('multiEnginePresets') || '{}');
+  presets[name] = preset;
+  localStorage.setItem('multiEnginePresets', JSON.stringify(presets));
+  
+  updatePresetList();
+  $('presetList').value = name;
+  log(`💾 Preset saved: "${name}"`);
+  status(`Preset "${name}" saved`);
+});
+
+$('loadPresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) {
+    alert('Select a preset first');
+    return;
+  }
+  
+  const presets = JSON.parse(localStorage.getItem('multiEnginePresets') || '{}');
+  loadPreset(presets[name]);
+});
+
+$('deletePresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) {
+    alert('Select a preset first');
+    return;
+  }
+  
+  if (!confirm(`Delete preset "${name}"?`)) return;
+  
+  const presets = JSON.parse(localStorage.getItem('multiEnginePresets') || '{}');
+  delete presets[name];
+  localStorage.setItem('multiEnginePresets', JSON.stringify(presets));
+  
+  updatePresetList();
+  log(`🗑 Preset deleted: "${name}"`);
+  status(`Preset "${name}" deleted`);
+});
+
+function updatePresetList() {
+  const presets = JSON.parse(localStorage.getItem('multiEnginePresets') || '{}');
+  const sel = $('presetList');
+  const current = sel.value;
+  
+  sel.innerHTML = '<option value="">— Select preset —</option>';
+  
+  Object.keys(presets).sort().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  
+  if (current && presets[current]) {
+    sel.value = current;
+  }
+  
+  $('deletePresetBtn').disabled = !sel.value;
+}
+
+$('presetList').addEventListener('change', () => {
+  $('deletePresetBtn').disabled = !$('presetList').value;
+});
+
+// ================= Polyphonic / Counterpoint Functions =================
+function cloneImageAll() {
+  if (!lastLoadedImage) {
+    console.log('No image to clone');
+    return;
+  }
+  
+  const { imgData, width, height, img } = lastLoadedImage;
+  
+  ['A', 'B', 'C', 'D'].forEach(slot => {
+    // Copy pixel data
+    slots[slot].pixels = new Uint8ClampedArray(imgData.data);
+    slots[slot].W = width;
+    slots[slot].H = height;
+    
+    // Apply phase offset
+    slots[slot].pos = slots[slot].phaseOffset;
+    
+    // Update UI - show image in photo zone
+    const photoEl = $(`photo${slot}`);
+    if (photoEl && img) {
+      photoEl.src = img.src;
+      photoEl.style.display = 'block';
+    }
+    
+    // Update canvas overlay
+    const overlayCanvas = $(`overlay${slot}`);
+    if (overlayCanvas) {
+      overlayCanvas.width = width;
+      overlayCanvas.height = height;
+    }
+    
+    // Update status
+    const statusEl = $(`status${slot}`);
+    if (statusEl) statusEl.textContent = '✓';
+  });
+  
+  console.log('Image cloned to all slots');
+}
+
+function applyPreset2Voice() {
+  // Slot A: 1.0× speed, 0% phase
+  slots.A.scanSpeed = 1.0;
+  slots.A.phaseOffset = 0.0;
+  slots.A.pos = 0.0;
+  $('scanSpeedA').value = 100;
+  $('speedA').textContent = '1.0×';
+  $('phaseOffsetA').value = 0;
+  $('phaseA').textContent = '0%';
+  
+  // Slot B: 2.0× speed, 25% phase
+  slots.B.scanSpeed = 2.0;
+  slots.B.phaseOffset = 0.25;
+  slots.B.pos = 0.25;
+  $('scanSpeedB').value = 200;
+  $('speedB').textContent = '2.0×';
+  $('phaseOffsetB').value = 25;
+  $('phaseB').textContent = '25%';
+  
+  // Slots C+D: inactive (0.25× speed = very slow)
+  slots.C.scanSpeed = 0.25;
+  $('scanSpeedC').value = 25;
+  $('speedC').textContent = '0.25×';
+  slots.D.scanSpeed = 0.25;
+  $('scanSpeedD').value = 25;
+  $('speedD').textContent = '0.25×';
+  
+  console.log('Applied 2-Part Invention preset');
+}
+
+function applyPreset4Voice() {
+  // Slot A: subject (1.0× speed, 0% phase)
+  slots.A.scanSpeed = 1.0;
+  slots.A.phaseOffset = 0.0;
+  slots.A.pos = 0.0;
+  $('scanSpeedA').value = 100;
+  $('speedA').textContent = '1.0×';
+  $('phaseOffsetA').value = 0;
+  $('phaseA').textContent = '0%';
+  
+  // Slot B: answer, slower (0.75× speed, 20% phase)
+  slots.B.scanSpeed = 0.75;
+  slots.B.phaseOffset = 0.20;
+  slots.B.pos = 0.20;
+  $('scanSpeedB').value = 75;
+  $('speedB').textContent = '0.75×';
+  $('phaseOffsetB').value = 20;
+  $('phaseB').textContent = '20%';
+  
+  // Slot C: countersubject, faster (1.5× speed, 40% phase)
+  slots.C.scanSpeed = 1.5;
+  slots.C.phaseOffset = 0.40;
+  slots.C.pos = 0.40;
+  $('scanSpeedC').value = 150;
+  $('speedC').textContent = '1.5×';
+  $('phaseOffsetC').value = 40;
+  $('phaseC').textContent = '40%';
+  
+  // Slot D: augmentation, half-speed (0.5× speed, 60% phase)
+  slots.D.scanSpeed = 0.5;
+  slots.D.phaseOffset = 0.60;
+  slots.D.pos = 0.60;
+  $('scanSpeedD').value = 50;
+  $('speedD').textContent = '0.5×';
+  $('phaseOffsetD').value = 60;
+  $('phaseD').textContent = '60%';
+  
+  console.log('Applied 4-Voice Fugue preset');
+}
+
+function applyPresetCanon() {
+  // All slots: same speed (1.0×), staggered phases (0%, 25%, 50%, 75%)
+  const speeds = [100, 100, 100, 100];
+  const phases = [0, 25, 50, 75];
+  
+  ['A', 'B', 'C', 'D'].forEach((slot, i) => {
+    slots[slot].scanSpeed = 1.0;
+    slots[slot].phaseOffset = phases[i] / 100;
+    slots[slot].pos = phases[i] / 100;
+    $(`scanSpeed${slot}`).value = speeds[i];
+    $(`speed${slot}`).textContent = '1.0×';
+    $(`phaseOffset${slot}`).value = phases[i];
+    $(`phase${slot}`).textContent = `${phases[i]}%`;
+  });
+  
+  console.log('Applied Canon (Round) preset');
+}
+
+// ================= Harmony System Functions =================
+
+// Analyze melodic frequency and determine scale degree
+function analyzeFrequency(freq, slot) {
+  const h = slots[slot].harmony;
+  
+  // Convert frequency to MIDI note
+  const midiNote = 12 * Math.log2(freq / 440) + 69;
+  const chromaticDegree = Math.round(midiNote) % 12;
+  
+  // Get scale degrees for current modal center
+  const modalScale = SCALES[h.modalCenter === 'ionian' ? 'major' : 
+                            h.modalCenter === 'aeolian' ? 'minor' : 
+                            h.modalCenter];
+  
+  // Find closest scale degree
+  let closestDegree = 0;
+  let minDist = 12;
+  for (let i = 0; i < modalScale.length; i++) {
+    const scaleDegree = (modalScale[i] + rootNote) % 12;
+    const dist = Math.min(
+      Math.abs(chromaticDegree - scaleDegree),
+      Math.abs(chromaticDegree - scaleDegree + 12),
+      Math.abs(chromaticDegree - scaleDegree - 12)
+    );
+    if (dist < minDist) {
+      minDist = dist;
+      closestDegree = i;
+    }
+  }
+  
+  return closestDegree; // 0-6 (scale degree)
+}
+
+// Select next chord using Markov chain
+function selectNextChord(currentChord, modalCenter) {
+  const transitions = MARKOV_TRANSITIONS[currentChord];
+  if (!transitions) {
+    // Fallback to first chord of mode
+    return MODAL_CHORDS[modalCenter][0];
+  }
+  
+  // Weighted random selection
+  const rand = Math.random();
+  let cumulative = 0;
+  for (const [nextChord, probability] of Object.entries(transitions)) {
+    cumulative += probability;
+    if (rand < cumulative) {
+      return nextChord;
+    }
+  }
+  
+  // Fallback
+  return Object.keys(transitions)[0];
+}
+
+// Generate chord voicing based on type
+function generateVoicing(chordSymbol, voicingType, rootPitch = 220) {
+  // Extract chord quality from symbol (e.g., "I△7" → "△7")
+  const quality = chordSymbol.match(/(△7|-ø7|ø7|-7|°7|7)/)?.[0] || '△7';
+  const tones = CHORD_TONES[quality] || CHORD_TONES['△7'];
+  
+  // Extract scale degree from symbol (e.g., "I△7" → 0, "ii-7" → 1, "♭III△7" → 2)
+  let scaleDegree = 0;
+  if (chordSymbol.match(/^[ivIV]+/)) {
+    const romanMatch = chordSymbol.match(/^([♭#]?)([ivIV]+)/);
+    const accidental = romanMatch[1];
+    const numeral = romanMatch[2].toUpperCase();
+    const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+    scaleDegree = romanNumerals.findIndex(r => r === numeral);
+    if (accidental === '♭') scaleDegree--;
+    if (accidental === '#') scaleDegree++;
+  }
+  
+  // Calculate root from scale degree
+  const scaleIntervals = SCALES[currentScale] || SCALES['major'];
+  const rootOffset = scaleIntervals[scaleDegree % scaleIntervals.length] || 0;
+  const actualRoot = rootPitch * Math.pow(2, rootOffset / 12);
+  
+  // Generate basic voicing
+  let voicing = tones.map(interval => actualRoot * Math.pow(2, interval / 12));
+  
+  // Apply voicing type transformations
+  if (voicingType === 'drop2' && voicing.length >= 4) {
+    // Drop 2nd voice down an octave
+    voicing[1] = voicing[1] / 2;
+    voicing.sort((a, b) => a - b);
+  } else if (voicingType === 'drop3' && voicing.length >= 4) {
+    // Drop 3rd voice down an octave
+    voicing[2] = voicing[2] / 2;
+    voicing.sort((a, b) => a - b);
+  } else if (voicingType === 'spread') {
+    // Add 9th for 5-voice spread
+    const ninth = actualRoot * Math.pow(2, 14 / 12); // 9th = root + 14 semitones
+    voicing.push(ninth);
+    // Spread voices wider
+    voicing = voicing.map((freq, i) => {
+      if (i > 0) return freq * Math.pow(2, i * 0.08); // Spread upward
+      return freq;
+    });
+  }
+  
+  return voicing.slice(0, 5); // Max 5 voices
+}
+
+// Apply voice leading between two voicings
+function applyVoiceLeading(oldVoicing, newVoicing) {
+  if (!oldVoicing || oldVoicing.length === 0) return newVoicing;
+  
+  // Simple voice leading: minimize total motion
+  // For each new voice, find closest old voice
+  const led = [];
+  const used = new Set();
+  
+  for (const newFreq of newVoicing) {
+    let closest = null;
+    let minDist = Infinity;
+    
+    for (let i = 0; i < oldVoicing.length; i++) {
+      if (used.has(i)) continue;
+      const dist = Math.abs(Math.log2(newFreq / oldVoicing[i]));
+      if (dist < minDist) {
+        minDist = dist;
+        closest = i;
+      }
+    }
+    
+    if (closest !== null) {
+      used.add(closest);
+      // Smooth transition
+      led.push(newFreq);
+    } else {
+      led.push(newFreq);
+    }
+  }
+  
+  return led;
+}
+
+// Update harmony for a slot (called on beat changes)
+function updateHarmony(slot, currentBeat) {
+  const s = slots[slot];
+  const h = s.harmony;
+  
+  if (!h.enabled || !s.scanning) return;
+  
+  // Check if it's time for a chord change
+  const beatsSinceChange = currentBeat - h.lastChordChange;
+  if (beatsSinceChange < h.harmonicRhythm) return;
+  
+  // Analyze current melodic frequency
+  const melodicFreq = s.features?.brightness ? 
+    quantizeToScale(50 + s.features.brightness * 950) : 220;
+  
+  const scaleDegree = analyzeFrequency(melodicFreq, slot);
+  
+  // Select next chord using Markov chain
+  const nextChord = selectNextChord(h.currentChord, h.modalCenter);
+  
+  // Generate voicing
+  const newVoicing = generateVoicing(nextChord, h.voicingType, 110); // Bass around A2
+  
+  // Apply voice leading
+  const ledVoicing = applyVoiceLeading(h.currentVoicing, newVoicing);
+  
+  // Update state
+  h.currentChord = nextChord;
+  h.currentVoicing = ledVoicing;
+  h.lastChordChange = currentBeat;
+  h.chordHistory.push({ beat: currentBeat, chord: nextChord });
+  
+  // Update UI
+  const displayEl = $(`currentChord${slot}`);
+  if (displayEl) {
+    displayEl.textContent = nextChord;
+  }
+  
+  // Send to Csound
+  if (csound && ledVoicing.length > 0) {
+    ledVoicing.forEach((freq, i) => {
+      csound.setControlChannel(`${slot}_harmonyVoice${i+1}`, freq).catch(() => {});
+    });
+    csound.setControlChannel(`${slot}_harmonyAmp`, s.phraseGate * 0.3).catch(() => {});
+  }
+  
+  console.log(`${slot} Harmony: ${nextChord} (voices: ${ledVoicing.map(f => f.toFixed(1)).join(', ')})`);
+}
+
+// ================= Musical Controls Event Listeners =================
+// BPM Controls
+$('bpm').addEventListener('input', () => {
+  updateBPM(parseInt($('bpm').value));
+});
+
+$('tapTempo').addEventListener('click', handleTapTempo);
+
+// Scale Quantization
+$('scale').addEventListener('change', () => {
+  currentScale = $('scale').value;
+  log(`🎵 Scale: ${currentScale}`);
+});
+
+$('rootNote').addEventListener('change', () => {
+  rootNote = parseInt($('rootNote').value);
+  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  log(`🎵 Root note: ${noteNames[rootNote]}`);
+});
+
+// Phrase Mode & ADSR per slot
+['A', 'B', 'C', 'D'].forEach(slot => {
+  // Phrase mode enable
+  $(`phraseEnable${slot}`).addEventListener('change', e => {
+    slots[slot].phraseEnabled = e.target.checked;
+    $(`phraseParams${slot}`).style.display = e.target.checked ? 'block' : 'none';
+    
+    if (e.target.checked) {
+      log(`🎼 Slot ${slot}: Phrase mode enabled (${slots[slot].phrasePlayBeats} play, ${slots[slot].phraseRestBeats} rest)`);
+    } else {
+      slots[slot].phraseGate = 1; // Reset to full volume
+      log(`🎼 Slot ${slot}: Phrase mode disabled`);
+    }
+  });
+  
+  // Phrase play beats
+  $(`phrasePlayBeats${slot}`).addEventListener('input', e => {
+    slots[slot].phrasePlayBeats = parseInt(e.target.value);
+    $(`phrasePlay${slot}`).textContent = slots[slot].phrasePlayBeats;
+  });
+  
+  // Phrase rest beats
+  $(`phraseRestBeats${slot}`).addEventListener('input', e => {
+    slots[slot].phraseRestBeats = parseInt(e.target.value);
+    $(`phraseRest${slot}`).textContent = slots[slot].phraseRestBeats;
+  });
+  
+  // ADSR controls
+  $(`attack${slot}`).addEventListener('input', e => {
+    slots[slot].attack = parseInt(e.target.value) / 1000; // ms to seconds
+    $(`atk${slot}`).textContent = slots[slot].attack.toFixed(3);
+  });
+  
+  $(`decay${slot}`).addEventListener('input', e => {
+    slots[slot].decay = parseInt(e.target.value) / 1000;
+    $(`dec${slot}`).textContent = slots[slot].decay.toFixed(2);
+  });
+  
+  $(`sustain${slot}`).addEventListener('input', e => {
+    slots[slot].sustain = parseInt(e.target.value) / 1000;
+    $(`sus${slot}`).textContent = slots[slot].sustain.toFixed(2);
+  });
+  
+  $(`release${slot}`).addEventListener('input', e => {
+    slots[slot].release = parseInt(e.target.value) / 1000;
+    $(`rel${slot}`).textContent = slots[slot].release.toFixed(2);
+  });
+});
+
+// ================= Polyphonic Controls Event Listeners =================
+// Clone Image to All Slots
+$('cloneImageAll').addEventListener('click', cloneImageAll);
+
+// Quick Preset Buttons
+$('preset2Voice').addEventListener('click', applyPreset2Voice);
+$('preset4Voice').addEventListener('click', applyPreset4Voice);
+$('presetCanon').addEventListener('click', applyPresetCanon);
+
+// Per-Slot Scan Speed Controls
+['A', 'B', 'C', 'D'].forEach(slot => {
+  $(`scanSpeed${slot}`).addEventListener('input', e => {
+    const speedPercent = parseInt(e.target.value);
+    slots[slot].scanSpeed = speedPercent / 100;
+    $(`speed${slot}`).textContent = `${(speedPercent / 100).toFixed(2)}×`;
+  });
+  
+  $(`phaseOffset${slot}`).addEventListener('input', e => {
+    const phasePercent = parseInt(e.target.value);
+    slots[slot].phaseOffset = phasePercent / 100;
+    $(`phase${slot}`).textContent = `${phasePercent}%`;
+    // Apply phase immediately if image is loaded
+    if (slots[slot].pixels) {
+      slots[slot].pos = phasePercent / 100;
+    }
+  });
+});
+
+// ================= Harmony Controls Event Listeners =================
+['A', 'B', 'C', 'D'].forEach(slot => {
+  // Enable/disable harmony
+  $(`harmonyEnable${slot}`).addEventListener('change', e => {
+    const enabled = e.target.checked;
+    slots[slot].harmony.enabled = enabled;
+    $(`harmonyParams${slot}`).style.display = enabled ? 'block' : 'none';
+    log(`${slot} Harmony: ${enabled ? 'ON' : 'OFF'}`);
+  });
+  
+  // Voicing type
+  $(`voicingType${slot}`).addEventListener('change', e => {
+    slots[slot].harmony.voicingType = e.target.value;
+    log(`${slot} Voicing: ${e.target.value}`);
+  });
+  
+  // Modal center
+  $(`modalCenter${slot}`).addEventListener('change', e => {
+    slots[slot].harmony.modalCenter = e.target.value;
+    log(`${slot} Modal center: ${e.target.value}`);
+  });
+  
+  // Harmonic rhythm
+  $(`harmonicRhythm${slot}`).addEventListener('change', e => {
+    slots[slot].harmony.harmonicRhythm = parseInt(e.target.value);
+    log(`${slot} Harmonic rhythm: ${e.target.value} beats/chord`);
+  });
+});
+
+// ================= Initialize =================
+['A', 'B', 'C', 'D'].forEach(slot => {
+  setupPhotoZone(slot);
+  setupFolderControls(slot);
+  setupScanMode(slot);
+  buildParamUI(slot);
+});
+
+// Initialize BPM
+updateBPM(120);
+lastBeatTime = Date.now();
+
+updatePresetList();
+updateTimeline();
+tick();
+
+log('🎨 Multi-Engine Performance System ready');
+log('🎵 BPM: 120 · Scale: Chromatic · Root: C');
+log('📸 Drop photos or folders into slots A, B, C, D');
+log('📁 Use "📁 Folder" button for sequential/random image playback');
+log('📐 Scan modes: Line (auto) · Mouse (manual) · Random (beat-synced)');
+log('🎛️ Select synthesis engine per slot');
+// DON'T auto-start - need user interaction for audio!
+log('⚠️ Click "Start Audio Engine" button to enable audio (browser security requirement)');
+$('startBtn').style.animation = 'pulse 1.5s infinite';
+$('startBtn').style.boxShadow = '0 0 20px rgba(0,255,136,0.5)';
+
+</script>
+</body>
+</html>

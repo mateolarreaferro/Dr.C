@@ -1,0 +1,13 @@
+---
+description: After finishing a photo-synthesis change, open the page in a fresh Chrome incognito window for testing.
+alwaysApply: true
+---
+
+# Incognito test window
+
+When a change to this web app is finished, open it for testing before you stop.
+
+- Confirm `http://localhost:8080/` is serving the page. If it is down, start `python3 -m http.server 8080` in this directory.
+- Open a new incognito window with `open -na "Google Chrome" --args --incognito` and the page URL.
+- The page under test is `photo_fm_web_v3a_fm.html` until Richard asks for the next variant.
+- Tell him to close any older incognito window so he is looking at this build.

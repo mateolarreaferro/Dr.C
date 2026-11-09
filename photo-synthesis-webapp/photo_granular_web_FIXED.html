@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Scan Granular · COMPLETE</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d0f14; color: #e8e8e8; padding: 20px; font-size: 14px; }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 1.5em; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #ff6b6b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.6em; font-weight: 700; }
+  .sub { opacity: .6; margin: 4px 0 16px; font-size: .9em; }
+  .top { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel { background: #161a22; border: 1px solid #252b38; border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: .78em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 10px; }
+  #stage { position: relative; min-height: 340px; border: 2px dashed #2f3747; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #0a0c10; }
+  #stage.has-image { border-style: solid; }
+  #stage.drag { border-color: #ff6b6b; }
+  #photo { max-width: 100%; max-height: 480px; display: none; }
+  #overlay { position: absolute; pointer-events: none; }
+  #prompt { text-align: center; opacity: .7; line-height: 1.6; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .9em; cursor: pointer; }
+  button.on { background: #ff6b6b; color: #fff; border-color: #ff6b6b; }
+  button:disabled { opacity: .4; }
+  button.small { padding: 4px 10px; font-size: .85em; }
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: .82em; margin: 8px 0; }
+  .field span.v { color: #ff6b6b; font-variant-numeric: tabular-nums; }
+  .field .lab { display: flex; justify-content: space-between; opacity: .85; }
+  input[type=range] { width: 100%; accent-color: #ff6b6b; }
+  select { background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 4px; padding: 3px 4px; font-size: .95em; width: 100%; }
+  #status { margin-top: 10px; font-size: .85em; opacity: .8; }
+  #console { background: #0a0c10; border: 1px solid #252b38; border-radius: 6px; padding: 10px; font-family: monospace; font-size: .75em; max-height: 120px; overflow-y: auto; margin-top: 10px; }
+  .lock-btn { width: 20px; height: 20px; border: none; background: transparent; color: #666; cursor: pointer; padding: 0; font-size: 14px; }
+  .lock-btn.locked { color: #ff6b6b; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; font-size: .75em; text-transform: uppercase; opacity: .55; padding: 4px 6px; }
+  td { padding: 5px 6px; border-top: 1px solid #222837; font-size: .88em; }
+  .preset-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .preset-bar select { flex: 1; min-width: 200px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Photo Scan → Granular Synthesizer <span class="badge">COMPLETE</span></h1>
+  <p class="sub">Granular synthesis with image-driven grain clouds. Brightness controls density, saturation controls pitch, contrast controls grain duration.</p>
+
+  <div class="top">
+    <div class="panel">
+      <h2>Photo &amp; scan line</h2>
+      <div id="stage">
+        <div id="prompt">Drop a photo here<br><small>JPG · PNG · WebP</small></div>
+        <img id="photo" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <button id="loadBtn" class="small" style="margin-top:8px">Load photo…</button>
+      
+      <div class="field"><div class="lab">Scan speed <span class="v" id="speedVal"></span></div><input type="range" id="speed" min="0" max="1000" value="200"></div>
+      <div class="field"><div class="lab">Pitch scale</div>
+        <select id="scale">
+          <option value="off">Continuous (glide)</option>
+          <option value="chromatic">Chromatic</option>
+          <option value="major">Major</option>
+          <option value="minpent" selected>Minor pentatonic</option>
+        </select>
+      </div>
+      <div class="field"><div class="lab">Root note</div>
+        <select id="root"></select>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Granular controls</h2>
+      
+      <div class="field"><div class="lab">Grain density <span class="v" id="densityVal"></span></div><input type="range" id="density" min="0" max="1000" value="400"></div>
+      <div class="field"><div class="lab">Pitch center <span class="v" id="pitchVal"></span></div><input type="range" id="pitch" min="0" max="1000" value="500"></div>
+      <div class="field"><div class="lab">Pitch spread <span class="v" id="spreadVal"></span></div><input type="range" id="spread" min="0" max="1000" value="200"></div>
+      <div class="field"><div class="lab">Grain duration <span class="v" id="durVal"></span></div><input type="range" id="dur" min="0" max="1000" value="150"></div>
+      <div class="field"><div class="lab">Grain envelope <span class="v" id="envVal"></span></div><input type="range" id="env" min="0" max="1000" value="500"></div>
+      <div class="field"><div class="lab">Spatial width <span class="v" id="widthVal"></span></div><input type="range" id="width" min="0" max="1000" value="700"></div>
+      <div class="field"><div class="lab">Reverb <span class="v" id="revVal"></span></div><input type="range" id="rev" min="0" max="1000" value="400"></div>
+      <div class="field"><div class="lab">Master gain <span class="v" id="gainVal"></span></div><input type="range" id="gain" min="0" max="1000" value="500"></div>
+      
+      <div class="controls">
+        <button id="startBtn">Start audio</button>
+        <button id="scanBtn" disabled>▶ Scan</button>
+        <button id="bounceBtn" disabled>💾 Bounce WAV</button>
+      </div>
+      <div class="controls">
+        <button id="randBtn" class="small">🎲 Random (unlocked)</button>
+        <button id="resetBtn" class="small">↺ Reset</button>
+      </div>
+      <div id="status">Click "Start audio", load a photo, then ▶ Scan.</div>
+      <div id="console"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Presets</h2>
+    <div class="preset-bar">
+      <select id="presetList"><option value="">-- Select preset --</option></select>
+      <button id="loadPresetBtn" class="small">Load</button>
+      <button id="savePresetBtn" class="small">💾 Save as…</button>
+      <button id="exportPresetBtn" class="small">⬇ Export JSON</button>
+      <button id="importPresetBtn" class="small">⬆ Import JSON</button>
+      <input type="file" id="presetFile" accept=".json" hidden>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Parameter locks (🔒 = locked from randomization)</h2>
+    <table>
+      <thead><tr><th>🔒</th><th>Parameter</th></tr></thead>
+      <tbody id="lockTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+gaRevL init 0
+gaRevR init 0
+
+giSine ftgen 0, 0, 16384, 10, 1
+
+instr 1
+  kDensity = chnget:k("density")
+  kPitch   = chnget:k("pitch")
+  kSpread  = chnget:k("spread")
+  kDur     = chnget:k("dur")
+  kEnv     = chnget:k("env")
+  kWidth   = chnget:k("width")
+  kGain    = port(chnget:k("gain"), 0.05)
+  
+  kBrightness = chnget:k("brightness")
+  kSaturation = chnget:k("saturation")
+  kContrast   = chnget:k("contrast")
+  kPosition   = chnget:k("position")
+  
+  kDens = kDensity * (0.3 + 0.7 * kBrightness)
+  kDens = limit(kDens, 1, 200)
+  
+  kPitchBase = kPitch * (0.5 + kSaturation * 2)
+  kPitchBase = limit(kPitchBase, 50, 2000)
+  
+  kDuration = kDur * (2 - kContrast)
+  kDuration = limit(kDuration, 0.005, 0.5)
+  
+  kPan = kPosition
+  
+  ; Main grain stream
+  kTrig = metro:k(kDens)
+  if kTrig == 1 then
+    kPitchRand = kPitchBase * cent(gauss(kSpread * 50))
+    kDurRand = kDuration * (0.8 + rnd31:k(0.2, 0.4))
+    kPanRand = kPan + gauss(kWidth * 0.3)
+    kPanRand = limit(kPanRand, 0, 1)
+    kAmpRand = 0.3 + rnd31:k(0.2, 0.3)
+    
+    event "i", 100, 0, kDurRand, kPitchRand, kEnv, kPanRand, kAmpRand
+  endif
+endin
+
+; Individual grain
+instr 100
+  iPitch = p4
+  iEnvShape = p5
+  iPan = p6
+  iAmp = p7
+  
+  kEnv = linseg:k(0, p3*iEnvShape, 1, p3*(1-iEnvShape), 0)
+  kEnv = kEnv * kEnv
+  
+  aSig = poscil:a(iAmp * kEnv, iPitch, giSine)
+  
+  aL, aR pan2 aSig, iPan
+  
+  kRev = chnget:k("rev")
+  kGain = chnget:k("gain")
+  
+  gaRevL += aL * kRev
+  gaRevR += aR * kRev
+  
+  outs aL * kGain, aR * kGain
+endin
+
+; Reverb
+instr 2
+  kRev = chnget:k("rev")
+  aRL, aRR reverbsc gaRevL, gaRevR, 0.85, 8000
+  outs aRL * kRev, aRR * kRev
+  clear gaRevL, gaRevR
+endin
+`;
+
+const SCALES = {
+  off: null,
+  chromatic: [0,1,2,3,4,5,6,7,8,9,10,11],
+  major: [0,2,4,5,7,9,11],
+  minpent: [0,3,5,7,10],
+};
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+const PARAMS = [
+  { key: 'density', label: 'Grain density', locked: false },
+  { key: 'pitch', label: 'Pitch center', locked: false },
+  { key: 'spread', label: 'Pitch spread', locked: false },
+  { key: 'dur', label: 'Grain duration', locked: false },
+  { key: 'env', label: 'Grain envelope', locked: false },
+  { key: 'width', label: 'Spatial width', locked: false },
+  { key: 'rev', label: 'Reverb', locked: false },
+  { key: 'gain', label: 'Master gain', locked: false },
+];
+
+const FACTORY_PRESETS = {
+  'Dense Cloud': { density: 700, spread: 400, dur: 80 },
+  'Sparse Grains': { density: 150, spread: 600, dur: 300 },
+  'Ambient Texture': { rev: 800, dur: 400, spread: 200 },
+};
+
+const $ = id => document.getElementById(id);
+const log = msg => { const d = document.createElement('div'); d.textContent = msg; $('console').appendChild(d); $('console').scrollTop = $('console').scrollHeight; };
+const status = msg => $('status').textContent = msg;
+const speedFromPos = p => 120 * Math.pow(0.5 / 120, p);
+function quantize(f) {
+  const sc = SCALES[$('scale').value];
+  if (!sc) return f;
+  const root = +$('root').value;
+  const rel = 69 + 12 * Math.log2(f / 440) - root;
+  const oct = Math.floor(rel / 12), deg = rel - oct * 12;
+  let best = sc[0], bd = 99;
+  for (const s of [...sc, sc[0] + 12]) { const d = Math.abs(deg - s); if (d < bd) { bd = d; best = s; } }
+  return 440 * Math.pow(2, (root + oct * 12 + best - 69) / 12);
+}
+
+let csound = null, playing = false;
+let pixels = null, W = 0, H = 0, pos = 0;
+let feats = { brightness: 0.5, saturation: 0.5, contrast: 0.5, position: 0.5 };
+
+// Build UI
+for (let i = 0; i < 12; i++) $('root').insertAdjacentHTML('beforeend', `<option value="${48 + i}" ${i === 9 ? 'selected' : ''}>${NOTE_NAMES[i]}</option>`);
+
+for (const p of PARAMS) {
+  $('lockTable').insertAdjacentHTML('beforeend', `<tr><td><button class="lock-btn" data-key="${p.key}">${p.locked ? '🔒' : '🔓'}</button></td><td>${p.label}</td></tr>`);
+}
+
+document.querySelectorAll('.lock-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.key;
+    const param = PARAMS.find(p => p.key === key);
+    if (param) {
+      param.locked = !param.locked;
+      btn.textContent = param.locked ? '🔒' : '🔓';
+      btn.classList.toggle('locked', param.locked);
+      log(`${param.locked ? '🔒' : '🔓'} ${param.label} ${param.locked ? 'locked' : 'unlocked'}`);
+    }
+  });
+});
+
+function updateLabels() {
+  const T = speedFromPos($('speed').value / 1000);
+  $('speedVal').textContent = T >= 10 ? `${T.toFixed(0)} s/pass` : `${T.toFixed(1)} s/pass`;
+  $('densityVal').textContent = ($('density').value / 10).toFixed(1) + ' grains/s';
+  $('pitchVal').textContent = Math.round($('pitch').value * 2 + 100) + ' Hz';
+  $('spreadVal').textContent = ($('spread').value / 10).toFixed(1) + '%';
+  $('durVal').textContent = ($('dur').value / 2000).toFixed(3) + ' s';
+  $('envVal').textContent = ($('env').value / 1000).toFixed(2);
+  $('widthVal').textContent = ($('width').value / 10).toFixed(0) + '%';
+  $('revVal').textContent = ($('rev').value / 1000).toFixed(2);
+  $('gainVal').textContent = ($('gain').value / 1000).toFixed(2);
+}
+for (const id of ['speed','density','pitch','spread','dur','env','width','rev','gain']) {
+  $(id).addEventListener('input', () => {
+    updateLabels();
+    if (csound) csound.setControlChannel(id, $(id).value / 1000).catch(() => {});
+  });
+}
+updateLabels();
+
+function loadPixels(img) {
+  const c = document.createElement('canvas');
+  W = c.width = Math.min(480, img.naturalWidth);
+  H = c.height = Math.min(480, img.naturalHeight);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  pixels = ctx.getImageData(0, 0, W, H).data;
+}
+
+function analyseLine(p) {
+  const x = Math.floor(p * (W - 1));
+  let sumL = 0, sumS = 0, sumC = 0, n = H;
+  for (let y = 0; y < H; y++) {
+    const k = (y * W + x) * 4;
+    const r = pixels[k] / 255, g = pixels[k+1] / 255, b = pixels[k+2] / 255;
+    const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+    const l = (mx + mn) / 2;
+    const s = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2*l - 1));
+    sumL += l; sumS += s;
+    if (y > 0) {
+      const k2 = ((y-1) * W + x) * 4;
+      const l2 = (Math.max(pixels[k2]/255, pixels[k2+1]/255, pixels[k2+2]/255) + Math.min(pixels[k2]/255, pixels[k2+1]/255, pixels[k2+2]/255)) / 2;
+      sumC += Math.abs(l - l2);
+    }
+  }
+  return {
+    brightness: sumL / n,
+    saturation: sumS / n,
+    contrast: Math.min(1, (sumC / (n-1)) * 5),
+    position: p,
+  };
+}
+
+function drawOverlay() {
+  const ov = $('overlay'), img = $('photo');
+  if (ov.width !== img.clientWidth) { ov.width = img.clientWidth; ov.height = img.clientHeight; }
+  ov.style.left = img.offsetLeft + 'px'; ov.style.top = img.offsetTop + 'px';
+  const ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#ff6b6b';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  const x = pos * ov.width;
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, ov.height);
+  ctx.stroke();
+}
+
+function tick(t) {
+  if (pixels && playing) {
+    pos += 0.001 / speedFromPos($('speed').value / 1000);
+    if (pos > 1) pos = 0;
+    feats = analyseLine(pos);
+    drawOverlay();
+    
+    if (csound) {
+      const pitchRaw = ($('pitch').value / 1000) * (0.5 + feats.saturation * 2) * 1000 + 100;
+      const pitchQuant = quantize(pitchRaw);
+      csound.setControlChannel('brightness', feats.brightness).catch(() => {});
+      csound.setControlChannel('saturation', feats.saturation).catch(() => {});
+      csound.setControlChannel('contrast', feats.contrast).catch(() => {});
+      csound.setControlChannel('position', feats.position).catch(() => {});
+      csound.setControlChannel('pitch', pitchQuant / 1000).catch(() => {});
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const img = $('photo');
+  img.onload = () => {
+    $('prompt').style.display = 'none';
+    img.style.display = 'block';
+    $('stage').classList.add('has-image');
+    loadPixels(img);
+    pos = 0;
+    status('Photo loaded. Press ▶ Scan.');
+    $('scanBtn').disabled = false;
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+$('stage').addEventListener('click', () => $('file').click());
+$('loadBtn').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => handleFile(e.target.files[0]));
+$('stage').addEventListener('dragover', e => { e.preventDefault(); $('stage').classList.add('drag'); });
+$('stage').addEventListener('dragleave', () => $('stage').classList.remove('drag'));
+$('stage').addEventListener('drop', e => { e.preventDefault(); $('stage').classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+
+$('scanBtn').addEventListener('click', () => {
+  if (!pixels) return;
+  playing = !playing;
+  $('scanBtn').textContent = playing ? '❚❚ Pause' : '▶ Scan';
+  $('scanBtn').classList.toggle('on', playing);
+});
+
+$('randBtn').addEventListener('click', () => {
+  let count = 0;
+  PARAMS.forEach(p => {
+    if (p.locked) return;
+    if ($(p.key)) {
+      $(p.key).value = Math.floor(Math.random() * 1001);
+      count++;
+    }
+  });
+  updateLabels();
+  status(`🎲 Randomized ${count} unlocked parameters`);
+});
+
+$('resetBtn').addEventListener('click', () => {
+  $('density').value = 400;
+  $('pitch').value = 500;
+  $('spread').value = 200;
+  $('dur').value = 150;
+  $('env').value = 500;
+  $('width').value = 700;
+  $('rev').value = 400;
+  $('gain').value = 500;
+  updateLabels();
+  status('↺ Reset to defaults');
+});
+
+// Presets
+function buildPresetList() {
+  const sel = $('presetList');
+  sel.innerHTML = '<option value="">-- Select preset --</option>';
+  for (const name in FACTORY_PRESETS) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${name}">🏭 ${name}</option>`);
+  }
+  const user = JSON.parse(localStorage.getItem('photoGranularPresets') || '{}');
+  for (const name in user) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${name}">💾 ${name}</option>`);
+  }
+}
+
+function captureState() {
+  return {
+    params: PARAMS.map(p => ({ key: p.key, value: $(p.key).value, locked: p.locked })),
+    scale: $('scale').value,
+    root: $('root').value,
+    speed: $('speed').value,
+  };
+}
+
+function restoreState(state) {
+  if (state.params) {
+    state.params.forEach(sp => {
+      if ($(sp.key)) $(sp.key).value = sp.value;
+      const param = PARAMS.find(p => p.key === sp.key);
+      if (param && sp.locked !== undefined) {
+        param.locked = sp.locked;
+        const btn = document.querySelector(`.lock-btn[data-key="${sp.key}"]`);
+        if (btn) {
+          btn.textContent = sp.locked ? '🔒' : '🔓';
+          btn.classList.toggle('locked', sp.locked);
+        }
+      }
+    });
+  }
+  if (state.scale) $('scale').value = state.scale;
+  if (state.root) $('root').value = state.root;
+  if (state.speed) $('speed').value = state.speed;
+  updateLabels();
+  status('Preset loaded');
+}
+
+$('loadPresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) return;
+  const user = JSON.parse(localStorage.getItem('photoGranularPresets') || '{}');
+  if (user[name]) {
+    restoreState(user[name]);
+  } else if (FACTORY_PRESETS[name]) {
+    const partial = FACTORY_PRESETS[name];
+    for (const k in partial) if ($(k)) { $(k).value = partial[k]; }
+    updateLabels();
+    status('Factory preset loaded');
+  }
+});
+
+$('savePresetBtn').addEventListener('click', () => {
+  const name = prompt('Preset name:', 'My Preset ' + Date.now());
+  if (!name) return;
+  const presets = JSON.parse(localStorage.getItem('photoGranularPresets') || '{}');
+  presets[name] = captureState();
+  localStorage.setItem('photoGranularPresets', JSON.stringify(presets));
+  buildPresetList();
+  log('💾 Saved: ' + name);
+});
+
+$('exportPresetBtn').addEventListener('click', () => {
+  const state = captureState();
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'photo_granular_preset_' + Date.now() + '.json';
+  a.click();
+  log('⬇ Exported preset');
+});
+
+$('importPresetBtn').addEventListener('click', () => $('presetFile').click());
+$('presetFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const state = JSON.parse(r.result);
+      restoreState(state);
+      log('⬆ Imported preset');
+    } catch (err) {
+      log('❌ Import failed: ' + err.message);
+    }
+  };
+  r.readAsText(file);
+});
+
+buildPresetList();
+
+// Audio
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  try {
+    log('Loading Csound 7…');
+    csound = await Csound();
+    csound.on('message', m => log(m));
+    await csound.setOption('-odac');
+    await csound.setOption('-d');
+    log('Compiling orchestra…');
+    await csound.compileOrc(ORC);
+    await csound.start();
+    const ctx = await csound.getAudioContext();
+    if (ctx?.state === 'suspended') await ctx.resume();
+    
+    log('Initializing…');
+    for (const id of ['density','pitch','spread','dur','env','width','rev','gain']) {
+      await csound.setControlChannel(id, $(id).value / 1000);
+    }
+    await csound.setControlChannel('brightness', 0.5);
+    await csound.setControlChannel('saturation', 0.5);
+    await csound.setControlChannel('contrast', 0.5);
+    await csound.setControlChannel('position', 0.5);
+    
+    await csound.inputMessage('i 2 0 -1');
+    await csound.inputMessage('i 1 0 -1');
+    
+    $('bounceBtn').disabled = false;
+    $('startBtn').textContent = '✅ Running';
+    log('✅ Audio running');
+    status('Ready. Load a photo and press ▶ Scan.');
+  } catch (err) {
+    log('❌ ' + err.message);
+    console.error(err);
+    $('startBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

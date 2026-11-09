@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Synthesis Collection · Csound 7</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 3em; font-weight: 700; margin-bottom: 10px; text-align: center; }
+  .subtitle { text-align: center; opacity: .9; font-size: 1.2em; margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+  .card {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: transform .2s, box-shadow .2s;
+    cursor: pointer;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  }
+  .card h2 { font-size: 1.5em; margin-bottom: 8px; }
+  .card .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: .75em;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .card .badge.fm { background: #00ff88; color: #0d0f14; }
+  .card .badge.granular { background: #ff6b6b; color: #fff; }
+  .card .badge.additive { background: #4ecdc4; color: #0d0f14; }
+  .card .badge.multi { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+  .card p { opacity: .9; line-height: 1.6; margin-bottom: 16px; }
+  .card .features { font-size: .85em; opacity: .8; margin-bottom: 12px; }
+  .card .features li { margin: 4px 0; }
+  .card a {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background .2s;
+  }
+  .card a:hover { background: rgba(255, 255, 255, 0.35); }
+  .footer {
+    text-align: center;
+    margin-top: 60px;
+    opacity: .8;
+    font-size: .9em;
+  }
+  .footer a { color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Photo → Synthesis</h1>
+  <p class="subtitle">Real-time image analysis driving Csound 7 synthesis engines</p>
+
+  <div class="grid">
+    <div class="card" onclick="window.location.href='photo_fm_web.html'">
+      <span class="badge fm">FM SYNTHESIS</span>
+      <h2>Photo Scan FM (v1)</h2>
+      <p>14-parameter FM synthesis with visual scan line. The original. Drag to scrub, configure every mapping.</p>
+      <ul class="features">
+        <li>11 image features → 14 synthesis parameters</li>
+        <li>Configurable min/max/glide per parameter</li>
+        <li>6 pitch scales (chromatic, pentatonic, etc.)</li>
+        <li>Bounce to WAV</li>
+      </ul>
+      <a href="photo_fm_web.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v2.html'">
+      <span class="badge fm">FM ENHANCED</span>
+      <h2>Photo Scan FM v2</h2>
+      <p>Enhanced version with presets, MIDI support, and keyboard shortcuts. Production-ready.</p>
+      <ul class="features">
+        <li>Preset system (save/load/export JSON)</li>
+        <li>4 factory presets</li>
+        <li>MIDI controller support</li>
+        <li>Keyboard shortcuts (1-9, Space, R)</li>
+        <li>Smoother UI with transitions</li>
+      </ul>
+      <a href="photo_fm_web_v2.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v3_FIXED.html'">
+      <span class="badge fm">FM v3 COMPLETE ✨</span>
+      <h2>Photo Scan FM v3 FIXED</h2>
+      <p>Complete MIDI implementation: device selection, MIDI Learn, keyboard mapping, parameter locks.</p>
+      <ul class="features">
+        <li>✅ MIDI device dropdown selection</li>
+        <li>✅ Full MIDI Learn (click label → move controller)</li>
+        <li>✅ MIDI keyboard → note triggering</li>
+        <li>✅ Parameter locks (prevent randomization)</li>
+        <li>✅ Lock state saved in presets</li>
+      </ul>
+      <a href="photo_fm_web_v3_FIXED.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v3a_fm.html'">
+      <span class="badge fm">3a FM</span>
+      <h2>3a · FM notes</h2>
+      <p>The working V3 drone, plus a melody of real notes. Hue, contrast, saturation, and brightness keep moving the voice. Blue sets the tempo.</p>
+      <a href="photo_fm_web_v3a_fm.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v3b_granular.html'">
+      <span class="badge granular">3b GRAINS</span>
+      <h2>3b · Granular</h2>
+      <p>A pitch cloud and a slower motif grain. Edges set density, brightness sets grain length, saturation scatters the pitch.</p>
+      <a href="photo_fm_web_v3b_granular.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v3c_additive.html'">
+      <span class="badge additive">3c ADDITIVE</span>
+      <h2>3c · Additive</h2>
+      <p>A harmonic choir. Brightness lights the partials, edges stretch them toward bells, and a soft bell line follows the same pitch.</p>
+      <a href="photo_fm_web_v3c_additive.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v3d_percussive.html'">
+      <span class="badge granular">3d PERCUSSION</span>
+      <h2>3d · Percussive</h2>
+      <p>Mallet notes from the scan. Edges are the tempo, saturation adds metal, darkness lengthens the ring.</p>
+      <a href="photo_fm_web_v3d_percussive.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v3e_waveguide.html'">
+      <span class="badge additive">3e WAVEGUIDE</span>
+      <h2>3e · Waveguide</h2>
+      <p>Two strings a fourth, fifth, or sixth apart. Saturation rebuilds the resonance. Edges pluck.</p>
+      <a href="photo_fm_web_v3e_waveguide.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_fm_web_v4_webcam.html'">
+      <span class="badge fm">FM v4 WEBCAM 🎥</span>
+      <h2>Photo/Webcam Scan FM v4</h2>
+      <p>Live webcam support! Switch between photo upload and real-time video capture. All v3 features included.</p>
+      <ul class="features">
+        <li>✅ Live webcam video capture</li>
+        <li>✅ Freeze frame / unfreeze</li>
+        <li>✅ Frame rate control (15/30/60fps)</li>
+        <li>✅ Resolution selection (480p/720p/1080p)</li>
+        <li>✅ All v3 MIDI + preset features</li>
+      </ul>
+      <a href="photo_fm_web_v4_webcam.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_granular_web.html'">
+      <span class="badge granular">GRANULAR</span>
+      <h2>Granular Synthesis</h2>
+      <p>Cloud of micro-grains. Brightness controls density, saturation controls pitch, contrast controls grain duration.</p>
+      <ul class="features">
+        <li>Grain density: 1-200 grains/sec</li>
+        <li>Pitch cloud with spread control</li>
+        <li>Multiple grain layers</li>
+        <li>Spatial positioning from scan</li>
+      </ul>
+      <a href="photo_granular_web.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_granular_web_FIXED.html'">
+      <span class="badge granular">GRANULAR COMPLETE ✨</span>
+      <h2>Granular Synthesis FIXED</h2>
+      <p>Working audio output, pitch quantization, presets, parameter locks. Production-ready.</p>
+      <ul class="features">
+        <li>✅ Fixed audio routing (now has sound!)</li>
+        <li>✅ Pitch scales (chromatic/major/minor/pentatonic)</li>
+        <li>✅ Root note selection</li>
+        <li>✅ Preset system (3 factory presets)</li>
+        <li>✅ Parameter locks</li>
+      </ul>
+      <a href="photo_granular_web_FIXED.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_additive_web.html'">
+      <span class="badge additive">ADDITIVE</span>
+      <h2>Additive Synthesis</h2>
+      <p>16-partial harmonic synthesis. Scan line divided into bands drives individual partial amplitudes. Live spectrum display.</p>
+      <ul class="features">
+        <li>16 harmonic partials</li>
+        <li>Real-time spectrum visualizer</li>
+        <li>Inharmonicity & spectral tilt controls</li>
+        <li>Photo analysis → frequency content</li>
+      </ul>
+      <a href="photo_additive_web.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='photo_multi_crossfade.html'">
+      <span class="badge multi">PERFORMANCE</span>
+      <h2>Multi-Photo Cross-Fade</h2>
+      <p>Load up to 4 photos. Cross-fade between them in real-time. Each photo drives independent FM layers.</p>
+      <ul class="features">
+        <li>4 photo slots (A/B/C/D)</li>
+        <li>Interactive cross-fade control</li>
+        <li>Auto cross-fade mode</li>
+        <li>Layered timbres</li>
+      </ul>
+      <a href="photo_multi_crossfade.html">Launch →</a>
+    </div>
+
+    <div class="card" onclick="window.location.href='webcam_synthesis.html'">
+      <span class="badge" style="background:#ff6b6b">WEBCAM ONLY 🎥</span>
+      <h2>Webcam Synthesis · Live</h2>
+      <p>Standalone webcam-only synthesis. Motion detection, multi-zone analysis, live performance optimized.</p>
+      <ul class="features">
+        <li>Multi-zone quadrant analysis (4 zones)</li>
+        <li>Motion detection → FM index</li>
+        <li>Zone brightness → pitch & filter</li>
+        <li>Live motion waveform graph</li>
+        <li>Webcam-optimized interface</li>
+      </ul>
+      <a href="webcam_synthesis.html">Launch →</a>
+    </div>
+
+    <div class="card">
+      <span class="badge" style="background:#0a0c10">REFERENCE</span>
+      <h2>CSD Files</h2>
+      <p>Pure Csound CSD versions for offline rendering, Cabbage plugins, or MIDI control.</p>
+      <ul class="features">
+        <li><a href="photo_fm_synth.csd" style="background:transparent;padding:0">photo_fm_synth.csd</a></li>
+        <li>Run with: <code style="opacity:.7">csound photo_fm_synth.csd</code></li>
+        <li>Open in Cabbage for VST/AU export</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p><strong>Technical:</strong> All web versions use Csound 7.0.0 (WASM) with real-time WebAudio output.</p>
+    <p><strong>Requirements:</strong> Modern browser (Chrome/Firefox/Safari), local HTTP server (Python, Node, etc.)</p>
+    <p><strong>Start server:</strong> <code style="background:rgba(0,0,0,.2);padding:2px 8px;border-radius:4px">python3 -m http.server 8080</code> then open <a href="http://localhost:8080/photo_synthesis_index.html">http://localhost:8080/photo_synthesis_index.html</a></p>
+  </div>
+</div>
+</body>
+</html>

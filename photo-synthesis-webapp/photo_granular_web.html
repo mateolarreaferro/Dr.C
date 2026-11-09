@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Scan Granular · Csound 7</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d0f14; color: #e8e8e8; padding: 20px; font-size: 14px; }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 1.5em; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .badge { background: #ff6b6b; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.6em; font-weight: 700; }
+  .sub { opacity: .6; margin: 4px 0 16px; font-size: .9em; }
+  .top { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel { background: #161a22; border: 1px solid #252b38; border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: .78em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 10px; }
+  #stage { position: relative; min-height: 340px; border: 2px dashed #2f3747; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #0a0c10; }
+  #stage.has-image { border-style: solid; }
+  #stage.drag { border-color: #ff6b6b; }
+  #photo { max-width: 100%; max-height: 480px; display: none; }
+  #overlay { position: absolute; pointer-events: none; }
+  #prompt { text-align: center; opacity: .7; line-height: 1.6; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .9em; cursor: pointer; }
+  button.on { background: #ff6b6b; color: #fff; border-color: #ff6b6b; }
+  button:disabled { opacity: .4; }
+  button.small { padding: 4px 10px; font-size: .85em; }
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: .82em; margin: 8px 0; }
+  .field span.v { color: #ff6b6b; font-variant-numeric: tabular-nums; }
+  .field .lab { display: flex; justify-content: space-between; opacity: .85; }
+  input[type=range] { width: 100%; accent-color: #ff6b6b; }
+  #status { margin-top: 10px; font-size: .85em; opacity: .8; }
+  #console { background: #0a0c10; border: 1px solid #252b38; border-radius: 6px; padding: 10px; font-family: monospace; font-size: .75em; max-height: 120px; overflow-y: auto; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Photo Scan → Granular Synthesizer <span class="badge">GRANULAR</span></h1>
+  <p class="sub">Granular synthesis from photo analysis. Image features control grain density, pitch cloud, duration, and spatial position.</p>
+
+  <div class="top">
+    <div class="panel">
+      <h2>Photo &amp; scan line</h2>
+      <div id="stage">
+        <div id="prompt">Drop a photo here<br><small>JPG · PNG · WebP</small></div>
+        <img id="photo" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <button id="loadBtn" class="small" style="margin-top:8px">Load photo…</button>
+    </div>
+
+    <div class="panel">
+      <h2>Granular controls</h2>
+      
+      <div class="field"><div class="lab">Grain density <span class="v" id="densityVal"></span></div><input type="range" id="density" min="0" max="1000" value="400"></div>
+      <div class="field"><div class="lab">Pitch center <span class="v" id="pitchVal"></span></div><input type="range" id="pitch" min="0" max="1000" value="500"></div>
+      <div class="field"><div class="lab">Pitch spread <span class="v" id="spreadVal"></span></div><input type="range" id="spread" min="0" max="1000" value="200"></div>
+      <div class="field"><div class="lab">Grain duration <span class="v" id="durVal"></span></div><input type="range" id="dur" min="0" max="1000" value="150"></div>
+      <div class="field"><div class="lab">Grain envelope <span class="v" id="envVal"></span></div><input type="range" id="env" min="0" max="1000" value="500"></div>
+      <div class="field"><div class="lab">Spatial width <span class="v" id="widthVal"></span></div><input type="range" id="width" min="0" max="1000" value="700"></div>
+      <div class="field"><div class="lab">Reverb <span class="v" id="revVal"></span></div><input type="range" id="rev" min="0" max="1000" value="400"></div>
+      <div class="field"><div class="lab">Master gain <span class="v" id="gainVal"></span></div><input type="range" id="gain" min="0" max="1000" value="500"></div>
+      
+      <div class="controls">
+        <button id="startBtn">Start audio</button>
+        <button id="scanBtn" disabled>▶ Scan</button>
+        <button id="bounceBtn" disabled>💾 Bounce WAV</button>
+      </div>
+      <div id="status">Click "Start audio", load a photo, then ▶ Scan.</div>
+      <div id="console"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+// ================= Granular Csound orchestra =================
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+gaRevL init 0
+gaRevR init 0
+
+; Grain generator with sine wave
+opcode GrainSine, aa, kkkkk
+  kDensity, kPitch, kDur, kEnvShape, kPan xin
+  
+  ; Trigger grains at density rate
+  kTrig = metro:k(kDensity)
+  
+  if kTrig == 1 then
+    ; Random pitch variation
+    kPitchRand = kPitch * cent(gauss(50))
+    ; Random duration variation
+    kDurRand = kDur * (0.8 + rnd31:k(0.2, 0.4))
+    ; Random pan
+    kPanRand = kPan + gauss(0.15)
+    kPanRand = limit(kPanRand, 0, 1)
+    ; Random amplitude
+    kAmpRand = 0.3 + rnd31:k(0.2, 0.3)
+    
+    ; Schedule a grain
+    event "i", 100, 0, kDurRand, kPitchRand, kEnvShape, kPanRand, kAmpRand
+  endif
+  
+  xout 0, 0
+endop
+
+; Individual grain instrument
+instr 100
+  iPitch = p4
+  iEnvShape = p5
+  iPan = p6
+  iAmp = p7
+  
+  ; Grain envelope (Gaussian-like)
+  kEnv = linseg:k(0, p3*iEnvShape, 1, p3*(1-iEnvShape), 0)
+  kEnv = kEnv * kEnv
+  
+  ; Sine grain
+  aSig = oscili:a(iAmp, iPitch)
+  aSig = aSig * kEnv
+  
+  aL, aR pan2 aSig, iPan
+  outs aL, aR
+endin
+
+; Main control instrument
+instr 1
+  kDensity = chnget:k("density")
+  kPitch   = chnget:k("pitch")
+  kSpread  = chnget:k("spread")
+  kDur     = chnget:k("dur")
+  kEnv     = chnget:k("env")
+  kWidth   = chnget:k("width")
+  kGain    = port(chnget:k("gain"), 0.05)
+  
+  ; Map image features to parameters
+  kBrightness = chnget:k("brightness")
+  kSaturation = chnget:k("saturation")
+  kContrast   = chnget:k("contrast")
+  kPosition   = chnget:k("position")
+  
+  ; Density from brightness (brighter = more grains)
+  kDens = kDensity * (0.3 + 0.7 * kBrightness)
+  kDens = limit(kDens, 1, 200)
+  
+  ; Pitch from saturation
+  kPitchBase = kPitch * (0.5 + kSaturation * 2)
+  kPitchBase = limit(kPitchBase, 50, 2000)
+  
+  ; Duration from contrast (high contrast = short grains)
+  kDuration = kDur * (2 - kContrast)
+  kDuration = limit(kDuration, 0.005, 0.5)
+  
+  ; Pan from position
+  kPan = kPosition
+  
+  ; Generate grains
+  aL1, aR1 GrainSine kDens, kPitchBase, kDuration, kEnv, kPan
+  
+  ; Multiple grain layers with pitch spread
+  kP2 = kPitchBase * (1 + kSpread * 0.1)
+  kP3 = kPitchBase * (1 - kSpread * 0.08)
+  aL2, aR2 GrainSine kDens*0.7, kP2, kDuration*1.2, kEnv, kPan+0.1
+  aL3, aR3 GrainSine kDens*0.5, kP3, kDuration*0.9, kEnv, kPan-0.1
+  
+  aL = (aL1 + aL2 + aL3) * 0.4 * kGain
+  aR = (aR1 + aR2 + aR3) * 0.4 * kGain
+  
+  gaRevL += aL * chnget:k("rev")
+  gaRevR += aR * chnget:k("rev")
+  
+  outs aL, aR
+endin
+
+; Reverb
+instr 2
+  kRev = chnget:k("rev")
+  aRL, aRR reverbsc gaRevL, gaRevR, 0.85, 8000
+  outs aRL * kRev, aRR * kRev
+  clear gaRevL, gaRevR
+endin
+`;
+
+// ================= UI & state =================
+const $ = id => document.getElementById(id);
+const log = msg => { const d = document.createElement('div'); d.textContent = msg; $('console').appendChild(d); $('console').scrollTop = $('console').scrollHeight; };
+const status = msg => $('status').textContent = msg;
+
+let csound = null, playing = false;
+let pixels = null, W = 0, H = 0, pos = 0;
+let feats = { brightness: 0.5, saturation: 0.5, contrast: 0.5, position: 0.5 };
+
+function updateLabels() {
+  $('densityVal').textContent = ($('density').value / 10).toFixed(1) + ' grains/s';
+  $('pitchVal').textContent = Math.round($('pitch').value * 2 + 100) + ' Hz';
+  $('spreadVal').textContent = ($('spread').value / 10).toFixed(1) + '%';
+  $('durVal').textContent = ($('dur').value / 2000).toFixed(3) + ' s';
+  $('envVal').textContent = ($('env').value / 1000).toFixed(2);
+  $('widthVal').textContent = ($('width').value / 10).toFixed(0) + '%';
+  $('revVal').textContent = ($('rev').value / 1000).toFixed(2);
+  $('gainVal').textContent = ($('gain').value / 1000).toFixed(2);
+}
+for (const id of ['density','pitch','spread','dur','env','width','rev','gain']) {
+  $(id).addEventListener('input', () => {
+    updateLabels();
+    if (csound) {
+      csound.setControlChannel(id, $(id).value / 1000).catch(() => {});
+    }
+  });
+}
+updateLabels();
+
+function loadPixels(img) {
+  const c = document.createElement('canvas');
+  W = c.width = Math.min(480, img.naturalWidth);
+  H = c.height = Math.min(480, img.naturalHeight);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  pixels = ctx.getImageData(0, 0, W, H).data;
+}
+
+function analyseLine(p) {
+  const x = Math.floor(p * (W - 1));
+  let sumL = 0, sumS = 0, sumC = 0, n = H;
+  for (let y = 0; y < H; y++) {
+    const k = (y * W + x) * 4;
+    const r = pixels[k] / 255, g = pixels[k+1] / 255, b = pixels[k+2] / 255;
+    const mx = Math.max(r,g,b), mn = Math.min(r,g,b);
+    const l = (mx + mn) / 2;
+    const s = mx === mn ? 0 : (mx - mn) / (1 - Math.abs(2*l - 1));
+    sumL += l;
+    sumS += s;
+    if (y > 0) {
+      const k2 = ((y-1) * W + x) * 4;
+      const l2 = (Math.max(pixels[k2]/255, pixels[k2+1]/255, pixels[k2+2]/255) + Math.min(pixels[k2]/255, pixels[k2+1]/255, pixels[k2+2]/255)) / 2;
+      sumC += Math.abs(l - l2);
+    }
+  }
+  return {
+    brightness: sumL / n,
+    saturation: sumS / n,
+    contrast: (sumC / (n-1)) * 5,
+    position: p,
+  };
+}
+
+function drawOverlay() {
+  const ov = $('overlay'), img = $('photo');
+  if (ov.width !== img.clientWidth) { ov.width = img.clientWidth; ov.height = img.clientHeight; }
+  const ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#ff6b6b';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  const x = pos * ov.width;
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, ov.height);
+  ctx.stroke();
+}
+
+function tick(t) {
+  if (pixels && playing) {
+    pos += 0.002;
+    if (pos > 1) pos = 0;
+    feats = analyseLine(pos);
+    drawOverlay();
+    
+    if (csound) {
+      csound.setControlChannel('brightness', feats.brightness).catch(() => {});
+      csound.setControlChannel('saturation', feats.saturation).catch(() => {});
+      csound.setControlChannel('contrast', feats.contrast).catch(() => {});
+      csound.setControlChannel('position', feats.position).catch(() => {});
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const img = $('photo');
+  img.onload = () => {
+    $('prompt').style.display = 'none';
+    img.style.display = 'block';
+    $('stage').classList.add('has-image');
+    loadPixels(img);
+    pos = 0;
+    status('Photo loaded. Press ▶ Scan.');
+    $('scanBtn').disabled = false;
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+$('stage').addEventListener('click', () => $('file').click());
+$('loadBtn').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => handleFile(e.target.files[0]));
+$('stage').addEventListener('dragover', e => { e.preventDefault(); $('stage').classList.add('drag'); });
+$('stage').addEventListener('dragleave', () => $('stage').classList.remove('drag'));
+$('stage').addEventListener('drop', e => { e.preventDefault(); $('stage').classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+
+$('scanBtn').addEventListener('click', () => {
+  if (!pixels) return;
+  playing = !playing;
+  $('scanBtn').textContent = playing ? '❚❚ Pause' : '▶ Scan';
+  $('scanBtn').classList.toggle('on', playing);
+});
+
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  try {
+    log('Loading Csound 7…');
+    csound = await Csound();
+    csound.on('message', m => log(m));
+    await csound.setOption('-odac');
+    await csound.setOption('-d');
+    log('Compiling orchestra…');
+    await csound.compileOrc(ORC);
+    await csound.start();
+    const ctx = await csound.getAudioContext();
+    if (ctx?.state === 'suspended') await ctx.resume();
+    
+    log('Initializing…');
+    for (const id of ['density','pitch','spread','dur','env','width','rev','gain']) {
+      await csound.setControlChannel(id, $(id).value / 1000);
+    }
+    await csound.inputMessage('i 2 0 -1');
+    await csound.inputMessage('i 1 0 -1');
+    
+    $('bounceBtn').disabled = false;
+    $('startBtn').textContent = '✅ Running';
+    log('✅ Audio running');
+    status('Ready. Load a photo and press ▶ Scan.');
+  } catch (err) {
+    log('❌ ' + err.message);
+    $('startBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

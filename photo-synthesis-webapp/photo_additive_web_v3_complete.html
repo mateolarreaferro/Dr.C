@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Additive v3 · COMPLETE</title>
+<link rel="icon" href="data:,">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d0f14; color: #e8e8e8; padding: 20px; font-size: 14px; }
+  .wrap { max-width: 1600px; margin: 0 auto; }
+  h1 { font-size: 1.5em; font-weight: 600; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .badge { background: #4ecdc4; color: #0d0f14; padding: 3px 10px; border-radius: 4px; font-size: 0.55em; font-weight: 700; letter-spacing: .05em; }
+  .sub { opacity: .6; margin-bottom: 16px; font-size: .9em; }
+  
+  .top { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel { background: #161a22; border: 1px solid #252b38; border-radius: 10px; padding: 16px; }
+  .panel h2 { font-size: .78em; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 12px; font-weight: 600; }
+  
+  #stage { position: relative; min-height: 380px; border: 2px dashed #2f3747; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #0a0c10; }
+  #stage.has-image { border-style: solid; border-color: #4ecdc4; }
+  #stage.drag { border-color: #4ecdc4; background: #161a22; }
+  #photo { max-width: 100%; max-height: 480px; display: none; }
+  #overlay { position: absolute; pointer-events: none; }
+  #prompt { text-align: center; opacity: .7; line-height: 1.6; }
+  
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { padding: 8px 14px; border-radius: 6px; border: 1px solid #2f3747; background: #1e2430; color: #e8e8e8; font-size: .88em; cursor: pointer; transition: all .15s; }
+  button:hover:not(:disabled) { border-color: #4ecdc4; }
+  button.on { background: #4ecdc4; color: #0d0f14; border-color: #4ecdc4; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.small { padding: 6px 12px; font-size: .85em; }
+  
+  .spectrum { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; margin: 12px 0; }
+  .partial { height: 80px; background: #252b38; border-radius: 3px; position: relative; overflow: hidden; }
+  .partial .fill { position: absolute; bottom: 0; width: 100%; background: linear-gradient(to top, #4ecdc4, #4ecdc480); transition: height .1s; }
+  .partial .label { position: absolute; bottom: 2px; width: 100%; text-align: center; font-size: .6em; opacity: .5; }
+  
+  .param-row { display: grid; grid-template-columns: 28px 1fr 3fr 80px 50px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #1e2430; font-size: .88em; }
+  .param-row:last-child { border-bottom: none; }
+  .lock-btn { width: 24px; height: 24px; border: none; background: transparent; color: #555; cursor: pointer; padding: 0; font-size: 16px; transition: color .15s; }
+  .lock-btn:hover { color: #888; }
+  .lock-btn.locked { color: #4ecdc4; }
+  .param-label { opacity: .85; cursor: pointer; transition: color .15s; }
+  .param-label:hover { color: #4ecdc4; }
+  .param-label.learning { color: #ff6b6b; font-weight: 600; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .midi-cc-label { font-size: .75em; color: #4ecdc4; opacity: .8; font-variant-numeric: tabular-nums; }
+  
+  .field { display: flex; flex-direction: column; gap: 3px; font-size: .82em; margin: 8px 0; }
+  .field span.v { color: #4ecdc4; font-variant-numeric: tabular-nums; }
+  .field .lab { display: flex; justify-content: space-between; opacity: .85; }
+  input[type=range] { width: 100%; accent-color: #4ecdc4; height: 20px; }
+  select { background: #1e2430; color: #e8e8e8; border: 1px solid #2f3747; border-radius: 4px; padding: 6px 8px; font-size: .9em; width: 100%; cursor: pointer; }
+  select:hover { border-color: #4ecdc4; }
+  
+  .preset-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .preset-bar select { flex: 1; min-width: 220px; }
+  
+  .midi-section { background: #1e2430; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .midi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+  .midi-learn-badge { display: inline-block; background: #ff6b6b; color: #fff; padding: 4px 10px; border-radius: 4px; font-size: .75em; font-weight: 700; letter-spacing: .05em; animation: pulse 1s infinite; margin-left: 8px; }
+  
+  #status { margin-top: 12px; font-size: .88em; opacity: .8; padding: 8px 12px; background: #1e2430; border-radius: 6px; }
+  #console { background: #0a0c10; border: 1px solid #252b38; border-radius: 6px; padding: 10px; font-family: 'SF Mono', 'Consolas', monospace; font-size: .72em; max-height: 140px; overflow-y: auto; margin-top: 10px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Photo Scan → Additive Synthesizer <span class="badge">v3 COMPLETE</span></h1>
+  <p class="sub">16-partial additive synthesis with full MIDI Learn, parameter locks, and advanced presets. Press ? for help.</p>
+
+  <div class="top">
+    <div class="panel">
+      <h2>Photo &amp; scan line</h2>
+      <div id="stage">
+        <div id="prompt">📸 Drop a photo here<br><small>JPG · PNG · WebP</small></div>
+        <img id="photo" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      
+      <div class="controls">
+        <button id="loadBtn" class="small">📂 Load photo…</button>
+        <button id="startBtn">🎵 Start Audio</button>
+        <button id="scanBtn" disabled>▶ Scan</button>
+      </div>
+      
+      <div class="field" style="margin-top:12px">
+        <div class="lab">Scan speed <span class="v" id="speedVal">—</span></div>
+        <input type="range" id="speed" min="0" max="1000" value="200">
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Harmonic spectrum (live)</h2>
+      <div class="spectrum" id="spectrum"></div>
+      
+      <h2 style="margin-top:16px">Synthesis parameters</h2>
+      
+      <div id="paramRows"></div>
+      
+      <div class="controls" style="margin-top:12px">
+        <button id="randBtn" class="small">🎲 Randomize (unlocked)</button>
+        <button id="resetBtn" class="small">↺ Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>MIDI Control</h2>
+    <div class="midi-section">
+      <div class="midi-grid">
+        <div class="field">
+          <div class="lab">MIDI Device</div>
+          <select id="midiDevice">
+            <option value="">No MIDI devices</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="lab">MIDI Learn</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="midiLearnBtn" class="small" style="flex:1">🎛️ MIDI Learn: OFF</button>
+            <span id="midiLearnBadge" class="midi-learn-badge" style="display:none">MIDI LEARN</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+        <label style="font-size:.85em; opacity:.7; display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="midiOverrideMode">
+          MIDI Override Mode (direct control, ignore photo)
+        </label>
+        <button id="clearMidiBtn" class="small">🗑 Clear All MIDI</button>
+      </div>
+      <div style="margin-top:8px; font-size:.8em; opacity:.6; line-height:1.4;">
+        <strong>How to use MIDI Learn:</strong> 1) Click "MIDI Learn: OFF" to turn ON. 2) Click any parameter name below. 3) Move a controller on your MIDI device. 4) Binding saved!
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Presets</h2>
+    <div class="preset-bar">
+      <select id="presetList">
+        <option value="">— Select preset —</option>
+      </select>
+      <button id="loadPresetBtn" class="small">📂 Load</button>
+      <button id="savePresetBtn" class="small">💾 Save as…</button>
+      <button id="renamePresetBtn" class="small">✏️ Rename</button>
+      <button id="deletePresetBtn" class="small">🗑 Delete</button>
+      <button id="moveUpBtn" class="small">⬆ Up</button>
+      <button id="moveDownBtn" class="small">⬇ Down</button>
+      <button id="exportPresetBtn" class="small">⬇ Export JSON</button>
+      <button id="importPresetBtn" class="small">⬆ Import JSON</button>
+      <input type="file" id="presetFile" accept=".json" hidden>
+    </div>
+  </div>
+
+  <div id="status">Click "Start Audio", load a photo, then press ▶ Scan. Press ? for keyboard shortcuts.</div>
+  <div id="console"></div>
+</div>
+
+<script type="module">
+import { Csound } from './csound7-lib/csound.js';
+
+// ================= Csound Orchestra =================
+const ORC = `
+sr = 48000
+ksmps = 32
+nchnls = 2
+0dbfs = 1
+seed 0
+
+instr 1
+  kFund   = port(chnget:k("fund"), 0.05)
+  kBright = port(chnget:k("bright"), 0.05)
+  kInharm = port(chnget:k("inharm"), 0.05)
+  kTilt   = port(chnget:k("tilt"), 0.05)
+  kGain   = port(chnget:k("gain"), 0.05)
+  
+  ; Read 16 partial amplitudes from image analysis
+  kA1  = chnget:k("p1")
+  kA2  = chnget:k("p2")
+  kA3  = chnget:k("p3")
+  kA4  = chnget:k("p4")
+  kA5  = chnget:k("p5")
+  kA6  = chnget:k("p6")
+  kA7  = chnget:k("p7")
+  kA8  = chnget:k("p8")
+  kA9  = chnget:k("p9")
+  kA10 = chnget:k("p10")
+  kA11 = chnget:k("p11")
+  kA12 = chnget:k("p12")
+  kA13 = chnget:k("p13")
+  kA14 = chnget:k("p14")
+  kA15 = chnget:k("p15")
+  kA16 = chnget:k("p16")
+  
+  ; Apply spectral tilt (high partials fade with tilt)
+  kTiltFactor = (1 - kTilt) * 2
+  
+  ; Generate 16 partials with slight inharmonicity
+  a1  = oscili:a(kA1  * kBright * 1.0,                        kFund * (1 + 0*kInharm))
+  a2  = oscili:a(kA2  * kBright * (1.0 - kTiltFactor*0.05),  kFund * (2 + 1*kInharm*0.01))
+  a3  = oscili:a(kA3  * kBright * (1.0 - kTiltFactor*0.10),  kFund * (3 + 2*kInharm*0.01))
+  a4  = oscili:a(kA4  * kBright * (1.0 - kTiltFactor*0.15),  kFund * (4 + 3*kInharm*0.01))
+  a5  = oscili:a(kA5  * kBright * (1.0 - kTiltFactor*0.20),  kFund * (5 + 4*kInharm*0.01))
+  a6  = oscili:a(kA6  * kBright * (1.0 - kTiltFactor*0.25),  kFund * (6 + 5*kInharm*0.01))
+  a7  = oscili:a(kA7  * kBright * (1.0 - kTiltFactor*0.30),  kFund * (7 + 6*kInharm*0.01))
+  a8  = oscili:a(kA8  * kBright * (1.0 - kTiltFactor*0.35),  kFund * (8 + 7*kInharm*0.01))
+  a9  = oscili:a(kA9  * kBright * (1.0 - kTiltFactor*0.40),  kFund * (9 + 8*kInharm*0.01))
+  a10 = oscili:a(kA10 * kBright * (1.0 - kTiltFactor*0.45),  kFund * (10 + 9*kInharm*0.01))
+  a11 = oscili:a(kA11 * kBright * (1.0 - kTiltFactor*0.50),  kFund * (11 + 10*kInharm*0.01))
+  a12 = oscili:a(kA12 * kBright * (1.0 - kTiltFactor*0.55),  kFund * (12 + 11*kInharm*0.01))
+  a13 = oscili:a(kA13 * kBright * (1.0 - kTiltFactor*0.60),  kFund * (13 + 12*kInharm*0.01))
+  a14 = oscili:a(kA14 * kBright * (1.0 - kTiltFactor*0.65),  kFund * (14 + 13*kInharm*0.01))
+  a15 = oscili:a(kA15 * kBright * (1.0 - kTiltFactor*0.70),  kFund * (15 + 14*kInharm*0.01))
+  a16 = oscili:a(kA16 * kBright * (1.0 - kTiltFactor*0.75),  kFund * (16 + 15*kInharm*0.01))
+  
+  aSig = (a1+a2+a3+a4+a5+a6+a7+a8+a9+a10+a11+a12+a13+a14+a15+a16) * 0.08 * kGain
+  
+  out(aSig, aSig)
+endin
+`;
+
+// ================= Parameters =================
+const PARAMS = [
+  { key: 'fund', label: 'Fundamental', min: 50, max: 550, default: 200, unit: 'Hz', decimals: 0, locked: false },
+  { key: 'bright', label: 'Brightness', min: 0, max: 1, default: 0.5, unit: '', decimals: 2, locked: false },
+  { key: 'inharm', label: 'Inharmonicity', min: 0, max: 0.1, default: 0.01, unit: '%', decimals: 3, locked: false },
+  { key: 'tilt', label: 'Spectral Tilt', min: 0, max: 1, default: 0.7, unit: '', decimals: 2, locked: false },
+  { key: 'gain', label: 'Master Gain', min: 0, max: 1, default: 0.4, unit: '', decimals: 2, locked: false },
+];
+
+const FACTORY_PRESETS = {
+  'Pure Harmonics': {
+    params: { fund: 110, bright: 0.8, inharm: 0.005, tilt: 0.3, gain: 0.5 },
+    locks: {},
+    speed: 300
+  },
+  'Organic Texture': {
+    params: { fund: 220, bright: 0.6, inharm: 0.05, tilt: 0.6, gain: 0.45 },
+    locks: {},
+    speed: 500
+  },
+  'Dark Evolving': {
+    params: { fund: 80, bright: 0.3, inharm: 0.02, tilt: 0.85, gain: 0.55 },
+    locks: {},
+    speed: 800
+  },
+};
+
+// ================= State =================
+const $ = id => document.getElementById(id);
+const log = msg => {
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const d = document.createElement('div');
+  d.textContent = `[${time}] ${msg}`;
+  $('console').appendChild(d);
+  $('console').scrollTop = $('console').scrollHeight;
+};
+const status = msg => $('status').textContent = msg;
+
+let csound = null, playing = false;
+let pixels = null, W = 0, H = 0, pos = 0;
+let partials = new Array(16).fill(0.5);
+
+// MIDI state
+let midiAccess = null;
+let midiLearnActive = false;
+let midiLearnParam = null;
+let midiBindings = {}; // { paramKey: { deviceId, cc } }
+let midiOverrideValues = {}; // { paramKey: value }
+
+// ================= Spectrum Visualizer =================
+for (let i = 1; i <= 16; i++) {
+  $('spectrum').insertAdjacentHTML('beforeend', 
+    `<div class="partial"><div class="fill" id="p${i}fill"></div><div class="label">${i}</div></div>`);
+}
+
+// ================= Parameter UI =================
+function buildParamUI() {
+  const container = $('paramRows');
+  container.innerHTML = '';
+  
+  PARAMS.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'param-row';
+    
+    const lockBtn = document.createElement('button');
+    lockBtn.className = 'lock-btn';
+    lockBtn.textContent = p.locked ? '🔒' : '🔓';
+    lockBtn.dataset.key = p.key;
+    if (p.locked) lockBtn.classList.add('locked');
+    
+    const label = document.createElement('div');
+    label.className = 'param-label';
+    label.textContent = p.label;
+    label.dataset.key = p.key;
+    
+    const sliderContainer = document.createElement('div');
+    sliderContainer.style.display = 'flex';
+    sliderContainer.style.alignItems = 'center';
+    sliderContainer.style.gap = '8px';
+    
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.id = p.key;
+    slider.min = '0';
+    slider.max = '1000';
+    const normalized = (p.default - p.min) / (p.max - p.min);
+    slider.value = Math.round(normalized * 1000);
+    slider.style.flex = '1';
+    
+    sliderContainer.appendChild(slider);
+    
+    const valueSpan = document.createElement('span');
+    valueSpan.className = 'v';
+    valueSpan.id = `${p.key}Val`;
+    valueSpan.textContent = formatValue(p, p.default);
+    
+    const midiLabel = document.createElement('div');
+    midiLabel.className = 'midi-cc-label';
+    midiLabel.id = `${p.key}MidiLabel`;
+    midiLabel.textContent = '—';
+    
+    row.appendChild(lockBtn);
+    row.appendChild(label);
+    row.appendChild(sliderContainer);
+    row.appendChild(valueSpan);
+    row.appendChild(midiLabel);
+    
+    container.appendChild(row);
+    
+    // Lock button handler
+    lockBtn.addEventListener('click', () => {
+      p.locked = !p.locked;
+      lockBtn.textContent = p.locked ? '🔒' : '🔓';
+      lockBtn.classList.toggle('locked', p.locked);
+      log(`${p.locked ? '🔒' : '🔓'} ${p.label} ${p.locked ? 'locked' : 'unlocked'}`);
+    });
+    
+    // Label click for MIDI Learn
+    label.addEventListener('click', () => {
+      if (!midiLearnActive) return;
+      
+      // Clear previous learning state
+      document.querySelectorAll('.param-label').forEach(el => el.classList.remove('learning'));
+      
+      midiLearnParam = p.key;
+      label.classList.add('learning');
+      status(`MIDI Learn: Move a controller to bind to "${p.label}"`);
+      log(`⏳ Waiting for MIDI CC for "${p.label}"...`);
+    });
+    
+    // Slider handler
+    slider.addEventListener('input', () => {
+      const norm = slider.value / 1000;
+      const val = p.min + norm * (p.max - p.min);
+      valueSpan.textContent = formatValue(p, val);
+      
+      if (csound) {
+        csound.setControlChannel(p.key, val).catch(() => {});
+      }
+    });
+    
+    // Initialize
+    slider.dispatchEvent(new Event('input'));
+  });
+}
+
+function formatValue(param, val) {
+  if (param.unit === 'Hz') return Math.round(val) + ' Hz';
+  if (param.unit === '%') return (val * 100).toFixed(1) + '%';
+  return val.toFixed(param.decimals);
+}
+
+// ================= MIDI Setup =================
+async function initMIDI() {
+  if (!navigator.requestMIDIAccess) {
+    log('⚠️ Web MIDI API not supported in this browser');
+    return;
+  }
+  
+  try {
+    midiAccess = await navigator.requestMIDIAccess();
+    updateMIDIDeviceList();
+    
+    midiAccess.onstatechange = () => {
+      updateMIDIDeviceList();
+    };
+    
+    // Load saved bindings
+    loadMIDIBindings();
+    
+    log('🎛️ MIDI initialized');
+  } catch (err) {
+    log('❌ MIDI access denied: ' + err.message);
+  }
+}
+
+function updateMIDIDeviceList() {
+  const sel = $('midiDevice');
+  const currentValue = sel.value;
+  sel.innerHTML = '<option value="">— No device selected —</option>';
+  
+  let count = 0;
+  for (const input of midiAccess.inputs.values()) {
+    const opt = document.createElement('option');
+    opt.value = input.id;
+    opt.textContent = input.name || `MIDI Device ${count + 1}`;
+    sel.appendChild(opt);
+    count++;
+    
+    // Attach message handler
+    input.onmidimessage = handleMIDIMessage;
+  }
+  
+  if (count > 0) {
+    log(`🎹 Found ${count} MIDI device(s)`);
+    if (currentValue) sel.value = currentValue;
+  }
+}
+
+function handleMIDIMessage(event) {
+  const [status, data1, data2] = event.data;
+  const selectedDevice = $('midiDevice').value;
+  
+  // Only process messages from selected device
+  if (selectedDevice && event.target.id !== selectedDevice) return;
+  
+  const messageType = status & 0xF0;
+  
+  // MIDI Learn mode
+  if (midiLearnActive && midiLearnParam && messageType === 0xB0) {
+    const cc = data1;
+    midiBindings[midiLearnParam] = {
+      deviceId: event.target.id,
+      cc: cc
+    };
+    
+    saveMIDIBindings();
+    updateMIDILabels();
+    
+    const param = PARAMS.find(p => p.key === midiLearnParam);
+    log(`✅ MIDI Learn: "${param.label}" → CC${cc}`);
+    status(`MIDI Learn complete: ${param.label} → CC${cc}`);
+    
+    // Clear learning state
+    document.querySelectorAll('.param-label').forEach(el => el.classList.remove('learning'));
+    midiLearnParam = null;
+    
+    return;
+  }
+  
+  // Control Change (CC)
+  if (messageType === 0xB0) {
+    const cc = data1;
+    const value = data2 / 127;
+    
+    // Find parameter bound to this CC
+    const boundParam = Object.entries(midiBindings).find(([key, binding]) => {
+      return binding.cc === cc && binding.deviceId === event.target.id;
+    });
+    
+    if (boundParam) {
+      const [paramKey, binding] = boundParam;
+      const param = PARAMS.find(p => p.key === paramKey);
+      
+      const overrideMode = $('midiOverrideMode').checked;
+      
+      if (overrideMode) {
+        // Direct control mode - override photo values
+        const scaledValue = param.min + value * (param.max - param.min);
+        midiOverrideValues[paramKey] = scaledValue;
+        
+        if (csound) {
+          csound.setControlChannel(paramKey, scaledValue).catch(() => {});
+        }
+        
+        // Update UI slider
+        const slider = $(paramKey);
+        const norm = (scaledValue - param.min) / (param.max - param.min);
+        slider.value = Math.round(norm * 1000);
+        slider.dispatchEvent(new Event('input'));
+        
+      } else {
+        // Range adjustment mode - modulate min/max
+        const slider = $(paramKey);
+        const currentNorm = slider.value / 1000;
+        const newValue = param.min + value * (param.max - param.min);
+        
+        slider.value = Math.round(value * 1000);
+        slider.dispatchEvent(new Event('input'));
+      }
+    }
+  }
+}
+
+function loadMIDIBindings() {
+  const saved = localStorage.getItem('additiveV3MidiBindings');
+  if (saved) {
+    try {
+      midiBindings = JSON.parse(saved);
+      updateMIDILabels();
+      log('📂 Loaded MIDI bindings from localStorage');
+    } catch (err) {
+      log('⚠️ Failed to load MIDI bindings: ' + err.message);
+    }
+  }
+}
+
+function saveMIDIBindings() {
+  localStorage.setItem('additiveV3MidiBindings', JSON.stringify(midiBindings));
+}
+
+function updateMIDILabels() {
+  PARAMS.forEach(p => {
+    const label = $(`${p.key}MidiLabel`);
+    if (midiBindings[p.key]) {
+      label.textContent = `CC${midiBindings[p.key].cc}`;
+    } else {
+      label.textContent = '—';
+    }
+  });
+}
+
+function clearMIDIBindings() {
+  if (!confirm('Clear all MIDI bindings?')) return;
+  
+  midiBindings = {};
+  midiOverrideValues = {};
+  saveMIDIBindings();
+  updateMIDILabels();
+  log('🗑 Cleared all MIDI bindings');
+  status('MIDI bindings cleared');
+}
+
+// MIDI Learn button
+$('midiLearnBtn').addEventListener('click', () => {
+  midiLearnActive = !midiLearnActive;
+  
+  $('midiLearnBtn').textContent = midiLearnActive ? '🎛️ MIDI Learn: ON' : '🎛️ MIDI Learn: OFF';
+  $('midiLearnBtn').classList.toggle('on', midiLearnActive);
+  $('midiLearnBadge').style.display = midiLearnActive ? 'inline-block' : 'none';
+  
+  if (midiLearnActive) {
+    log('🎛️ MIDI Learn mode: ON - Click any parameter name, then move a controller');
+    status('MIDI Learn active - Click a parameter name, then move a MIDI controller');
+  } else {
+    log('🎛️ MIDI Learn mode: OFF');
+    status('MIDI Learn disabled');
+    midiLearnParam = null;
+    document.querySelectorAll('.param-label').forEach(el => el.classList.remove('learning'));
+  }
+});
+
+$('clearMidiBtn').addEventListener('click', clearMIDIBindings);
+
+// ================= Presets =================
+function capturePreset() {
+  const preset = {
+    params: {},
+    locks: {},
+    speed: $('speed').value,
+    photo: null
+  };
+  
+  PARAMS.forEach(p => {
+    const slider = $(p.key);
+    const norm = slider.value / 1000;
+    const val = p.min + norm * (p.max - p.min);
+    preset.params[p.key] = val;
+    preset.locks[p.key] = p.locked;
+  });
+  
+  // Capture photo as base64
+  const img = $('photo');
+  if (img.src && img.style.display !== 'none') {
+    try {
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
+      canvas.width = img.naturalWidth * scale;
+      canvas.height = img.naturalHeight * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      preset.photo = canvas.toDataURL('image/jpeg', 0.85);
+    } catch (err) {
+      log('⚠️ Could not capture photo in preset: ' + err.message);
+    }
+  }
+  
+  return preset;
+}
+
+function loadPreset(preset) {
+  if (!preset) return;
+  
+  // Load photo if available
+  if (preset.photo) {
+    const img = $('photo');
+    img.onload = () => {
+      $('prompt').style.display = 'none';
+      img.style.display = 'block';
+      $('stage').classList.add('has-image');
+      loadPixels(img);
+      pos = 0;
+      $('scanBtn').disabled = false;
+      
+      // Apply parameters after photo loaded
+      applyPresetParams(preset);
+    };
+    img.src = preset.photo;
+  } else {
+    applyPresetParams(preset);
+  }
+}
+
+function applyPresetParams(preset) {
+  // Set parameters
+  if (preset.params) {
+    PARAMS.forEach(p => {
+      if (preset.params[p.key] !== undefined) {
+        const val = preset.params[p.key];
+        const norm = (val - p.min) / (p.max - p.min);
+        const slider = $(p.key);
+        slider.value = Math.round(norm * 1000);
+        slider.dispatchEvent(new Event('input'));
+      }
+    });
+  }
+  
+  // Set locks
+  if (preset.locks) {
+    PARAMS.forEach(p => {
+      if (preset.locks[p.key] !== undefined) {
+        p.locked = preset.locks[p.key];
+        const lockBtn = document.querySelector(`button[data-key="${p.key}"]`);
+        if (lockBtn) {
+          lockBtn.textContent = p.locked ? '🔒' : '🔓';
+          lockBtn.classList.toggle('locked', p.locked);
+        }
+      }
+    });
+  }
+  
+  // Set speed
+  if (preset.speed !== undefined) {
+    $('speed').value = preset.speed;
+    updateSpeedLabel();
+  }
+  
+  log('✅ Preset loaded');
+  status('Preset loaded successfully');
+}
+
+function getPresetStorage() {
+  const stored = localStorage.getItem('additiveV3Presets');
+  if (!stored) {
+    return { order: Object.keys(FACTORY_PRESETS), data: { ...FACTORY_PRESETS } };
+  }
+  return JSON.parse(stored);
+}
+
+function savePresetStorage(storage) {
+  localStorage.setItem('additiveV3Presets', JSON.stringify(storage));
+}
+
+function buildPresetList() {
+  const sel = $('presetList');
+  const currentValue = sel.value;
+  sel.innerHTML = '<option value="">— Select preset —</option>';
+  
+  const storage = getPresetStorage();
+  
+  storage.order.forEach(name => {
+    if (storage.data[name]) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    }
+  });
+  
+  if (currentValue && storage.data[currentValue]) {
+    sel.value = currentValue;
+  }
+  
+  updatePresetButtons();
+}
+
+function updatePresetButtons() {
+  const selected = $('presetList').value;
+  const isFactory = FACTORY_PRESETS[selected];
+  
+  $('loadPresetBtn').disabled = !selected;
+  $('renamePresetBtn').disabled = !selected || isFactory;
+  $('deletePresetBtn').disabled = !selected || isFactory;
+  
+  const storage = getPresetStorage();
+  const idx = storage.order.indexOf(selected);
+  $('moveUpBtn').disabled = !selected || idx <= 0;
+  $('moveDownBtn').disabled = !selected || idx >= storage.order.length - 1;
+}
+
+$('presetList').addEventListener('change', updatePresetButtons);
+
+$('savePresetBtn').addEventListener('click', () => {
+  const name = prompt('Enter preset name:');
+  if (!name) return;
+  
+  const storage = getPresetStorage();
+  const preset = capturePreset();
+  
+  storage.data[name] = preset;
+  if (!storage.order.includes(name)) {
+    storage.order.push(name);
+  }
+  
+  savePresetStorage(storage);
+  buildPresetList();
+  $('presetList').value = name;
+  updatePresetButtons();
+  
+  log(`💾 Preset saved: "${name}"`);
+  status(`Preset "${name}" saved`);
+});
+
+$('loadPresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) return;
+  
+  const storage = getPresetStorage();
+  loadPreset(storage.data[name]);
+});
+
+$('renamePresetBtn').addEventListener('click', () => {
+  const oldName = $('presetList').value;
+  if (!oldName || FACTORY_PRESETS[oldName]) return;
+  
+  const newName = prompt('Enter new name:', oldName);
+  if (!newName || newName === oldName) return;
+  
+  const storage = getPresetStorage();
+  storage.data[newName] = storage.data[oldName];
+  delete storage.data[oldName];
+  
+  const idx = storage.order.indexOf(oldName);
+  if (idx >= 0) storage.order[idx] = newName;
+  
+  savePresetStorage(storage);
+  buildPresetList();
+  $('presetList').value = newName;
+  updatePresetButtons();
+  
+  log(`✏️ Preset renamed: "${oldName}" → "${newName}"`);
+});
+
+$('deletePresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name || FACTORY_PRESETS[name]) return;
+  
+  if (!confirm(`Delete preset "${name}"?`)) return;
+  
+  const storage = getPresetStorage();
+  delete storage.data[name];
+  storage.order = storage.order.filter(n => n !== name);
+  
+  savePresetStorage(storage);
+  buildPresetList();
+  
+  log(`🗑 Preset deleted: "${name}"`);
+  status(`Preset "${name}" deleted`);
+});
+
+$('moveUpBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) return;
+  
+  const storage = getPresetStorage();
+  const idx = storage.order.indexOf(name);
+  if (idx <= 0) return;
+  
+  [storage.order[idx], storage.order[idx - 1]] = [storage.order[idx - 1], storage.order[idx]];
+  
+  savePresetStorage(storage);
+  buildPresetList();
+  $('presetList').value = name;
+  updatePresetButtons();
+});
+
+$('moveDownBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) return;
+  
+  const storage = getPresetStorage();
+  const idx = storage.order.indexOf(name);
+  if (idx < 0 || idx >= storage.order.length - 1) return;
+  
+  [storage.order[idx], storage.order[idx + 1]] = [storage.order[idx + 1], storage.order[idx]];
+  
+  savePresetStorage(storage);
+  buildPresetList();
+  $('presetList').value = name;
+  updatePresetButtons();
+});
+
+$('exportPresetBtn').addEventListener('click', () => {
+  const name = $('presetList').value;
+  if (!name) {
+    alert('Select a preset first');
+    return;
+  }
+  
+  const storage = getPresetStorage();
+  const preset = storage.data[name];
+  
+  const blob = new Blob([JSON.stringify(preset, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  log(`⬇ Exported preset: "${name}"`);
+});
+
+$('importPresetBtn').addEventListener('click', () => {
+  $('presetFile').click();
+});
+
+$('presetFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const preset = JSON.parse(reader.result);
+      const name = prompt('Enter name for imported preset:', file.name.replace('.json', ''));
+      if (!name) return;
+      
+      const storage = getPresetStorage();
+      storage.data[name] = preset;
+      if (!storage.order.includes(name)) {
+        storage.order.push(name);
+      }
+      
+      savePresetStorage(storage);
+      buildPresetList();
+      $('presetList').value = name;
+      updatePresetButtons();
+      
+      log(`⬆ Imported preset: "${name}"`);
+      status(`Preset "${name}" imported`);
+      
+    } catch (err) {
+      alert('Invalid preset file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ================= Image Analysis =================
+function loadPixels(img) {
+  const c = document.createElement('canvas');
+  W = c.width = Math.min(480, img.naturalWidth);
+  H = c.height = Math.min(480, img.naturalHeight);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  pixels = ctx.getImageData(0, 0, W, H).data;
+  log(`📊 Image analyzed: ${W}×${H}px`);
+}
+
+function analyseLine(p) {
+  const x = Math.floor(p * (W - 1));
+  const profile = [];
+  
+  for (let y = 0; y < H; y++) {
+    const k = (y * W + x) * 4;
+    const r = pixels[k] / 255, g = pixels[k+1] / 255, b = pixels[k+2] / 255;
+    const brightness = (r + g + b) / 3;
+    profile.push(brightness);
+  }
+  
+  // Divide scan line into 16 bands
+  const bandSize = Math.floor(H / 16);
+  const amps = [];
+  for (let i = 0; i < 16; i++) {
+    let sum = 0;
+    for (let j = 0; j < bandSize; j++) {
+      const idx = Math.min(i * bandSize + j, H - 1);
+      sum += profile[idx];
+    }
+    amps.push(sum / bandSize);
+  }
+  return amps;
+}
+
+function drawOverlay() {
+  const ov = $('overlay'), img = $('photo');
+  if (!pixels) return;
+  
+  if (ov.width !== img.clientWidth) {
+    ov.width = img.clientWidth;
+    ov.height = img.clientHeight;
+  }
+  
+  const ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  ctx.strokeStyle = '#4ecdc4';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#4ecdc4';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  const x = pos * ov.width;
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, ov.height);
+  ctx.stroke();
+}
+
+// ================= Main Loop =================
+const speedFromPos = p => 120 * Math.pow(0.5 / 120, p);
+
+function updateSpeedLabel() {
+  const T = speedFromPos($('speed').value / 1000);
+  $('speedVal').textContent = T >= 10 ? `${T.toFixed(0)} s/pass` : `${T.toFixed(1)} s/pass`;
+}
+
+$('speed').addEventListener('input', updateSpeedLabel);
+updateSpeedLabel();
+
+let lastT = 0;
+
+function tick(t) {
+  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
+  lastT = t;
+  
+  if (pixels && playing) {
+    const speed = speedFromPos($('speed').value / 1000);
+    pos += dt / speed;
+    if (pos > 1) pos = 0;
+    
+    partials = analyseLine(pos);
+    drawOverlay();
+    
+    // Update spectrum visualizer
+    for (let i = 0; i < 16; i++) {
+      $(`p${i+1}fill`).style.height = (partials[i] * 100) + '%';
+    }
+    
+    // Send to Csound
+    if (csound) {
+      for (let i = 0; i < 16; i++) {
+        csound.setControlChannel(`p${i+1}`, partials[i]).catch(() => {});
+      }
+    }
+  }
+  
+  requestAnimationFrame(tick);
+}
+
+// ================= Randomize / Reset =================
+$('randBtn').addEventListener('click', () => {
+  let count = 0;
+  
+  PARAMS.forEach(p => {
+    if (p.locked) return;
+    
+    const rand = Math.random();
+    const val = p.min + rand * (p.max - p.min);
+    const norm = (val - p.min) / (p.max - p.min);
+    
+    const slider = $(p.key);
+    slider.value = Math.round(norm * 1000);
+    slider.dispatchEvent(new Event('input'));
+    
+    count++;
+  });
+  
+  log(`🎲 Randomized ${count} unlocked parameter(s)`);
+  status(`Randomized ${count} parameters (locked skipped)`);
+});
+
+$('resetBtn').addEventListener('click', () => {
+  PARAMS.forEach(p => {
+    const norm = (p.default - p.min) / (p.max - p.min);
+    const slider = $(p.key);
+    slider.value = Math.round(norm * 1000);
+    slider.dispatchEvent(new Event('input'));
+  });
+  
+  log('↺ Reset to defaults');
+  status('Reset to default values');
+});
+
+// ================= File Handling =================
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    status('That file is not an image.');
+    return;
+  }
+  
+  const img = $('photo');
+  img.onload = () => {
+    $('prompt').style.display = 'none';
+    img.style.display = 'block';
+    $('stage').classList.add('has-image');
+    loadPixels(img);
+    pos = 0;
+    status('Photo loaded. Press ▶ Scan.');
+    $('scanBtn').disabled = false;
+    log(`📸 Photo loaded: "${file.name}"`);
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+$('stage').addEventListener('click', () => {
+  if (!pixels) $('file').click();
+});
+$('loadBtn').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => handleFile(e.target.files[0]));
+$('stage').addEventListener('dragover', e => {
+  e.preventDefault();
+  $('stage').classList.add('drag');
+});
+$('stage').addEventListener('dragleave', () => $('stage').classList.remove('drag'));
+$('stage').addEventListener('drop', e => {
+  e.preventDefault();
+  $('stage').classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// ================= Scan Control =================
+$('scanBtn').addEventListener('click', () => {
+  if (!pixels) return;
+  playing = !playing;
+  $('scanBtn').textContent = playing ? '❚❚ Pause' : '▶ Scan';
+  $('scanBtn').classList.toggle('on', playing);
+  log(playing ? '▶ Scan started' : '❚❚ Scan paused');
+});
+
+// ================= Keyboard Shortcuts =================
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'SELECT', 'BUTTON'].includes(document.activeElement.tagName)) return;
+  
+  if (e.code === 'Space') {
+    e.preventDefault();
+    $('scanBtn').click();
+  }
+  
+  if (e.key === 'r' || e.key === 'R') {
+    $('randBtn').click();
+  }
+  
+  // Arrow up/down for preset navigation
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    const sel = $('presetList');
+    const currentIdx = sel.selectedIndex;
+    
+    if (e.key === 'ArrowUp' && currentIdx > 1) {
+      sel.selectedIndex = currentIdx - 1;
+      $('loadPresetBtn').click();
+    } else if (e.key === 'ArrowDown' && currentIdx < sel.options.length - 1) {
+      sel.selectedIndex = currentIdx + 1;
+      $('loadPresetBtn').click();
+    }
+  }
+  
+  // 1-9 to load presets
+  if (e.key >= '1' && e.key <= '9' && !e.shiftKey) {
+    const idx = +e.key;
+    const opts = $('presetList').options;
+    if (opts[idx]) {
+      $('presetList').value = opts[idx].value;
+      $('loadPresetBtn').click();
+    }
+  }
+  
+  // Shift+1-9 to quick save
+  if (e.key >= '1' && e.key <= '9' && e.shiftKey) {
+    e.preventDefault();
+    const name = 'Quick ' + e.key;
+    const storage = getPresetStorage();
+    const preset = capturePreset();
+    
+    storage.data[name] = preset;
+    if (!storage.order.includes(name)) {
+      storage.order.push(name);
+    }
+    
+    savePresetStorage(storage);
+    buildPresetList();
+    $('presetList').value = name;
+    updatePresetButtons();
+    
+    log(`💾 Quick saved: "${name}"`);
+    status(`Quick saved: ${name}`);
+  }
+  
+  if (e.key === '?') {
+    alert(`KEYBOARD SHORTCUTS
+
+Space       Toggle scan
+R           Randomize (unlocked only)
+1-9         Load preset slot
+Shift+1-9   Quick save to slot
+↑ Up        Previous preset
+↓ Down      Next preset
+?           This help
+
+MIDI LEARN
+1. Select MIDI device
+2. Click "MIDI Learn: OFF" to turn ON
+3. Click any parameter name
+4. Move MIDI controller
+5. Binding saved
+
+PARAMETER LOCKS
+🔓 = Unlocked (randomize will change)
+🔒 = Locked (randomize will skip)
+
+PRESETS
+- Save: Create new preset with current settings + photo
+- Rename: Rename selected user preset (not factory)
+- Delete: Remove selected user preset
+- ⬆⬇: Reorder presets in list
+- Export/Import: Save/load as JSON files
+
+MIDI OVERRIDE MODE
+OFF = MIDI adjusts parameter ranges
+ON = MIDI directly controls values (ignore photo)`);
+  }
+});
+
+// ================= Csound Init =================
+$('startBtn').addEventListener('click', async () => {
+  $('startBtn').disabled = true;
+  
+  try {
+    log('🎵 Loading Csound 7 WASM...');
+    status('Loading audio engine...');
+    
+    csound = await Csound();
+    csound.on('message', m => {
+      if (!m.includes('WARNING') && !m.includes('0dBFS')) {
+        log(m);
+      }
+    });
+    
+    await csound.setOption('-odac');
+    await csound.setOption('-d');
+    await csound.setOption('-m0');
+    
+    log('🎼 Compiling orchestra...');
+    await csound.compileOrc(ORC);
+    await csound.start();
+    
+    const ctx = await csound.getAudioContext();
+    if (ctx?.state === 'suspended') await ctx.resume();
+    
+    log('📻 Initializing channels...');
+    
+    // Initialize parameters
+    PARAMS.forEach(p => {
+      const slider = $(p.key);
+      slider.dispatchEvent(new Event('input'));
+    });
+    
+    // Initialize partials
+    for (let i = 1; i <= 16; i++) {
+      await csound.setControlChannel(`p${i}`, 0.5);
+    }
+    
+    log('🎚️ Starting synthesis instrument...');
+    await csound.inputMessage('i 1 0 -1');
+    
+    $('startBtn').textContent = '✅ Audio Running';
+    $('startBtn').classList.add('on');
+    
+    log('✅ Ready! Load a photo and press ▶ Scan');
+    status('✅ Audio engine ready · Load photo and press ▶ Scan · Press ? for help');
+    
+  } catch (err) {
+    log('❌ Error: ' + err.message);
+    status('❌ Audio engine failed to start');
+    $('startBtn').disabled = false;
+    console.error(err);
+  }
+});
+
+// ================= Initialize =================
+buildParamUI();
+buildPresetList();
+initMIDI();
+tick(0);
+
+log('🎨 Additive Synthesizer v3 ready');
+log('📸 Drop a photo, select parameters, press Start Audio');
+log('🎛️ MIDI Learn: Click "MIDI Learn: OFF" to enable');
+log('⌨️ Press ? for keyboard shortcuts');
+
+</script>
+</body>
+</html>
