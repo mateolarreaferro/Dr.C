@@ -297,6 +297,7 @@ chnset 0.46, "mixChord"
 chnset 0.52, "mixBass"
 chnset 0, "killPad"
 chnset 0, "killBass"
+chnset 0, "keyCount"
 chnset 6, "maxVoices"
 chnset 0, "droneShape"
 chnset 6, "dronePhrase"
@@ -545,24 +546,19 @@ instr 70
   kAge timeinsts
   kSpan = limit(p3, 0.4, 30)
   kP = limit(kAge / kSpan, 0, 1)
-  kArc = (kP < 0.04 ? kP / 0.04 : (kP < 0.62 ? 1 : (kP < 0.9 ? (0.9 - kP) / 0.28 : 0)))
-  kBreath = 0.84 + 0.16 * oscili:k(1, 0.28)
-  aEnv = interp(kArc * kBreath)
-  kMod = 0.55
-  aMod1 = oscili:a(0.20 * kMod, iFreq * 1.002)
-  aCar1 = oscili:a(0.22, iFreq + aMod1)
-  aMod2 = oscili:a(0.16 * kMod, iFreq * 1.006)
-  aCar2 = oscili:a(0.15, iFreq * 1.004 + aMod2)
-  aMod3 = oscili:a(0.16 * kMod, iFreq * 0.997)
-  aCar3 = oscili:a(0.15, iFreq * 0.996 + aMod3)
-  aSig = (aCar1 + aCar2 + aCar3) * 0.34
-  aSig = moogladder:a(aSig, limit(iFreq * 3.1, 320, 5200), 0.12)
-  aSig *= aEnv * iAmp * kMix
+  kHit = (kP < 0.008 ? kP / 0.008 : limit(exp(kP * -5.2), 0, 1))
+  kDuck = (chnget:k("keyCount") > 0.5 ? 0.4 : 1)
+  aEnv = interp(kHit)
+  aBody = oscili:a(aEnv, iFreq)
+  aFifth = oscili:a(aEnv * 0.24, iFreq * 1.498)
+  aOct = oscili:a(aEnv * 0.18, iFreq * 2)
+  aClick = noise:a(0.2, 0) * linseg:a(1, 0.004, 0)
+  aSig = (aBody + aFifth + aOct + aClick) * iAmp * kMix * kDuck * 0.5
   aL, aR Space aSig, limit(iPan, 0, 1)
-  gaDryL += aL * 0.88
-  gaDryR += aR * 0.88
-  gaPadL += aL
-  gaPadR += aR
+  gaDryL += aL
+  gaDryR += aR
+  gaRevL += aL * 0.16
+  gaRevR += aR * 0.16
 endin
 
 instr 71
@@ -575,23 +571,21 @@ instr 71
     turnoff
   endif
   kAge timeinsts
-  kSpan = limit(p3, 0.4, 30)
+  kSpan = limit(p3, 0.25, 30)
   kP = limit(kAge / kSpan, 0, 1)
-  kA = (kP < 0.08 ? kP / 0.08 : (kP < 0.78 ? 1 : limit((1 - kP) / 0.22, 0, 1)))
-  aEnv = interp(kA)
-  kFund = iFreq
-  aSub = oscili:a(0.52, kFund * 0.5)
-  aFund = oscili:a(0.58, kFund)
-  a2 = oscili:a(0.07, kFund * 2.005)
-  aSig = aSub + aFund + a2
-  aSig = butterlp:a(aSig, limit(kFund * 4, 90, 900))
-  aSig = butterlp:a(aSig, limit(kFund * 6, 140, 1400))
-  aSig *= aEnv * iAmp * kMix
+  kWalk = (kP < 0.01 ? kP / 0.01 : limit(exp(kP * -6.4), 0, 1))
+  kDuck = (chnget:k("keyCount") > 0.5 ? 0.45 : 1)
+  aEnv = interp(kWalk)
+  aSub = oscili:a(aEnv * 0.7, iFreq * 0.5)
+  aBody = oscili:a(aEnv, iFreq)
+  aClick = noise:a(0.28, 0) * linseg:a(1, 0.003, 0)
+  aSig = butterlp:a(aSub + aBody + aClick * 0.35, limit(iFreq * 6, 140, 900))
+  aSig *= iAmp * kMix * kDuck * 0.85
   aL, aR Space aSig, 0.5
   gaDryL += aL
   gaDryR += aR
-  gaRevL += aL * 0.14
-  gaRevR += aR * 0.14
+  gaRevL += aL * 0.06
+  gaRevR += aR * 0.06
 endin
 
 instr 999
@@ -729,7 +723,7 @@ let midiLearnParam = null;
 let midiOverrideValues = {}; // Stores last MIDI CC value per parameter when in override mode
 let selectedDeviceId = null;
 let heldOrder = [];
-let lastKeyHarm = 0, harmDegree = 1, harmClock = 0, harmSeq = 1, harmIds = [], prevVoicing = [], bassSeq = 1, bassId = null, bassUntil = 0, nextBassDegree = null;
+let lastKeyHarm = 0, harmDegree = 1, harmClock = 0, harmSeq = 1, harmIds = [], prevVoicing = [], bassSeq = 1, bassId = null, bassUntil = 0, nextBassDegree = null, melodyNotes = [];
 let randClock = 0, grabCenter = 0.5, grabWidth = 0.18;
 const lineState = [{ pos: 0, dir: 1 }, { pos: 0.35, dir: 1 }, { pos: 0.2, dir: 1 }, { pos: 0.8, dir: -1 }];
 const LINE_AXES = ['x', 'y', 'd', 'x'];
@@ -866,6 +860,17 @@ function applyLiveControl(key, normalized) {
 }
 let keyVoices = new Map();
 let keySeq = 500;
+let keyQuietTimer = 0;
+function touchKeys(n) {
+  if (!csound) return;
+  csound.setControlChannel('keyCount', n).catch(() => {});
+  clearTimeout(keyQuietTimer);
+  if (n > 0 && !keyVoices.size) {
+    keyQuietTimer = setTimeout(() => {
+      if (!keyVoices.size && csound) csound.setControlChannel('keyCount', 0).catch(() => {});
+    }, 700);
+  }
+}
 function keyMode() { return $('keyMode') ? $('keyMode').value : 'gate'; }
 function midiToHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 function liftMidi(midi) {
@@ -886,21 +891,50 @@ function releaseKey(note) {
   if (!id || !csound) return;
   csound.inputMessage('i -' + id + ' 0 1').catch(() => {});
   keyVoices.delete(note);
+  touchKeys(keyVoices.size);
 }
 function releaseAllKeys() {
   if (csound) keyVoices.forEach(id => csound.inputMessage('i -' + id + ' 0 1').catch(() => {}));
   keyVoices.clear();
+  touchKeys(0);
+}
+function hearMelody(note) {
+  const mode = $('harmMode') ? $('harmMode').value : 'dorian';
+  const now = performance.now();
+  melodyNotes.push({ note, degree: degreeForNote(note, mode), t: now });
+  const keep = Math.max(2400, harmEvery() * 1000);
+  melodyNotes = melodyNotes.filter(v => now - v.t < keep);
+  const sounding = harmIds.some(h => h.until > now);
+  if (!sounding) harmClock = Math.max(harmClock, harmEvery() * 0.7);
+}
+function melodyCenter() {
+  const now = performance.now();
+  if (keyVoices.size >= 3) {
+    let low = null;
+    keyVoices.forEach((_, n) => { if (low == null || n < low) low = n; });
+    const mode = $('harmMode') ? $('harmMode').value : 'dorian';
+    return { degree: degreeForNote(low, mode), note: low };
+  }
+  const span = Math.max(2400, harmEvery() * 1000);
+  const score = {};
+  melodyNotes.forEach(v => {
+    const w = 0.4 + (1 - Math.min(1, (now - v.t) / span));
+    score[v.degree] = (score[v.degree] || 0) + w;
+  });
+  const ranked = Object.keys(score).map(d => ({ degree: +d, w: score[d] })).sort((a, b) => b.w - a.w);
+  if (!ranked.length) return null;
+  const total = ranked.reduce((s, x) => s + x.w, 0);
+  if (ranked[0].w < total * 0.42) return null;
+  if (ranked.length > 1 && ranked[0].w < ranked[1].w * 1.6) return null;
+  const heard = melodyNotes.filter(v => v.degree === ranked[0].degree);
+  return { degree: ranked[0].degree, note: heard.length ? heard[heard.length - 1].note : 60 };
 }
 function playKeys(note, velocity) {
   if (!csound) return;
   const pc = note % 12;
-  $('root').value = String(48 + pc);
-  if ($('harmSrc') && ($('harmSrc').value === 'keys' || $('harmSrc').value === 'both')) {
-    if (heldOrder.length <= 1 || performance.now() - lastKeyHarm > 160) {
-      lastKeyHarm = performance.now();
-      playHarmony('keys', note);
-    }
-  }
+  const harmListens = $('harmSrc') && ($('harmSrc').value === 'keys' || $('harmSrc').value === 'both');
+  if (keyMode() === 'root' || !harmListens) $('root').value = String(48 + pc);
+  if (harmListens) hearMelody(note);
   const amp = 0.4 + (velocity / 127) * 0.45;
   const pan = 0.22 + ((note * 3) % 7) * 0.08;
   const mode = keyMode();
@@ -938,6 +972,7 @@ function playKeys(note, velocity) {
       sendKey(5 + keySeq / 1000, when, durs[n].toFixed(3), midiToHz(Math.min(112, m + shift)), amp * (n === 4 ? 1 : 0.78), pan);
       when += durs[n] * 0.84;
     });
+    touchKeys(1);
     status('Phrase in ' + name + ', above the drone.');
     log('🎹 phrase from ' + name);
     return;
@@ -947,6 +982,7 @@ function playKeys(note, velocity) {
     keySeq = keySeq >= 990 ? 500 : keySeq + 1;
     const dur = (0.34 + (velocity / 127) * 0.75).toFixed(3);
     sendKey(5 + keySeq / 1000, 0, dur, freq, amp, pan);
+    touchKeys(1);
     status(name + ' — one note above the drone' + (droneOn ? '.' : '. The drone is off, so this is the only voice.'));
     log('🎹 note ' + freq.toFixed(1) + ' Hz');
     return;
@@ -955,6 +991,7 @@ function playKeys(note, velocity) {
   while (keyVoices.size >= voiceCap()) releaseKey(keyVoices.keys().next().value);
   const id = sendKey(5 + note / 1000, 0, -1, freq, amp, pan);
   keyVoices.set(note, id);
+  touchKeys(keyVoices.size);
   status('Holding ' + name + ' above the drone. Release the key to close it.');
   log('🎹 gate ' + name + ' ' + freq.toFixed(1) + ' Hz');
 }
@@ -1973,6 +2010,7 @@ function silenceHarmony() {
   harmIds = [];
   bassId = null;
   bassUntil = 0;
+  melodyNotes = [];
   if ($('harmRead') && $('harmSrc') && $('harmSrc').value === 'off') $('harmRead').textContent = 'Harmony is off.';
 }
 function playHarmony(why, note) {
@@ -1980,18 +2018,23 @@ function playHarmony(why, note) {
   if (why === 'scan' && !harmonyKeeps()) return;
   const mode = $('harmMode') ? $('harmMode').value : 'dorian';
   const kind = $('harmVoice') ? $('harmVoice').value : 'drop2';
-  if (why === 'keys' && note != null) harmDegree = degreeForNote(note, mode);
-  else if (nextBassDegree) { harmDegree = nextBassDegree; nextBassDegree = null; }
+  const srcNow = $('harmSrc').value;
+  const center = (srcNow === 'keys' || srcNow === 'both') ? melodyCenter() : null;
+  if (center) {
+    harmDegree = center.degree;
+    nextBassDegree = null;
+  } else if (nextBassDegree) { harmDegree = nextBassDegree; nextBassDegree = null; }
   else harmDegree = pickDegree(mode, why === 'scan' ? (1 + Math.floor(clamp(feats.hue || 0, 0.999) * 7)) : null);
-  const upcoming = why === 'keys' ? harmDegree : pickDegree(mode, null);
-  if (why !== 'keys') nextBassDegree = upcoming;
+  const upcoming = center ? null : pickDegree(mode, null);
+  if (!center) nextBassDegree = upcoming;
   const root = +$('root').value;
   const sat = feats && feats.saturation != null ? feats.saturation : 0.5;
   const playBass = wantBass(why);
   const voiced = buildVoicing(harmDegree, mode, root, kind, playBass);
   const cap = voiceCap();
   const withBass = playBass && cap > 1;
-  const notes = thinNotes(voiced.notes, withBass ? cap - 1 : cap);
+  const room = keyVoices.size ? Math.min(3, cap) : cap;
+  const notes = thinNotes(voiced.notes, withBass ? Math.max(1, room - 1) : room);
   const every = harmEvery();
   const durNum = Math.max(1.6, every * 0.72);
   const dur = durNum.toFixed(2);
@@ -2031,13 +2074,15 @@ function playHarmony(why, note) {
 function driveHarmony(dt) {
   if (!csound || !$('harmSrc')) return;
   const src = $('harmSrc').value;
-  if (src !== 'scan' && src !== 'both') return;
+  if (src !== 'scan' && src !== 'both' && src !== 'keys') return;
   if (!harmonyKeeps()) return;
-  const rush = feats && feats.change > 0.7 ? 0.72 : 1;
+  if (src === 'keys' && !melodyNotes.length) return;
+  const playing = melodyNotes.length && performance.now() - melodyNotes[melodyNotes.length - 1].t < 2500;
+  const rush = playing ? 1 : (feats && feats.change > 0.7 ? 0.72 : 1);
   harmClock += dt;
   if (harmClock >= harmEvery() * rush) {
     harmClock = 0;
-    playHarmony('scan');
+    playHarmony(src === 'keys' ? 'keys' : 'scan');
   }
 }
 function chordToneHz(primaryHz, nth, f) {
